@@ -1,0 +1,65 @@
+export function formatDateTime(value) {
+  if (!value) {
+    return "Not available";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
+export function formatTime(value) {
+  if (!value) {
+    return "Not available";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+export function formatRelative(value) {
+  if (!value) {
+    return "just now";
+  }
+
+  const seconds = Math.round((Date.now() - new Date(value).getTime()) / 1000);
+  const units = [
+    ["day", 86_400],
+    ["hour", 3_600],
+    ["minute", 60]
+  ];
+
+  for (const [label, amount] of units) {
+    if (seconds >= amount) {
+      const count = Math.round(seconds / amount);
+      return `${count} ${label}${count === 1 ? "" : "s"} ago`;
+    }
+  }
+
+  return "moments ago";
+}
+
+export function initials(name) {
+  return String(name || "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+export function formatCoordinates(location, precision = 5) {
+  if (
+    location?.latitude === undefined ||
+    location?.longitude === undefined ||
+    location?.latitude === null ||
+    location?.longitude === null
+  ) {
+    return "Location unavailable";
+  }
+
+  return `${Number(location.latitude).toFixed(precision)}, ${Number(location.longitude).toFixed(precision)}`;
+}

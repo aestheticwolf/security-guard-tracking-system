@@ -1,0 +1,55 @@
+import { listActivitiesByUserId } from "../models/activityModel.js";
+import {
+  findOpenAttendanceByUserId,
+  listAttendanceByUserId
+} from "../models/attendanceModel.js";
+import { listLocationsByUserId } from "../models/locationModel.js";
+import { listSelfiesByUserId } from "../models/selfieModel.js";
+import { findUserById } from "../models/userModel.js";
+import { sanitizeUser } from "./auth.js";
+import { getDateKey, sortByNewest } from "./coreService.js";
+
+export async function buildGuardOverview(userId) {
+  const dateKey = getDateKey();
+  const user = await findUserById(userId);
+  const [attendance, activities, locations, selfies, currentAttendance] = await Promise.all([
+    listAttendanceByUserId(userId),
+    listActivitiesByUserId(userId),
+    listLocationsByUserId(userId),
+    listSelfiesByUserId(userId),
+    findOpenAttendanceByUserId(userId)
+  ]);
+
+  const todayAttendance = attendance.filter((entry) =>
+    String(entry.checkInAt).startsWith(dateKey)
+  );
+  const todayLocations = locations.filter((entry) =>
+    String(entry.trackedAt).startsWith(dateKey)
+  );
+  const todayVerifiedSelfies = selfies.filter(
+    (entry) => entry.verified && String(entry.capturedAt).startsWith(dateKey)
+  );
+
+  return {
+    user: sanitizeUser(user),
+    currentAttendance,
+    recentAttendance: sortByNewest(todayAttendance, "checkInAt").slice(0, 3),
+    recentActivities: sortByNewest(activities, "createdAt").slice(0, 8),
+    recentLocations: sortByNewest(todayLocations.length ? todayLocations : locations, "trackedAt").slice(0, 12),
+    lastLocation: sortByNewest(locations, "trackedAt")[0] ?? null,
+    lastSelfie: sortByNewest(selfies, "capturedAt")[0] ?? null,
+    stats: {
+      activityCount: activities.length,
+      locationPings: todayLocations.length,
+      verifiedSelfiesToday: todayVerifiedSelfies.length,
+      onDutyMinutes: currentAttendance
+        ? Math.max(
+            0,
+            Math.round(
+              (Date.now() - new Date(currentAttendance.checkInAt).getTime()) / (1000 * 60)
+            )
+          )
+        : 0
+    }
+  };
+}
