@@ -36,6 +36,21 @@ app.use("/api/admin", adminRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Sentinel Grid API listening on http://localhost:${port}`);
+});
+
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Sentinel Grid API could not start because port ${port} is already in use.`
+    );
+    console.error(
+      "Close the other running backend process, or set a different PORT in .env and update VITE_API_URL to match."
+    );
+    process.exit(1);
+  }
+
+  console.error("Sentinel Grid API failed to start.", error);
+  process.exit(1);
 });

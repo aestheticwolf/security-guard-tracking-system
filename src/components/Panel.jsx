@@ -15,6 +15,19 @@ export default function Panel({
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
+  function notifyLayoutReady() {
+    [0, 160, 320].forEach((delay) => {
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event("sentinel:layout-ready"));
+      }, delay);
+    });
+  }
+
+  function handleToggleCollapsed() {
+    setCollapsed((current) => !current);
+    notifyLayoutReady();
+  }
+
   return (
     <motion.section
       id={id}
@@ -34,7 +47,7 @@ export default function Panel({
               {collapsibleOnMobile && (
                 <button
                   type="button"
-                  onClick={() => setCollapsed((current) => !current)}
+                  onClick={handleToggleCollapsed}
                   className="app-outline-button inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-medium md:hidden"
                   aria-expanded={!collapsed}
                 >

@@ -29,10 +29,13 @@ export function createLeafletTileLayer() {
   });
 }
 
-export function createLeafletDivIcon(label, tone = "gold", variant = "default") {
+export function createLeafletDivIcon(label, tone = "gold", variant = "default", options = {}) {
   const className = `security-map-marker security-map-marker--${tone} security-map-marker--${variant}`;
+  const offsetX = Number(options.offsetX || 0);
+  const offsetY = Number(options.offsetY || 0);
+  const offsetStyle = `style="--marker-offset-x:${offsetX}px;--marker-offset-y:${offsetY}px;"`;
 
-  const html =
+  const markerHtml =
     variant === "pinpoint"
       ? `
         <span class="security-map-marker__pulse"></span>
@@ -40,6 +43,11 @@ export function createLeafletDivIcon(label, tone = "gold", variant = "default") 
         <span class="security-map-marker__label">${label}</span>
       `
       : `<span class="security-map-marker__dot">${label}</span>`;
+  const html = `
+    <span class="security-map-marker__offset security-map-marker__offset--${variant}" ${offsetStyle}>
+      ${markerHtml}
+    </span>
+  `;
 
   return L.divIcon({
     className,

@@ -86,10 +86,14 @@ export async function buildGuardRoster() {
         listLocationsByUserId(guard.id),
         listSelfiesByUserId(guard.id)
       ]);
-      const recentActivities = sortByNewest(activities, "createdAt").slice(0, 3);
-      const recentAttendance = sortByNewest(attendance, "checkInAt").slice(0, 2);
-      const recentLocations = sortByNewest(locations, "trackedAt").slice(0, 8);
-      const lastSelfie = sortByNewest(selfies, "capturedAt")[0] ?? null;
+      const activityHistory = sortByNewest(activities, "createdAt");
+      const attendanceHistory = sortByNewest(attendance, "checkInAt");
+      const locationHistory = sortByNewest(locations, "trackedAt");
+      const selfieHistory = sortByNewest(selfies, "capturedAt");
+      const recentActivities = activityHistory.slice(0, 3);
+      const recentAttendance = attendanceHistory.slice(0, 2);
+      const recentLocations = locationHistory.slice(0, 8);
+      const lastSelfie = selfieHistory[0] ?? null;
       const activityCountToday = activities.filter((entry) =>
         String(entry.createdAt).startsWith(dateKey)
       ).length;
@@ -118,6 +122,10 @@ export async function buildGuardRoster() {
         recentActivities,
         recentAttendance,
         recentLocations,
+        activityHistory: activityHistory.slice(0, 10),
+        attendanceHistory: attendanceHistory.slice(0, 8),
+        locationHistory: locationHistory.slice(0, 16),
+        selfieHistory: selfieHistory.slice(0, 8),
         lastSelfie,
         activityCountToday,
         locationPingsToday,

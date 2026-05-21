@@ -47,12 +47,19 @@ export default function LiveRouteMap({
   heightClass = "h-[22rem]"
 }) {
   const { theme } = useTheme();
+  const shellRef = useRef(null);
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const tileLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const markerRef = useRef(null);
   const accuracyCircleRef = useRef(null);
+  const resizeTimersRef = useRef([]);
+  const latestFitPointsRef = useRef([]);
+  const latestFitZoomRef = useRef(16);
+  const latestCurrentPointRef = useRef(null);
+  const latestFollowCurrentLocationRef = useRef(false);
+  const hadRenderableSizeRef = useRef(false);
   const lastFocusRef = useRef(null);
   const hasInitialFitRef = useRef(false);
   const lastStaticFitSignatureRef = useRef("");
@@ -69,6 +76,60 @@ export default function LiveRouteMap({
     currentLocation?.accuracy !== undefined && currentLocation?.accuracy !== null
       ? Math.max(0, Number(currentLocation.accuracy))
       : 0;
+
+  function clearScheduledMapResizes() {
+    resizeTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    resizeTimersRef.current = [];
+  }
+
+  function scheduleMapResize({ refitWhenRevealed = false } = {}) {
+    clearScheduledMapResizes();
+
+    [0, 90, 260].forEach((delay) => {
+      const timerId = window.setTimeout(() => {
+        const map = mapRef.current;
+        const container = containerRef.current;
+
+        if (!map || !container) {
+          return;
+        }
+
+        const { width, height } = container.getBoundingClientRect();
+        const hasRenderableSize = width > 80 && height > 80;
+        const wasHidden = !hadRenderableSizeRef.current;
+
+        if (!hasRenderableSize) {
+          hadRenderableSizeRef.current = false;
+          return;
+        }
+
+        map.invalidateSize({
+          animate: false,
+          pan: false
+        });
+
+        if (refitWhenRevealed && wasHidden && latestFitPointsRef.current.length) {
+          const latestCurrentPoint = latestCurrentPointRef.current;
+
+          if (latestFollowCurrentLocationRef.current && latestCurrentPoint) {
+            map.setView(latestCurrentPoint, 17, {
+              animate: false
+            });
+          } else {
+            fitLeafletMapToPoints(
+              map,
+              latestFitPointsRef.current,
+              latestFitZoomRef.current
+            );
+          }
+        }
+
+        hadRenderableSizeRef.current = true;
+      }, delay);
+
+      resizeTimersRef.current.push(timerId);
+    });
+  }
 
   function handleRecenter() {
     const map = mapRef.current;
@@ -92,6 +153,15 @@ export default function LiveRouteMap({
   }
 
   useEffect(() => {
+    latestFitPointsRef.current = mapPoints
+      .map((point) => (Array.isArray(point) ? point : toLatLng(point)))
+      .filter(Boolean);
+    latestFitZoomRef.current = currentPoint ? 17 : 16;
+    latestCurrentPointRef.current = currentPoint;
+    latestFollowCurrentLocationRef.current = followCurrentLocation;
+  }, [currentPoint, followCurrentLocation, mapPoints]);
+
+  useEffect(() => {
     if (!containerRef.current || mapRef.current) {
       return undefined;
     }
@@ -112,17 +182,12 @@ export default function LiveRouteMap({
     tileLayerRef.current = tileLayer;
     setMapReady(true);
 
-    window.requestAnimationFrame(() => {
-      map.invalidateSize();
-
-      if (currentPoint) {
-        map.setView(currentPoint, 17, {
-          animate: false
-        });
-      }
+    scheduleMapResize({
+      refitWhenRevealed: true
     });
 
     return () => {
+      clearScheduledMapResizes();
       accuracyCircleRef.current?.remove();
       markerRef.current?.remove();
       routeLayerRef.current?.remove();
@@ -133,6 +198,7 @@ export default function LiveRouteMap({
       routeLayerRef.current = null;
       tileLayerRef.current = null;
       mapRef.current = null;
+      hadRenderableSizeRef.current = false;
       hasInitialFitRef.current = false;
       lastStaticFitSignatureRef.current = "";
       lastFocusRef.current = null;
@@ -294,13 +360,57 @@ export default function LiveRouteMap({
       return;
     }
 
-    window.requestAnimationFrame(() => {
-      map.invalidateSize();
-    });
+    scheduleMapResize();
   }, [mapReady, currentPoint, focusSequence, theme]);
 
+  useEffect(() => {
+    if (!mapReady) {
+      return undefined;
+    }
+
+    const handleViewportChange = () => {
+      scheduleMapResize({
+        refitWhenRevealed: true
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        handleViewportChange();
+      }
+    };
+    const ResizeObserverConstructor = window.ResizeObserver;
+    const observer = ResizeObserverConstructor
+      ? new ResizeObserverConstructor(handleViewportChange)
+      : null;
+
+    if (containerRef.current) {
+      observer?.observe(containerRef.current);
+    }
+
+    if (shellRef.current) {
+      observer?.observe(shellRef.current);
+    }
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    window.addEventListener("sentinel:layout-ready", handleViewportChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    handleViewportChange();
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+      window.removeEventListener("sentinel:layout-ready", handleViewportChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [mapReady]);
+
   return (
-    <div className={`security-map-shell security-map-shell--${theme} ${heightClass}`}>
+    <div
+      ref={shellRef}
+      className={`security-map-shell security-map-shell--${theme} ${heightClass}`}
+    >
       <div className="security-map-overlay left-4 top-4 inline-flex items-center gap-2">
         <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_0_6px_rgba(52,211,153,0.18)]" />
         {followCurrentLocation && currentPoint ? "Live guard position" : "Awaiting live location"}

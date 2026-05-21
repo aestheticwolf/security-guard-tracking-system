@@ -47,7 +47,7 @@ export async function listSelfiesByUserId(userId) {
       captured_at AS capturedAt
      FROM selfies
      WHERE user_id = ?
-     ORDER BY captured_at DESC`,
+     ORDER BY captured_at DESC, rowid DESC`,
     [userId]
   );
 

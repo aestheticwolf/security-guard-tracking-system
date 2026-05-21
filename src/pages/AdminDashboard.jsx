@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
+  History,
   LayoutDashboard,
   MapPinned,
   ShieldCheck,
@@ -37,6 +38,7 @@ import {
 const adminRefreshIntervalMs = 5_000;
 const adminSignalRefreshDebounceMs = 800;
 const initialLiveFeedVisibleCount = 5;
+const initialRosterVisibleCount = 2;
 
 const emptyGuardForm = {
   fullName: "",
@@ -47,6 +49,16 @@ const emptyGuardForm = {
   employeeCode: ""
 };
 
+const adminSectionLinks = [
+  { id: "admin-overview", label: "Overview", icon: LayoutDashboard },
+  { id: "admin-map", label: "Live Map", icon: MapPinned },
+  { id: "admin-guard-detail", label: "Guard Detail", icon: ShieldCheck },
+  { id: "/admin/history", label: "Guard History", icon: History, to: "/admin/history" },
+  { id: "admin-feed", label: "Ops Feed", icon: Activity },
+  { id: "admin-create-guard", label: "Add Guard", icon: UserPlus },
+  { id: "admin-roster", label: "Roster", icon: Users }
+];
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [overview, setOverview] = useState(null);
@@ -56,6 +68,7 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [showAllLiveFeed, setShowAllLiveFeed] = useState(false);
+  const [showAllRoster, setShowAllRoster] = useState(false);
   const deferredSearch = useDeferredValue(search);
   const [selectedGuardId, setSelectedGuardId] = useState("");
   const [guardPendingDelete, setGuardPendingDelete] = useState(null);
@@ -263,6 +276,11 @@ export default function AdminDashboard() {
   const visibleLiveFeed = showAllLiveFeed
     ? liveFeedItems
     : liveFeedItems.slice(0, initialLiveFeedVisibleCount);
+  const hasMoreRoster = filteredGuards.length > initialRosterVisibleCount;
+  const hiddenRosterCount = Math.max(filteredGuards.length - initialRosterVisibleCount, 0);
+  const visibleRosterGuards = showAllRoster
+    ? filteredGuards
+    : filteredGuards.slice(0, initialRosterVisibleCount);
 
   useEffect(() => {
     if (!filteredGuards.length) {
@@ -294,14 +312,8 @@ export default function AdminDashboard() {
     <AppShell
       title="Admin Mission Control"
       subtitle="Monitor live guard operations, manage the roster, inspect attendance, and keep the field team coordinated from one premium dashboard."
-      mobileQuickLinks={[
-        { id: "admin-overview", label: "Overview", icon: LayoutDashboard },
-        { id: "admin-feed", label: "Feed", icon: Activity },
-        { id: "admin-create-guard", label: "Add Guard", icon: UserPlus },
-        { id: "admin-map", label: "Live Map", icon: MapPinned },
-        { id: "admin-guard-detail", label: "Detail", icon: ShieldCheck },
-        { id: "admin-roster", label: "Roster", icon: Users }
-      ]}
+      mobileQuickLinks={adminSectionLinks}
+      sectionLinks={adminSectionLinks}
     >
       <div className="space-y-5">
         {(error || message) && (
@@ -359,6 +371,32 @@ export default function AdminDashboard() {
             />
           </section>
         </MobileCollapseSection>
+
+        <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <Panel
+            id="admin-map"
+            title="Operations Live Map"
+            subtitle="Each marker reflects the latest saved guard location from selfie-linked attendance, automatic route pings, and field updates."
+            collapsibleOnMobile
+            defaultCollapsed
+          >
+            <GuardPositionMap
+              guards={filteredGuards}
+              selectedGuardId={selectedGuard?.id}
+              onSelectGuard={setSelectedGuardId}
+            />
+          </Panel>
+
+          <Panel
+            id="admin-guard-detail"
+            title="Selected Guard Detail"
+            subtitle="A single operational view of the guard's latest selfie, shift state, live coordinates, and recent field activity."
+            collapsibleOnMobile
+            defaultCollapsed
+          >
+            <GuardDetailPanel guard={selectedGuard} />
+          </Panel>
+        </div>
 
         <div className="grid items-start gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <Panel
@@ -469,36 +507,10 @@ export default function AdminDashboard() {
           </Panel>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-          <Panel
-            id="admin-map"
-            title="Operations Live Map"
-            subtitle="Each marker reflects the latest saved guard location from selfie-linked attendance, automatic route pings, and field updates."
-            collapsibleOnMobile
-            defaultCollapsed
-          >
-            <GuardPositionMap
-              guards={filteredGuards}
-              selectedGuardId={selectedGuard?.id}
-              onSelectGuard={setSelectedGuardId}
-            />
-          </Panel>
-
-          <Panel
-            id="admin-guard-detail"
-            title="Selected Guard Detail"
-            subtitle="A single operational view of the guard's latest selfie, shift state, live coordinates, and recent field activity."
-            collapsibleOnMobile
-            defaultCollapsed
-          >
-            <GuardDetailPanel guard={selectedGuard} />
-          </Panel>
-        </div>
-
         <Panel
           id="admin-roster"
-          title="Guard Roster"
-          subtitle="Search the roster, inspect the latest movement, and activate or suspend access."
+          title="Field Guard Directory"
+          subtitle="Search the directory, inspect latest movement, and manage guard access."
           className="mx-auto w-full xl:max-w-[72rem]"
           collapsibleOnMobile
           defaultCollapsed
@@ -513,7 +525,7 @@ export default function AdminDashboard() {
         >
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
             {filteredGuards.length ? (
-              filteredGuards.map((guard) => (
+              visibleRosterGuards.map((guard) => (
                 <div
                   key={guard.id}
                   className="rounded-[22px] border border-white/10 bg-slate-950/45 p-3.5 sm:p-4"
@@ -629,6 +641,20 @@ export default function AdminDashboard() {
               <p className="text-sm text-slate-400">No guards matched your search.</p>
             )}
           </div>
+
+          {hasMoreRoster && (
+            <div className="mt-5 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowAllRoster((current) => !current)}
+                className="app-outline-button rounded-2xl px-4 py-2.5 text-sm font-medium"
+              >
+                {showAllRoster
+                  ? `Show first ${initialRosterVisibleCount} guards`
+                  : `Show ${hiddenRosterCount} more guard${hiddenRosterCount === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          )}
         </Panel>
 
         <Panel

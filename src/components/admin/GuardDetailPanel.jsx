@@ -12,6 +12,18 @@ function formatVerificationScore(score) {
   return `${Math.round(Number(score) * 100)}%`;
 }
 
+function buildSelfieImageUrl(selfie) {
+  const assetUrl = buildAssetUrl(selfie?.imagePath);
+
+  if (!assetUrl) {
+    return null;
+  }
+
+  const version = encodeURIComponent(selfie.capturedAt || selfie.id || selfie.imagePath);
+  const separator = assetUrl.includes("?") ? "&" : "?";
+  return `${assetUrl}${separator}v=${version}`;
+}
+
 export default function GuardDetailPanel({ guard }) {
   if (!guard) {
     return (
@@ -20,6 +32,9 @@ export default function GuardDetailPanel({ guard }) {
       </div>
     );
   }
+
+  const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
+  const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -117,11 +132,12 @@ export default function GuardDetailPanel({ guard }) {
               Latest selfie verification
             </div>
             <div className="mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/60">
-              {guard.lastSelfie?.imagePath ? (
+              {latestSelfieUrl ? (
                 <img
-                  src={buildAssetUrl(guard.lastSelfie.imagePath)}
+                  key={latestSelfie?.id || latestSelfie?.capturedAt || latestSelfie?.imagePath}
+                  src={latestSelfieUrl}
                   alt={`${guard.fullName} latest selfie`}
-                  className="h-44 w-full object-cover sm:h-52"
+                  className="h-44 w-full bg-slate-950/60 object-contain object-center sm:h-52"
                 />
               ) : (
                 <div className="flex h-44 items-center justify-center px-6 text-center text-sm text-slate-400 sm:h-52">
@@ -132,19 +148,19 @@ export default function GuardDetailPanel({ guard }) {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm text-slate-300">
-                  {guard.lastSelfie?.verified ? "Verification passed" : "Verification pending"}
+                  {latestSelfie?.verified ? "Verification passed" : "Verification pending"}
                 </p>
                 <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-                  {guard.lastSelfie?.capturedAt
-                    ? formatDateTime(guard.lastSelfie.capturedAt)
+                  {latestSelfie?.capturedAt
+                    ? formatDateTime(latestSelfie.capturedAt)
                     : "Awaiting first capture"}
                 </p>
               </div>
               <StatusBadge
                 status={
-                  guard.lastSelfie?.verified
+                  latestSelfie?.verified
                     ? "Verified"
-                    : formatVerificationScore(guard.lastSelfie?.verificationScore)
+                    : formatVerificationScore(latestSelfie?.verificationScore)
                 }
               />
             </div>

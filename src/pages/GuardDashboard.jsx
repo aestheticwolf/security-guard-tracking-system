@@ -69,6 +69,18 @@ function getLocationTimestamp(location) {
   return location?.capturedAt || location?.trackedAt || null;
 }
 
+function buildVersionedAssetUrl(pathname, versionSeed) {
+  const assetUrl = buildAssetUrl(pathname);
+
+  if (!assetUrl) {
+    return null;
+  }
+
+  const version = encodeURIComponent(versionSeed || pathname);
+  const separator = assetUrl.includes("?") ? "&" : "?";
+  return `${assetUrl}${separator}v=${version}`;
+}
+
 function getBestAvailableLocation(...candidates) {
   return candidates.find((entry) => hasCoordinates(entry)) || null;
 }
@@ -117,6 +129,7 @@ export default function GuardDashboard() {
   const syncLocationRef = useRef(null);
   const flushQueuedLocationSyncRef = useRef(null);
   const shouldAutoSyncRef = useRef(false);
+  const cameraSelfieInputRef = useRef(null);
 
   useEffect(() => {
     locationLabelRef.current = locationLabel;
@@ -496,6 +509,7 @@ export default function GuardDashboard() {
 
   async function handleSelfieSelection(event) {
     const file = event.target.files?.[0] || null;
+    const captureSource = event.currentTarget.dataset.captureSource;
     setSelfieFile(file);
 
     if (!file) {
@@ -509,12 +523,20 @@ export default function GuardDashboard() {
         storedMaxAgeMs: storedLocationFallbackWindowMs
       });
       setLocationStatus("Map position is ready for secure shift check-in.");
-      setMessage("Selfie captured and map position prepared for shift check-in.");
-      toast.success("Selfie captured and map position prepared.");
+      setMessage(
+        captureSource === "camera"
+          ? "Live selfie captured and map position prepared for shift check-in."
+          : "Selfie file attached and map position prepared for shift check-in."
+      );
+      toast.success(
+        captureSource === "camera"
+          ? "Live selfie captured. Map position is ready."
+          : "Selfie attached. Map position is ready."
+      );
     } catch (locationError) {
       setLocationStatus(locationError.message);
       setError(locationError.message);
-      toast.error("Selfie captured, but location permission is still needed for the full map sync.");
+      toast.error("Selfie is ready, but location permission is still needed for the full map sync.");
     }
   }
 
@@ -764,16 +786,40 @@ export default function GuardDashboard() {
                 </label>
 
                 {!overview?.currentAttendance && (
-                  <label className="mt-4 block">
-                    <span className="app-label">Front-camera selfie</span>
+                  <div className="mt-4">
+                    <label className="block">
+                      <span className="app-label">Front-camera selfie</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        data-capture-source="upload"
+                        onChange={handleSelfieSelection}
+                        className="app-input file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950"
+                      />
+                    </label>
                     <input
+                      ref={cameraSelfieInputRef}
                       type="file"
                       accept="image/*"
                       capture="user"
+                      data-capture-source="camera"
                       onChange={handleSelfieSelection}
-                      className="app-input file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950"
+                      className="sr-only"
+                      aria-label="Capture selfie with device camera"
                     />
-                  </label>
+                    <button
+                      type="button"
+                      onClick={() => cameraSelfieInputRef.current?.click()}
+                      className="app-outline-button mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold sm:w-auto"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Capture selfie now
+                    </button>
+                    <p className="mt-2 text-xs leading-5 app-copy-soft">
+                      Choose File lets you attach an existing image. Capture selfie now opens the
+                      device camera when available.
+                    </p>
+                  </div>
                 )}
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -824,9 +870,16 @@ export default function GuardDashboard() {
                   <div className="mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/55">
                     {selfiePreview || overview?.lastSelfie?.imagePath ? (
                       <img
-                        src={selfiePreview || buildAssetUrl(overview?.lastSelfie?.imagePath)}
+                        key={selfiePreview || overview?.lastSelfie?.id || overview?.lastSelfie?.capturedAt}
+                        src={
+                          selfiePreview ||
+                          buildVersionedAssetUrl(
+                            overview?.lastSelfie?.imagePath,
+                            overview?.lastSelfie?.capturedAt || overview?.lastSelfie?.id
+                          )
+                        }
                         alt="Guard verification"
-                        className="h-52 w-full object-cover sm:h-72"
+                        className="h-52 w-full bg-slate-950/60 object-contain object-center sm:h-72"
                       />
                     ) : (
                       <div className="flex h-52 items-center justify-center px-8 text-center text-sm text-slate-400 sm:h-72">

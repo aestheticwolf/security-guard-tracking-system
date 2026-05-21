@@ -534,6 +534,20 @@ select {
     justify-content: center;
   }
 
+  .security-map-marker__offset {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(var(--marker-offset-x, 0), var(--marker-offset-y, 0));
+    transition: transform 180ms ease;
+  }
+
+  .security-map-marker__offset--pinpoint {
+    position: relative;
+    flex-direction: column;
+    gap: 0.38rem;
+  }
+
   .security-map-marker--pinpoint {
     position: relative;
     flex-direction: column;
@@ -620,6 +634,17 @@ select {
     border-right: inherit;
     border-bottom: inherit;
     z-index: -1;
+  }
+
+  .security-map-marker--cluster .security-map-marker__dot {
+    height: 3rem;
+    width: 3rem;
+    border-width: 4px;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    box-shadow:
+      0 14px 34px rgba(15, 23, 42, 0.32),
+      0 0 0 8px rgba(255, 255, 255, 0.18);
   }
 
   .security-map-marker--gold .security-map-marker__dot {

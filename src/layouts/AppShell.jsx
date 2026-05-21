@@ -1,43 +1,56 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
-  Home,
+  History,
   LogOut,
   MoonStar,
   ShieldCheck,
   SunMedium,
   Users
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { pageShift } from "../animations/transitions";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { initials } from "../utils/format";
 
-export default function AppShell({ title, subtitle, children, mobileQuickLinks = [] }) {
+export default function AppShell({
+  title,
+  subtitle,
+  children,
+  mobileQuickLinks = [],
+  sectionLinks = []
+}) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [mobileQuickLinksCollapsed, setMobileQuickLinksCollapsed] = useState(true);
+  const mobileQuickLinksRef = useRef(null);
 
   const navigation =
     user?.role === "admin"
       ? [
           { to: "/admin", label: "Operations", icon: ShieldCheck },
-          { to: "/", label: "Landing", icon: Home }
+          { to: "/admin/history", label: "Guard History", icon: History }
         ]
       : [
-          { to: "/dashboard", label: "Shift Hub", icon: ShieldCheck },
-          { to: "/", label: "Landing", icon: Home }
+          { to: "/dashboard", label: "Shift Hub", icon: ShieldCheck }
         ];
 
-  function jumpToSection(targetId) {
-    if (!targetId) {
+  function jumpToSection(target) {
+    if (!target) {
       return;
     }
 
-    const element = document.getElementById(targetId);
+    if (target.startsWith("/")) {
+      navigate(target);
+      setMobileQuickLinksCollapsed(true);
+      return;
+    }
+
+    const element = document.getElementById(target);
 
     if (!element) {
       return;
@@ -51,10 +64,36 @@ export default function AppShell({ title, subtitle, children, mobileQuickLinks =
     setMobileQuickLinksCollapsed(true);
   }
 
+  useEffect(() => {
+    if (mobileQuickLinksCollapsed) {
+      return undefined;
+    }
+
+    function collapseMobileQuickLinks() {
+      setMobileQuickLinksCollapsed(true);
+    }
+
+    function handleOutsidePointerDown(event) {
+      if (mobileQuickLinksRef.current?.contains(event.target)) {
+        return;
+      }
+
+      collapseMobileQuickLinks();
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    window.addEventListener("scroll", collapseMobileQuickLinks, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+      window.removeEventListener("scroll", collapseMobileQuickLinks);
+    };
+  }, [mobileQuickLinksCollapsed]);
+
   return (
     <div className="mesh-background min-h-screen app-copy-primary">
       <div className="flex min-h-screen w-full gap-3 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 xl:px-8 2xl:px-10">
-        <aside className="app-sidebar hidden w-72 shrink-0 flex-col rounded-[32px] p-5 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)]">
+        <aside className="app-sidebar hidden w-72 shrink-0 flex-col overflow-y-auto rounded-[32px] p-5 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)]">
           <div className="flex items-center gap-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 bg-gradient-to-br from-gold-400/30 to-jade-400/20">
               <img src="/brand-shield.svg" alt="Sentinel Grid" className="h-8 w-8" />
@@ -83,6 +122,7 @@ export default function AppShell({ title, subtitle, children, mobileQuickLinks =
               <NavLink
                 key={to}
                 to={to}
+                end={to === "/admin" || to === "/dashboard"}
                 className={({ isActive }) =>
                   `app-nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium ${
                     isActive
@@ -96,6 +136,27 @@ export default function AppShell({ title, subtitle, children, mobileQuickLinks =
               </NavLink>
             ))}
           </nav>
+
+          {sectionLinks.length > 0 && (
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <p className="px-4 text-xs uppercase tracking-[0.28em] app-copy-soft">
+                Sections
+              </p>
+              <div className="mt-3 space-y-2">
+                {sectionLinks.map(({ id, label, icon: Icon, to }) => (
+                  <button
+                    key={to || id}
+                    type="button"
+                    onClick={() => jumpToSection(to || id)}
+                    className="app-nav-link flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium"
+                  >
+                    {Icon ? <Icon className="h-4 w-4" /> : null}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-auto rounded-[26px] border border-white/10 bg-gradient-to-br from-gold-400/15 to-jade-400/10 p-4">
             <p className="font-display text-lg font-semibold app-copy-primary">Always-on visibility</p>
@@ -163,6 +224,7 @@ export default function AppShell({ title, subtitle, children, mobileQuickLinks =
           {mobileQuickLinks.length > 0 && (
             <div className="fixed bottom-24 right-3 z-20 lg:hidden">
               <div
+                ref={mobileQuickLinksRef}
                 className={`app-sidebar flex flex-col gap-2 transition-all duration-200 ${
                   mobileQuickLinksCollapsed
                     ? "rounded-full p-1.5"
@@ -197,19 +259,30 @@ export default function AppShell({ title, subtitle, children, mobileQuickLinks =
                   )}
                 </button>
 
-                {!mobileQuickLinksCollapsed &&
-                  mobileQuickLinks.map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => jumpToSection(id)}
-                      className="app-outline-button mobile-quick-link flex w-[4.55rem] flex-col items-center gap-1.5 rounded-[18px] px-2 py-2.5 text-[11px] font-medium"
-                      aria-label={`Jump to ${label}`}
+                <AnimatePresence initial={false}>
+                  {!mobileQuickLinksCollapsed && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      exit={{ opacity: 0, x: 10, scale: 0.98 }}
+                      transition={{ duration: 0.16, ease: "easeOut" }}
+                      className="flex flex-col gap-2"
                     >
-                      {Icon ? <Icon className="h-4 w-4" /> : null}
-                      <span className="text-center leading-4">{label}</span>
-                    </button>
-                  ))}
+                      {mobileQuickLinks.map(({ id, label, icon: Icon, to }) => (
+                        <button
+                          key={to || id}
+                          type="button"
+                          onClick={() => jumpToSection(to || id)}
+                          className="app-outline-button mobile-quick-link flex w-[4.55rem] flex-col items-center gap-1.5 rounded-[18px] px-2 py-2.5 text-[11px] font-medium"
+                          aria-label={`Jump to ${label}`}
+                        >
+                          {Icon ? <Icon className="h-4 w-4" /> : null}
+                          <span className="text-center leading-4">{label}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           )}
@@ -238,6 +311,7 @@ export default function AppShell({ title, subtitle, children, mobileQuickLinks =
                     <NavLink
                       key={to}
                       to={to}
+                      end={to === "/admin" || to === "/dashboard"}
                       className={({ isActive }) =>
                         `app-nav-link flex h-10 w-10 items-center justify-center rounded-[18px] ${
                           isActive ? "app-nav-link-active" : ""

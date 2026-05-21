@@ -43,7 +43,7 @@ export async function findOpenAttendanceByUserId(userId) {
     `SELECT ${attendanceSelect}
      FROM attendance
      WHERE user_id = ? AND status = 'checked-in' AND check_out_at IS NULL
-     ORDER BY check_in_at DESC
+     ORDER BY check_in_at DESC, rowid DESC
      LIMIT 1`,
     [userId]
   );
@@ -65,7 +65,7 @@ export async function listAttendanceByUserId(userId) {
     `SELECT ${attendanceSelect}
      FROM attendance
      WHERE user_id = ?
-     ORDER BY check_in_at DESC`,
+     ORDER BY check_in_at DESC, rowid DESC`,
     [userId]
   );
 }
@@ -76,7 +76,7 @@ export async function listAttendanceForDate(dateKey) {
     `SELECT ${attendanceSelect}
      FROM attendance
      WHERE substr(check_in_at, 1, 10) = ?
-     ORDER BY check_in_at DESC`,
+     ORDER BY check_in_at DESC, rowid DESC`,
     [dateKey]
   );
 }

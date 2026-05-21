@@ -40,7 +40,7 @@ export async function listLocationsByUserId(userId) {
     `SELECT ${locationSelect}
      FROM locations
      WHERE user_id = ?
-     ORDER BY tracked_at DESC`,
+     ORDER BY tracked_at DESC, rowid DESC`,
     [userId]
   );
 }
@@ -51,7 +51,7 @@ export async function findLatestLocationByUserId(userId) {
     `SELECT ${locationSelect}
      FROM locations
      WHERE user_id = ?
-     ORDER BY tracked_at DESC
+     ORDER BY tracked_at DESC, rowid DESC
      LIMIT 1`,
     [userId]
   );
@@ -63,12 +63,12 @@ export async function listLocationsForDate(dateKey) {
     `SELECT ${locationSelect}
      FROM locations
      WHERE substr(tracked_at, 1, 10) = ?
-     ORDER BY tracked_at DESC`,
+     ORDER BY tracked_at DESC, rowid DESC`,
     [dateKey]
   );
 }
 
 export async function listAllLocations() {
   const database = await getDb();
-  return database.all(`SELECT ${locationSelect} FROM locations ORDER BY tracked_at DESC`);
+  return database.all(`SELECT ${locationSelect} FROM locations ORDER BY tracked_at DESC, rowid DESC`);
 }

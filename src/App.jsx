@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminHistoryPage from "./pages/AdminHistoryPage";
 import AuthPage from "./pages/AuthPage";
 import GuardDashboard from "./pages/GuardDashboard";
 import LandingPage from "./pages/LandingPage";
@@ -23,6 +24,14 @@ export default function App() {
         element={
           <ProtectedRoute roles={["admin"]}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/history"
+        element={
+          <ProtectedRoute roles={["admin"]}>
+            <AdminHistoryPage />
           </ProtectedRoute>
         }
       />
