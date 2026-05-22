@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 import LiveRouteMap from "../components/maps/LiveRouteMap";
 import MobileCollapseSection from "../components/MobileCollapseSection";
 import Panel from "../components/Panel";
+import SelfieImageFrame from "../components/SelfieImageFrame";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
@@ -869,7 +870,7 @@ export default function GuardDashboard() {
                   <p className="text-sm font-medium text-white">Latest verification snapshot</p>
                   <div className="mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/55">
                     {selfiePreview || overview?.lastSelfie?.imagePath ? (
-                      <img
+                      <SelfieImageFrame
                         key={selfiePreview || overview?.lastSelfie?.id || overview?.lastSelfie?.capturedAt}
                         src={
                           selfiePreview ||
@@ -879,7 +880,7 @@ export default function GuardDashboard() {
                           )
                         }
                         alt="Guard verification"
-                        className="h-52 w-full bg-slate-950/60 object-contain object-center sm:h-72"
+                        className="h-52 w-full sm:h-72"
                       />
                     ) : (
                       <div className="flex h-52 items-center justify-center px-8 text-center text-sm text-slate-400 sm:h-72">

@@ -1,6 +1,7 @@
 import { Camera, Clock3, MapPinned, RadioTower, ShieldCheck } from "lucide-react";
 import StatusBadge from "../StatusBadge";
 import LiveRouteMap from "../maps/LiveRouteMap";
+import SelfieImageFrame from "../SelfieImageFrame";
 import { buildAssetUrl } from "../../services/apiClient";
 import { formatCoordinates, formatDateTime, formatRelative, initials } from "../../utils/format";
 
@@ -133,11 +134,11 @@ export default function GuardDetailPanel({ guard }) {
             </div>
             <div className="mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/60">
               {latestSelfieUrl ? (
-                <img
+                <SelfieImageFrame
                   key={latestSelfie?.id || latestSelfie?.capturedAt || latestSelfie?.imagePath}
                   src={latestSelfieUrl}
                   alt={`${guard.fullName} latest selfie`}
-                  className="h-44 w-full bg-slate-950/60 object-contain object-center sm:h-52"
+                  className="h-44 w-full sm:h-52"
                 />
               ) : (
                 <div className="flex h-44 items-center justify-center px-6 text-center text-sm text-slate-400 sm:h-52">

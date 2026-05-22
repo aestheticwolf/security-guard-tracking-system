@@ -2,15 +2,25 @@ import L from "leaflet";
 
 const openStreetMapTileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const openStreetMapAttribution = "&copy; OpenStreetMap contributors";
+const worldTileBounds = [
+  [-85.05112878, -180],
+  [85.05112878, 180]
+];
+const minimumCoveredWorldZoom = 1;
 
 export function createLeafletMap(container, center = [20.5937, 78.9629], zoom = 5) {
+  const initialZoom = Math.max(zoom, minimumCoveredWorldZoom);
   const map = L.map(container, {
     zoomControl: false,
     attributionControl: true,
-    preferCanvas: true
+    preferCanvas: true,
+    minZoom: minimumCoveredWorldZoom,
+    maxBounds: worldTileBounds,
+    maxBoundsViscosity: 0.9,
+    worldCopyJump: true
   });
 
-  map.setView(center, zoom, {
+  map.setView(center, initialZoom, {
     animate: false
   });
 
@@ -24,7 +34,9 @@ export function createLeafletMap(container, center = [20.5937, 78.9629], zoom = 
 export function createLeafletTileLayer() {
   return L.tileLayer(openStreetMapTileUrl, {
     attribution: openStreetMapAttribution,
+    minZoom: minimumCoveredWorldZoom,
     maxZoom: 20,
+    bounds: worldTileBounds,
     crossOrigin: true
   });
 }
@@ -85,8 +97,12 @@ export function fitLeafletMapToPoints(map, points = [], zoom = 16) {
     return;
   }
 
+  const size = map.getSize?.();
+  const paddingX = size?.x ? Math.max(24, Math.min(56, Math.floor(size.x * 0.12))) : 56;
+  const paddingY = size?.y ? Math.max(24, Math.min(56, Math.floor(size.y * 0.12))) : 56;
+
   map.fitBounds(points, {
-    padding: [56, 56],
+    padding: [paddingY, paddingX],
     maxZoom: zoom,
     animate: true
   });

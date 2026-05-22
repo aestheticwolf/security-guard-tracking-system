@@ -1,4 +1,5 @@
 import { Activity, Camera, Clock3, MapPinned } from "lucide-react";
+import SelfieImageFrame from "../SelfieImageFrame";
 import StatusBadge from "../StatusBadge";
 import { buildAssetUrl } from "../../services/apiClient";
 import { formatCoordinates, formatDateTime, formatRelative } from "../../utils/format";
@@ -120,10 +121,10 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                 return (
                   <div key={owner.id} className="app-surface-soft overflow-hidden rounded-[20px]">
                     {selfieUrl ? (
-                      <img
+                      <SelfieImageFrame
                         src={selfieUrl}
                         alt={`${owner.fullName} latest selfie from ${formatDateTime(selfie.capturedAt)}`}
-                        className="h-28 w-full bg-slate-950/60 object-contain object-center sm:h-32"
+                        className="h-28 w-full sm:h-32"
                       />
                     ) : (
                       <div className="flex h-28 flex-col items-center justify-center gap-2 bg-gradient-to-br from-gold-400/10 to-jade-400/10 px-4 text-center text-xs app-copy-soft sm:h-32">
