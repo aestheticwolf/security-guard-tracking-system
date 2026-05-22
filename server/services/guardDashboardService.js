@@ -7,7 +7,13 @@ import { listLocationsByUserId } from "../models/locationModel.js";
 import { listSelfiesByUserId } from "../models/selfieModel.js";
 import { findUserById } from "../models/userModel.js";
 import { sanitizeUser } from "./auth.js";
-import { getDateKey, sortByNewest } from "./coreService.js";
+import { getAttendanceMinutesForDay, getDateKey, sortByNewest } from "./coreService.js";
+
+const selfieVerificationThreshold = 0.75;
+
+function isVerifiedSelfie(selfie) {
+  return Boolean(selfie?.verified || Number(selfie?.verificationScore) >= selfieVerificationThreshold);
+}
 
 export async function buildGuardOverview(userId) {
   const dateKey = getDateKey();
@@ -27,7 +33,7 @@ export async function buildGuardOverview(userId) {
     String(entry.trackedAt).startsWith(dateKey)
   );
   const todayVerifiedSelfies = selfies.filter(
-    (entry) => entry.verified && String(entry.capturedAt).startsWith(dateKey)
+    (entry) => isVerifiedSelfie(entry) && String(entry.capturedAt).startsWith(dateKey)
   );
 
   return {
@@ -40,8 +46,10 @@ export async function buildGuardOverview(userId) {
     lastSelfie: sortByNewest(selfies, "capturedAt")[0] ?? null,
     stats: {
       activityCount: activities.length,
+      attendanceRecordsToday: todayAttendance.length,
       locationPings: todayLocations.length,
       verifiedSelfiesToday: todayVerifiedSelfies.length,
+      dutyMinutesToday: getAttendanceMinutesForDay(attendance, dateKey),
       onDutyMinutes: currentAttendance
         ? Math.max(
             0,

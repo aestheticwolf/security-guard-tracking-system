@@ -12,6 +12,32 @@ export function getDateKey(value = now()) {
   return String(value).slice(0, 10);
 }
 
+export function getAttendanceMinutesForDay(attendance = [], dateKey = getDateKey()) {
+  const dayStart = new Date(`${dateKey}T00:00:00.000Z`).getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+  const currentTime = Date.now();
+
+  return attendance.reduce((total, entry) => {
+    const checkInTime = new Date(entry.checkInAt).getTime();
+    const checkOutTime = entry.checkOutAt
+      ? new Date(entry.checkOutAt).getTime()
+      : currentTime;
+
+    if (Number.isNaN(checkInTime) || Number.isNaN(checkOutTime)) {
+      return total;
+    }
+
+    const overlapStart = Math.max(checkInTime, dayStart);
+    const overlapEnd = Math.min(checkOutTime, dayEnd, currentTime);
+
+    if (overlapEnd <= overlapStart) {
+      return total;
+    }
+
+    return total + Math.round((overlapEnd - overlapStart) / (1000 * 60));
+  }, 0);
+}
+
 export function normalizeEmail(email) {
   return String(email).trim().toLowerCase();
 }

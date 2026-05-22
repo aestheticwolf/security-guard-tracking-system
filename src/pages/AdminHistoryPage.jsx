@@ -119,6 +119,7 @@ export default function AdminHistoryPage() {
       title="Guard History Vault"
       subtitle="Search a guard and inspect stored selfie proof, attendance trail, location pings, and activity records."
       mobileQuickLinks={historyMobileSections}
+      sectionLinks={historyMobileSections}
     >
       <div className="space-y-5">
         <div className="lg:hidden">

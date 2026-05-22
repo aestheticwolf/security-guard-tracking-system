@@ -47,6 +47,11 @@ async function buildResolvedLocation({
   };
 }
 
+function appendShiftNote(description, note) {
+  const cleanNote = note ? String(note).trim() : "";
+  return cleanNote ? `${description} Shift note: ${cleanNote}` : description;
+}
+
 export async function getOverview(request, response) {
   return response.json(await buildGuardOverview(request.user.id));
 }
@@ -69,6 +74,7 @@ export async function checkIn(request, response) {
   }
 
   const { note, locationLabel, latitude, longitude, accuracy, battery } = request.body ?? {};
+  const shiftNote = note ? String(note).trim() : "";
   const attendanceId = createId();
   const timestamp = now();
   const selfieCheck = scoreSelfieCapture(request.file);
@@ -85,7 +91,7 @@ export async function checkIn(request, response) {
     latitude: latitude ? Number(latitude) : null,
     longitude: longitude ? Number(longitude) : null,
     accuracy: accuracy ? Number(accuracy) : null,
-    note: note ? String(note).trim() : ""
+    note: shiftNote
   });
 
   await createSelfie({
@@ -103,7 +109,10 @@ export async function checkIn(request, response) {
     userId: request.user.id,
     type: "attendance",
     title: "Shift check-in verified",
-    description: "Guard started duty with a selfie capture and location stamp.",
+    description: appendShiftNote(
+      "Guard started duty with a selfie capture and location stamp.",
+      shiftNote
+    ),
     priority: "medium",
     status: "logged",
     createdAt: timestamp,
@@ -165,7 +174,10 @@ export async function checkOut(request, response) {
     userId: request.user.id,
     type: "attendance",
     title: "Shift check-out completed",
-    description: "Guard wrapped up the active patrol shift with a final location sync.",
+    description: appendShiftNote(
+      "Guard wrapped up the active patrol shift with a final location sync.",
+      nextNote
+    ),
     priority: "low",
     status: "logged",
     createdAt: timestamp,

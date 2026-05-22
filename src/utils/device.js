@@ -193,7 +193,9 @@ export async function readBestAvailableDeviceContext(options = {}) {
   const {
     forceFresh = false,
     timeout = 12_000,
-    storedMaxAgeMs = 6 * 60 * 60_000
+    storedMaxAgeMs = 6 * 60 * 60_000,
+    watchTimeout = Math.min(Math.max(timeout, 6_000), 10_000),
+    relaxedTimeout = Math.min(Math.max(timeout, 5_000), 8_000)
   } = options;
 
   const attempts = [
@@ -211,7 +213,7 @@ export async function readBestAvailableDeviceContext(options = {}) {
       readWatchPositionAttempt({
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: Math.max(timeout, 16_000),
+        timeout: watchTimeout,
         source: "watch"
       })
     );
@@ -221,7 +223,7 @@ export async function readBestAvailableDeviceContext(options = {}) {
     readPositionAttempt({
       enableHighAccuracy: false,
       maximumAge: forceFresh ? 90_000 : 120_000,
-      timeout: Math.max(timeout, 10_000),
+      timeout: relaxedTimeout,
       source: "relaxed"
     })
   );

@@ -95,6 +95,37 @@ export async function updateUserStatus(id, status, timestamp) {
   );
 }
 
+export async function updateGuardDetails(id, guard, timestamp) {
+  const database = await getDb();
+  const passwordVersionBump = guard.passwordHash ? 1 : 0;
+
+  await database.run(
+    `UPDATE users
+     SET full_name = ?,
+         email = ?,
+         password_hash = COALESCE(?, password_hash),
+         phone = ?,
+         employee_code = ?,
+         shift_label = ?,
+         session_version = session_version + ?,
+         last_seen_at = ?
+     WHERE id = ? AND role = 'guard'`,
+    [
+      guard.fullName,
+      guard.email,
+      guard.passwordHash || null,
+      guard.phone,
+      guard.employeeCode,
+      guard.shiftLabel,
+      passwordVersionBump,
+      timestamp,
+      id
+    ]
+  );
+
+  return findUserById(id);
+}
+
 export async function deleteUserById(id) {
   const database = await getDb();
   return database.run("DELETE FROM users WHERE id = ?", [id]);

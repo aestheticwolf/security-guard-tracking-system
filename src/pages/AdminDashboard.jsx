@@ -6,6 +6,7 @@ import {
   History,
   LayoutDashboard,
   MapPinned,
+  Pencil,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -26,12 +27,14 @@ import {
   createGuardAccount,
   deleteGuardAccount,
   getAdminOverview,
+  updateGuardProfile,
   updateGuardAccess
 } from "../services/adminService";
 import { subscribeGuardAdminSignals } from "../utils/guardAdminSignal";
 import {
   formatCoordinates,
   formatDateTime,
+  formatDurationMinutes,
   formatRelative
 } from "../utils/format";
 
@@ -48,6 +51,32 @@ const emptyGuardForm = {
   shiftLabel: "",
   employeeCode: ""
 };
+
+function buildGuardEditForm(guard) {
+  return {
+    fullName: guard?.fullName || "",
+    email: guard?.email || "",
+    password: "",
+    phone: guard?.phone || "",
+    shiftLabel: guard?.shiftLabel || "",
+    employeeCode: guard?.employeeCode || ""
+  };
+}
+
+function getAttendanceDurationMinutes(entry) {
+  if (!entry?.checkInAt) {
+    return 0;
+  }
+
+  const checkInTime = new Date(entry.checkInAt).getTime();
+  const checkOutTime = entry.checkOutAt ? new Date(entry.checkOutAt).getTime() : Date.now();
+
+  if (Number.isNaN(checkInTime) || Number.isNaN(checkOutTime) || checkOutTime <= checkInTime) {
+    return 0;
+  }
+
+  return Math.round((checkOutTime - checkInTime) / (1000 * 60));
+}
 
 const adminSectionLinks = [
   { id: "admin-overview", label: "Overview", icon: LayoutDashboard },
@@ -71,8 +100,10 @@ export default function AdminDashboard() {
   const [showAllRoster, setShowAllRoster] = useState(false);
   const deferredSearch = useDeferredValue(search);
   const [selectedGuardId, setSelectedGuardId] = useState("");
+  const [guardPendingEdit, setGuardPendingEdit] = useState(null);
   const [guardPendingDelete, setGuardPendingDelete] = useState(null);
   const [guardForm, setGuardForm] = useState(emptyGuardForm);
+  const [guardEditForm, setGuardEditForm] = useState(emptyGuardForm);
   const refreshInFlightRef = useRef(false);
   const pendingRefreshReasonRef = useRef("");
   const refreshOverviewRef = useRef(null);
@@ -202,6 +233,41 @@ export default function AdminDashboard() {
 
       setGuardForm(emptyGuardForm);
       await reloadDashboard("New guard profile added to the roster.");
+    } catch (submitError) {
+      setError(submitError.message);
+      toast.error(submitError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditGuard(guard) {
+    setGuardPendingEdit(guard);
+    setGuardEditForm(buildGuardEditForm(guard));
+  }
+
+  async function handleUpdateGuard(event) {
+    event.preventDefault();
+
+    if (!guardPendingEdit) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const payload = {
+        ...guardEditForm,
+        password: guardEditForm.password.trim()
+      };
+
+      await updateGuardProfile(guardPendingEdit.id, payload);
+      const updatedName = guardEditForm.fullName.trim() || guardPendingEdit.fullName;
+      setSelectedGuardId(guardPendingEdit.id);
+      setGuardPendingEdit(null);
+      setGuardEditForm(emptyGuardForm);
+      await reloadDashboard(`${updatedName}'s guard profile was updated.`);
     } catch (submitError) {
       setError(submitError.message);
       toast.error(submitError.message);
@@ -608,10 +674,14 @@ export default function AdminDashboard() {
                   <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
                     <button
                       type="button"
-                      onClick={() => setSelectedGuardId(guard.id)}
-                      className="app-outline-button rounded-2xl px-3 py-2.5 text-sm font-medium"
+                      onClick={() => openEditGuard(guard)}
+                      disabled={busy}
+                      className={`app-outline-button inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium ${
+                        busy ? "app-button-disabled" : ""
+                      }`}
                     >
-                      View detail
+                      <Pencil className="h-4 w-4" />
+                      Edit guard
                     </button>
                     <button
                       type="button"
@@ -676,6 +746,14 @@ export default function AdminDashboard() {
                       <p className="mt-2 text-xs uppercase tracking-[0.24em] text-slate-500">
                         {formatDateTime(entry.checkInAt)}
                       </p>
+                      <p className="mt-2 text-sm text-slate-300">
+                        Hours completed: {formatDurationMinutes(getAttendanceDurationMinutes(entry))}
+                      </p>
+                      {entry.note && (
+                        <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
+                          Shift note: {entry.note}
+                        </p>
+                      )}
                     </div>
                     <StatusBadge status={entry.checkOutAt ? "Completed" : "On Duty"} />
                   </div>
@@ -686,6 +764,101 @@ export default function AdminDashboard() {
             )}
           </div>
         </Panel>
+
+        {guardPendingEdit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 py-6 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+              className="glass-panel max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-[24px] border p-5 shadow-[0_28px_80px_rgba(2,6,23,0.45)] sm:rounded-[28px] sm:p-6"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">Roster profile</p>
+                  <h3 className="mt-2 font-display text-2xl font-semibold app-copy-primary">
+                    Edit guard details
+                  </h3>
+                  <p className="mt-2 text-sm app-copy-muted">
+                    Update account, assignment, contact, and optional password details for{" "}
+                    <span className="font-semibold app-copy-primary">{guardPendingEdit.fullName}</span>.
+                  </p>
+                </div>
+                <StatusBadge status={guardPendingEdit.status} />
+              </div>
+
+              <form onSubmit={handleUpdateGuard} className="mt-5 grid gap-4 sm:grid-cols-2">
+                <FormField
+                  label="Full name"
+                  value={guardEditForm.fullName}
+                  onChange={(value) => setGuardEditForm((current) => ({ ...current, fullName: value }))}
+                  placeholder="Nadia Brooks"
+                />
+                <FormField
+                  label="Email"
+                  type="email"
+                  value={guardEditForm.email}
+                  onChange={(value) => setGuardEditForm((current) => ({ ...current, email: value }))}
+                  placeholder="guard@sentinel.local"
+                />
+                <FormField
+                  label="New password"
+                  type="password"
+                  value={guardEditForm.password}
+                  onChange={(value) => setGuardEditForm((current) => ({ ...current, password: value }))}
+                  placeholder="Leave blank to keep current password"
+                />
+                <FormField
+                  label="Phone"
+                  value={guardEditForm.phone}
+                  onChange={(value) => setGuardEditForm((current) => ({ ...current, phone: value }))}
+                  placeholder="+1 202 555 0180"
+                />
+                <FormField
+                  label="Shift label"
+                  value={guardEditForm.shiftLabel}
+                  onChange={(value) => setGuardEditForm((current) => ({ ...current, shiftLabel: value }))}
+                  placeholder="Warehouse Ring"
+                />
+                <FormField
+                  label="Employee code"
+                  value={guardEditForm.employeeCode}
+                  onChange={(value) => setGuardEditForm((current) => ({ ...current, employeeCode: value }))}
+                  placeholder="GRD-205"
+                />
+
+                <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-sm app-copy-muted sm:col-span-2">
+                  Password is optional. If you enter a new password, the guard's active session
+                  version is refreshed so the new login details take effect safely.
+                </div>
+
+                <div className="flex flex-col-reverse gap-3 sm:col-span-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGuardPendingEdit(null);
+                      setGuardEditForm(emptyGuardForm);
+                    }}
+                    disabled={busy}
+                    className={`app-outline-button rounded-2xl px-4 py-3 text-sm font-medium ${
+                      busy ? "app-button-disabled" : ""
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-gold-400 to-jade-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-accent disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    {busy ? "Saving changes..." : "Save guard changes"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
 
         {guardPendingDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 backdrop-blur-sm">

@@ -37,6 +37,11 @@ export async function createGuardAccount(payload) {
   return data;
 }
 
+export async function updateGuardProfile(id, payload) {
+  const { data } = await apiClient.patch(`/admin/guards/${id}`, payload);
+  return data;
+}
+
 export async function updateGuardAccess(id, payload) {
   const { data } = await apiClient.patch(`/admin/guards/${id}/status`, payload);
   return data;

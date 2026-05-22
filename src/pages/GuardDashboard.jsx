@@ -2,6 +2,7 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Camera,
+  Clock3,
   LayoutDashboard,
   MapPinned,
   RadioTower,
@@ -27,6 +28,7 @@ import {
 } from "../services/guardService";
 import {
   formatDateTime,
+  formatDurationMinutes,
   formatRelative,
   formatTime
 } from "../utils/format";
@@ -38,12 +40,16 @@ import {
   queueGuardLocationSync,
   shouldRetryGuardLocationSync
 } from "../utils/guardLocationSyncQueue";
+import {
+  getSelfieVerificationLabel,
+  isSelfieVerificationPassed
+} from "../utils/selfieVerification";
 
 const autoSyncDistanceMeters = 25;
 const autoSyncStaleMs = 10 * 60_000;
 const autoSyncIntervalMs = 10 * 60_000;
 const queuedSyncRetryIntervalMs = 20_000;
-const manualSyncFreshTimeoutMs = 24_000;
+const manualSyncFreshTimeoutMs = 10_000;
 const storedLocationFallbackWindowMs = 6 * 60 * 60_000;
 
 function mergeLocationIntoRecentLocations(recentLocations = [], nextLocation) {
@@ -197,6 +203,8 @@ export default function GuardDashboard() {
     Boolean(lastStoredLocation?.trackedAt) &&
     Date.now() - new Date(lastStoredLocation.trackedAt).getTime() <= autoSyncIntervalMs + 60_000;
   const liveMapLocation = lastStoredLocation || deviceLocation;
+  const latestSelfie = overview?.lastSelfie || null;
+  const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
 
   function applySyncedLocation(responseLocation, liveLocation, options = {}) {
     if (!responseLocation) {
@@ -552,9 +560,14 @@ export default function GuardDashboard() {
 
     setBusy(true);
     setError("");
+    setLocationStatus("Syncing current location before shift start...");
 
     try {
-      let activeLocation = deviceLocation;
+      let activeLocation = getBestAvailableLocation(
+        deviceLocation,
+        lastStoredLocation,
+        lastSyncedLocationRef.current
+      );
 
       if (!activeLocation) {
         try {
@@ -564,8 +577,16 @@ export default function GuardDashboard() {
             storedMaxAgeMs: storedLocationFallbackWindowMs
           });
         } catch {
-          activeLocation = null;
+          activeLocation = getBestAvailableLocation(
+            deviceLocation,
+            lastStoredLocation,
+            lastSyncedLocationRef.current
+          );
         }
+      }
+
+      if (!hasCoordinates(activeLocation)) {
+        throw new Error("Location is required to start a shift. Please allow location access and try again.");
       }
 
       const formData = new FormData();
@@ -619,7 +640,11 @@ export default function GuardDashboard() {
     setError("");
 
     try {
-      let activeLocation = deviceLocation;
+      let activeLocation = getBestAvailableLocation(
+        deviceLocation,
+        lastStoredLocation,
+        lastSyncedLocationRef.current
+      );
 
       if (!activeLocation) {
         try {
@@ -629,7 +654,11 @@ export default function GuardDashboard() {
             storedMaxAgeMs: storedLocationFallbackWindowMs
           });
         } catch {
-          activeLocation = null;
+          activeLocation = getBestAvailableLocation(
+            deviceLocation,
+            lastStoredLocation,
+            lastSyncedLocationRef.current
+          );
         }
       }
 
@@ -721,13 +750,13 @@ export default function GuardDashboard() {
               icon={Camera}
               label="Selfie proof"
               value={
-                overview?.lastSelfie?.verificationScore
-                  ? `${Math.round(overview.lastSelfie.verificationScore * 100)}%`
+                latestSelfie?.verificationScore
+                  ? `${Math.round(latestSelfie.verificationScore * 100)}%`
                   : "Pending"
               }
               detail={
-                overview?.lastSelfie?.verified
-                  ? `Verified ${formatRelative(overview.lastSelfie.capturedAt)}`
+                latestSelfie
+                  ? `${latestSelfieVerified ? "Verified" : "Captured"} ${formatRelative(latestSelfie.capturedAt)}`
                   : "Upload a new selfie to verify"
               }
               tone="jade"
@@ -740,10 +769,18 @@ export default function GuardDashboard() {
               tone={hasFreshSavedMapSync ? "jade" : "slate"}
             />
             <StatCard
-              icon={RadioTower}
-              label="Shift events"
-              value={overview?.stats?.activityCount ?? 0}
-              detail={`${overview?.stats?.onDutyMinutes ?? 0} minutes on duty today`}
+              icon={Clock3}
+              label="Hours today"
+              value={formatDurationMinutes(
+                overview?.stats?.dutyMinutesToday ?? overview?.stats?.onDutyMinutes ?? 0
+              )}
+              detail={
+                overview?.currentAttendance
+                  ? "Includes the active shift"
+                  : `${overview?.stats?.attendanceRecordsToday ?? 0} attendance record${
+                      overview?.stats?.attendanceRecordsToday === 1 ? "" : "s"
+                    } today`
+              }
               tone="gold"
             />
           </section>
@@ -849,8 +886,19 @@ export default function GuardDashboard() {
                     onClick={() =>
                       syncLocation({
                         showMessage: true,
+                        sourceLocation: getBestAvailableLocation(
+                          deviceLocation,
+                          lastStoredLocation,
+                          lastSyncedLocationRef.current
+                        ),
                         statusLabel: "Syncing live route now...",
-                        forceFresh: true
+                        forceFresh: !hasCoordinates(
+                          getBestAvailableLocation(
+                            deviceLocation,
+                            lastStoredLocation,
+                            lastSyncedLocationRef.current
+                          )
+                        )
                       })
                     }
                     disabled={syncingLocation}
@@ -869,14 +917,14 @@ export default function GuardDashboard() {
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:rounded-[24px]">
                   <p className="text-sm font-medium text-white">Latest verification snapshot</p>
                   <div className="mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/55">
-                    {selfiePreview || overview?.lastSelfie?.imagePath ? (
+                    {selfiePreview || latestSelfie?.imagePath ? (
                       <SelfieImageFrame
-                        key={selfiePreview || overview?.lastSelfie?.id || overview?.lastSelfie?.capturedAt}
+                        key={selfiePreview || latestSelfie?.id || latestSelfie?.capturedAt}
                         src={
                           selfiePreview ||
                           buildVersionedAssetUrl(
-                            overview?.lastSelfie?.imagePath,
-                            overview?.lastSelfie?.capturedAt || overview?.lastSelfie?.id
+                            latestSelfie?.imagePath,
+                            latestSelfie?.capturedAt || latestSelfie?.id
                           )
                         }
                         alt="Guard verification"
@@ -891,15 +939,17 @@ export default function GuardDashboard() {
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-slate-300">
-                        {overview?.lastSelfie?.verified ? "Capture verified" : "No verified capture yet"}
+                        {getSelfieVerificationLabel(latestSelfie)}
                       </p>
                       <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-                        {overview?.lastSelfie
-                          ? formatDateTime(overview.lastSelfie.capturedAt)
+                        {latestSelfie
+                          ? formatDateTime(latestSelfie.capturedAt)
                           : "Awaiting first shift"}
                       </p>
                     </div>
-                    {overview?.lastSelfie?.verified && <StatusBadge status="Verified" />}
+                    {latestSelfie && (
+                      <StatusBadge status={latestSelfieVerified ? "Verified" : "Review"} />
+                    )}
                   </div>
                 </div>
 

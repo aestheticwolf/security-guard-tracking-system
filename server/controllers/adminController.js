@@ -6,6 +6,7 @@ import {
   findUserByEmail,
   createUser,
   updateUserStatus,
+  updateGuardDetails,
   deleteUserById
 } from "../models/userModel.js";
 import { buildAdminOverview, buildGuardRoster, buildLiveFeed } from "../services/adminDashboardService.js";
@@ -95,6 +96,63 @@ export async function updateGuardStatus(request, response) {
   }
 
   await updateUserStatus(request.params.id, status, now());
+
+  return response.json({ guards: await buildGuardRoster() });
+}
+
+export async function updateGuard(request, response) {
+  const { fullName, email, password, phone, shiftLabel, employeeCode } = request.body ?? {};
+
+  if (!fullName || !email) {
+    throw createHttpError(400, "Full name and email are required.");
+  }
+
+  const nextPassword = password ? String(password) : "";
+
+  if (nextPassword && nextPassword.length < 8) {
+    throw createHttpError(400, "Password must be at least 8 characters.");
+  }
+
+  const user = await findUserById(request.params.id);
+
+  if (!user || user.role !== "guard") {
+    throw createHttpError(404, "Guard not found.");
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const existingUser = await findUserByEmail(normalizedEmail);
+
+  if (existingUser && existingUser.id !== user.id) {
+    throw createHttpError(409, "A guard with that email already exists.");
+  }
+
+  const updatedAt = now();
+  const updatedGuard = await updateGuardDetails(
+    request.params.id,
+    {
+      fullName: String(fullName).trim(),
+      email: normalizedEmail,
+      passwordHash: nextPassword ? await bcrypt.hash(nextPassword, 10) : null,
+      phone: phone ? String(phone).trim() : "",
+      employeeCode: employeeCode ? String(employeeCode).trim() : user.employeeCode,
+      shiftLabel: shiftLabel ? String(shiftLabel).trim() : "Patrol Route"
+    },
+    updatedAt
+  );
+
+  await createActivity({
+    id: createId(),
+    userId: updatedGuard.id,
+    type: "assignment",
+    title: "Guard profile updated",
+    description: nextPassword
+      ? "Admin updated guard details and reset the login password."
+      : "Admin updated guard profile details.",
+    priority: "low",
+    status: "logged",
+    createdAt: updatedAt,
+    updatedAt
+  });
 
   return response.json({ guards: await buildGuardRoster() });
 }

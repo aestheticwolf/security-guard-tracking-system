@@ -3,7 +3,17 @@ import StatusBadge from "../StatusBadge";
 import LiveRouteMap from "../maps/LiveRouteMap";
 import SelfieImageFrame from "../SelfieImageFrame";
 import { buildAssetUrl } from "../../services/apiClient";
-import { formatCoordinates, formatDateTime, formatRelative, initials } from "../../utils/format";
+import {
+  formatCoordinates,
+  formatDateTime,
+  formatDurationMinutes,
+  formatRelative,
+  initials
+} from "../../utils/format";
+import {
+  getSelfieVerificationLabel,
+  isSelfieVerificationPassed
+} from "../../utils/selfieVerification";
 
 function formatVerificationScore(score) {
   if (score === undefined || score === null) {
@@ -36,6 +46,7 @@ export default function GuardDetailPanel({ guard }) {
 
   const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
   const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
+  const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -67,8 +78,10 @@ export default function GuardDetailPanel({ guard }) {
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3.5 sm:p-4">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Duty minutes</p>
-              <p className="mt-2 text-sm text-white">{guard.onDutyMinutes ?? 0} min</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Hours today</p>
+              <p className="mt-2 text-sm text-white">
+                {formatDurationMinutes(guard.dutyMinutesToday ?? guard.onDutyMinutes ?? 0)}
+              </p>
             </div>
           </div>
         </div>
@@ -149,7 +162,7 @@ export default function GuardDetailPanel({ guard }) {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm text-slate-300">
-                  {latestSelfie?.verified ? "Verification passed" : "Verification pending"}
+                  {getSelfieVerificationLabel(latestSelfie)}
                 </p>
                 <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
                   {latestSelfie?.capturedAt
@@ -159,9 +172,11 @@ export default function GuardDetailPanel({ guard }) {
               </div>
               <StatusBadge
                 status={
-                  latestSelfie?.verified
+                  latestSelfieVerified
                     ? "Verified"
-                    : formatVerificationScore(latestSelfie?.verificationScore)
+                    : latestSelfie
+                      ? "Review"
+                      : formatVerificationScore(latestSelfie?.verificationScore)
                 }
               />
             </div>
@@ -242,6 +257,11 @@ export default function GuardDetailPanel({ guard }) {
                       <p className="mt-1 text-sm text-slate-300">
                         {entry.locationLabel || "Field checkpoint"}
                       </p>
+                      {entry.note && (
+                        <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
+                          Shift note: {entry.note}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
                         In {formatDateTime(entry.checkInAt)}
                         {entry.checkOutAt ? ` • Out ${formatDateTime(entry.checkOutAt)}` : ""}

@@ -16,7 +16,13 @@ import {
 import { listSelfiesByUserId } from "../models/selfieModel.js";
 import { listGuards, listUsers } from "../models/userModel.js";
 import { sanitizeUser } from "./auth.js";
-import { getDateKey, sortByNewest } from "./coreService.js";
+import { getAttendanceMinutesForDay, getDateKey, sortByNewest } from "./coreService.js";
+
+const selfieVerificationThreshold = 0.75;
+
+function isVerifiedSelfie(selfie) {
+  return Boolean(selfie?.verified || Number(selfie?.verificationScore) >= selfieVerificationThreshold);
+}
 
 function getLatestTimestamp(values) {
   const normalized = values
@@ -72,6 +78,16 @@ function buildLocationFeedDetail(location) {
   return parts.filter(Boolean).join(" • ");
 }
 
+function buildAttendanceFeedDetail(entry, fallbackLocationLabel) {
+  const parts = [entry.locationLabel || fallbackLocationLabel || "Field checkpoint"];
+
+  if (entry.note) {
+    parts.push(`Shift note: ${entry.note}`);
+  }
+
+  return parts.filter(Boolean).join(" • ");
+}
+
 export async function buildGuardRoster() {
   const dateKey = getDateKey();
   const guards = await listGuards();
@@ -101,7 +117,7 @@ export async function buildGuardRoster() {
         String(entry.trackedAt).startsWith(dateKey)
       ).length;
       const verifiedSelfiesToday = selfies.filter(
-        (entry) => entry.verified && String(entry.capturedAt).startsWith(dateKey)
+        (entry) => isVerifiedSelfie(entry) && String(entry.capturedAt).startsWith(dateKey)
       ).length;
       const lastSeenAt = getLatestTimestamp([
         latestLocation?.trackedAt,
@@ -111,6 +127,7 @@ export async function buildGuardRoster() {
         lastSelfie?.capturedAt
       ]);
       const onDutyMinutes = currentShift ? getMinutesSince(currentShift.checkInAt) : 0;
+      const dutyMinutesToday = getAttendanceMinutesForDay(attendance, dateKey);
 
       return {
         ...sanitizeUser(guard),
@@ -131,6 +148,7 @@ export async function buildGuardRoster() {
         locationPingsToday,
         verifiedSelfiesToday,
         onDutyMinutes,
+        dutyMinutesToday,
         locationFreshnessMinutes: getMinutesSince(latestLocation?.trackedAt)
       };
     })
@@ -160,7 +178,7 @@ export async function buildLiveFeed(limit = 20) {
         ...shared,
         type: "attendance",
         title: "Shift checked in",
-        detail: entry.locationLabel || "Field checkpoint",
+        detail: buildAttendanceFeedDetail(entry, "Field checkpoint"),
         occurredAt: entry.checkInAt
       }
     ];
@@ -170,7 +188,7 @@ export async function buildLiveFeed(limit = 20) {
         ...shared,
         type: "attendance",
         title: "Shift checked out",
-        detail: entry.locationLabel || "Field checkpoint",
+        detail: buildAttendanceFeedDetail(entry, "Field checkpoint"),
         occurredAt: entry.checkOutAt
       });
     }

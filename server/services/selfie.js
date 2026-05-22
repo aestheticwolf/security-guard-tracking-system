@@ -19,6 +19,8 @@ const storage = multer.diskStorage({
   }
 });
 
+const selfieVerificationThreshold = 0.75;
+
 function isImage(file) {
   return file.mimetype.startsWith("image/");
 }
@@ -53,7 +55,7 @@ export function scoreSelfieCapture(file) {
   }
 
   return {
-    verified: score >= 0.8,
+    verified: score >= selfieVerificationThreshold,
     score: Number(Math.min(score, 0.99).toFixed(2))
   };
 }

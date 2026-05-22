@@ -2,7 +2,13 @@ import { Activity, Camera, Clock3, MapPinned } from "lucide-react";
 import SelfieImageFrame from "../SelfieImageFrame";
 import StatusBadge from "../StatusBadge";
 import { buildAssetUrl } from "../../services/apiClient";
-import { formatCoordinates, formatDateTime, formatRelative } from "../../utils/format";
+import {
+  formatCoordinates,
+  formatDateTime,
+  formatDurationMinutes,
+  formatRelative
+} from "../../utils/format";
+import { isSelfieVerificationPassed } from "../../utils/selfieVerification";
 
 function buildSelfieImageUrl(selfie) {
   const assetUrl = buildAssetUrl(selfie?.imagePath);
@@ -26,6 +32,21 @@ function EmptyState({ children, className = "" }) {
 
 function getLatestSelfie(owner) {
   return owner?.selfieHistory?.[0] || owner?.lastSelfie || null;
+}
+
+function getAttendanceDurationMinutes(entry) {
+  if (!entry?.checkInAt) {
+    return 0;
+  }
+
+  const checkInTime = new Date(entry.checkInAt).getTime();
+  const checkOutTime = entry.checkOutAt ? new Date(entry.checkOutAt).getTime() : Date.now();
+
+  if (Number.isNaN(checkInTime) || Number.isNaN(checkOutTime) || checkOutTime <= checkInTime) {
+    return 0;
+  }
+
+  return Math.round((checkOutTime - checkInTime) / (1000 * 60));
 }
 
 export default function GuardHistoryPanel({ guard, guards = [] }) {
@@ -142,7 +163,15 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                             {owner.employeeCode || "No code"}
                           </p>
                         </div>
-                        <StatusBadge status={selfie?.verified ? "Verified" : "Pending"} />
+                        <StatusBadge
+                          status={
+                            isSelfieVerificationPassed(selfie)
+                              ? "Verified"
+                              : selfie
+                                ? "Review"
+                                : "Pending"
+                          }
+                        />
                       </div>
                       <p className="text-xs uppercase tracking-[0.2em] app-copy-soft">
                         {selfie?.capturedAt
@@ -185,6 +214,14 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                     In {formatDateTime(entry.checkInAt)}
                     {entry.checkOutAt ? ` - Out ${formatDateTime(entry.checkOutAt)}` : ""}
                   </p>
+                  <p className="mt-2 text-sm app-copy-muted">
+                    Duration: {formatDurationMinutes(getAttendanceDurationMinutes(entry))}
+                  </p>
+                  {entry.note && (
+                    <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm app-copy-muted">
+                      Shift note: {entry.note}
+                    </p>
+                  )}
                 </div>
               ))
             ) : (

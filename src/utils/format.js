@@ -42,6 +42,22 @@ export function formatRelative(value) {
   return "moments ago";
 }
 
+export function formatDurationMinutes(value) {
+  const minutes = Math.max(0, Math.round(Number(value) || 0));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours && remainingMinutes) {
+    return `${hours}h ${remainingMinutes}m`;
+  }
+
+  if (hours) {
+    return `${hours}h`;
+  }
+
+  return `${remainingMinutes}m`;
+}
+
 export function initials(name) {
   return String(name || "")
     .split(" ")
