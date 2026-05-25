@@ -6,6 +6,32 @@ In simple words: guards log in, start or end a shift, upload a selfie, and sync 
 
 The project runs with a React frontend, an Express backend, and a local SQLite database.
 
+## Live Demo
+
+Current live frontend:
+
+```text
+https://security-guard-tracking-system.pages.dev
+```
+
+Current public backend tunnel:
+
+```text
+https://annually-antarctica-ties-cells.trycloudflare.com/api
+```
+
+Important: the frontend is deployed on Cloudflare Pages, but the backend is still running from the local machine through Cloudflare Tunnel. This means the live site works while these two local processes are running:
+
+```bash
+npm start
+```
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:5000
+```
+
+If the tunnel is stopped and restarted, Cloudflare may give a new tunnel URL. In that case, update `VITE_API_URL` in Cloudflare Pages and redeploy.
+
 ## What This App Does
 
 - Guards can securely sign in.
@@ -114,6 +140,51 @@ The backend API runs here:
 http://localhost:5000/api
 ```
 
+## Current Live Hosting Setup
+
+This project is currently live using a no-card hosting approach:
+
+Frontend:
+
+```text
+Cloudflare Pages
+```
+
+Backend:
+
+```text
+Local Node.js/Express server exposed through Cloudflare Tunnel
+```
+
+Database:
+
+```text
+Local SQLite file
+```
+
+Selfie uploads:
+
+```text
+Local server/uploads/selfies folder
+```
+
+The deployed frontend uses this build-time environment variable:
+
+```env
+VITE_API_URL=https://annually-antarctica-ties-cells.trycloudflare.com/api
+```
+
+Cloudflare Pages settings:
+
+```text
+Repository: aestheticwolf/security-guard-tracking-system
+Branch: main
+Framework preset: React (Vite)
+Build command: npm run build
+Build output directory: dist
+NODE_VERSION: 22
+```
+
 ## Demo Login Accounts
 
 Admin account:
@@ -177,6 +248,18 @@ You can choose your own database path by setting `DB_FILE` in `.env`:
 
 ```env
 DB_FILE=C:\Users\richa\Documents\SentinelGrid\security.db
+```
+
+For the current local/tunnel deployment, the project uses:
+
+```env
+DB_FILE=./server/database/security.db
+```
+
+That stores the active database inside the project at:
+
+```text
+A:\0\infipre\security\server\database\security.db
 ```
 
 Then run:
@@ -511,6 +594,12 @@ Start backend without watch mode:
 npm run start
 ```
 
+Start a Cloudflare quick tunnel for the backend:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:5000
+```
+
 ## GitHub Upload Notes
 
 Do not push local secrets or runtime data.
@@ -565,6 +654,32 @@ Also check that `.env` has:
 VITE_API_URL=http://localhost:5000/api
 ```
 
+For the live Cloudflare Pages frontend, check that Cloudflare Pages has:
+
+```env
+VITE_API_URL=https://annually-antarctica-ties-cells.trycloudflare.com/api
+```
+
+If the quick tunnel URL changed, update this variable in Cloudflare Pages and redeploy.
+
+`Cannot reach the local backend`
+
+Check that both backend and tunnel are running:
+
+```bash
+npm start
+```
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:5000
+```
+
+Then open:
+
+```text
+https://annually-antarctica-ties-cells.trycloudflare.com/api/health
+```
+
 Map does not load
 
 The map uses online OpenStreetMap tiles. Check internet access and refresh the page.
@@ -590,7 +705,7 @@ If `DB_FILE` is set in `.env`, open that file instead.
 
 ## Production Notes
 
-This is currently a local-first app. For a real production system, consider:
+This is currently a local-first app with a public frontend and a tunneled local backend. It is good for demos, testing, and project presentation. For a real production system, consider:
 
 - PostgreSQL or MySQL instead of local SQLite
 - HTTPS
@@ -602,3 +717,9 @@ This is currently a local-first app. For a real production system, consider:
 - native mobile app support for background tracking
 - stronger selfie verification rules
 - backup and audit policies
+
+For the full step-by-step live deployment record, see:
+
+```text
+LIVE_DEPLOYMENT_GUIDE.md
+```

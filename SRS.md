@@ -30,6 +30,14 @@ The system has two main roles:
 
 Admins manage guards and monitor operations. Guards use the system to start shifts, end shifts, upload selfie proof, and sync location.
 
+Current demo deployment:
+
+- Frontend is hosted on Cloudflare Pages.
+- Backend runs on the local machine and is exposed through Cloudflare Tunnel.
+- SQLite data and selfie uploads remain stored locally.
+- Live frontend URL: `https://security-guard-tracking-system.pages.dev`
+- Current public backend tunnel: `https://annually-antarctica-ties-cells.trycloudflare.com/api`
+
 ### 1.3 Intended Users
 
 - Security admins
@@ -106,11 +114,13 @@ Frontend:
 
 - Runs in a modern web browser
 - Uses Vite development server on `http://localhost:5173`
+- Uses Cloudflare Pages for the current live frontend deployment.
 
 Backend:
 
 - Runs on Node.js
 - Express API runs on `http://localhost:5000/api`
+- Demo public API is exposed through Cloudflare Tunnel.
 
 Database:
 
@@ -119,6 +129,18 @@ Database:
 
 ```text
 C:\Users\<user>\AppData\Local\Temp\SentinelGrid\security.db
+```
+
+Current configured local database path:
+
+```text
+A:\0\infipre\security\server\database\security.db
+```
+
+Live frontend:
+
+```text
+https://security-guard-tracking-system.pages.dev
 ```
 
 ### 2.5 Design Constraints
@@ -136,6 +158,7 @@ C:\Users\<user>\AppData\Local\Temp\SentinelGrid\security.db
 - Users have a modern browser.
 - The backend server is running locally.
 - The frontend can reach the backend API.
+- For the deployed frontend, Cloudflare Tunnel is running and points to the local backend.
 - Location permission is granted for tracking features.
 - Internet access is available for map tiles and reverse geocoding.
 
@@ -344,6 +367,18 @@ The UI should be modern, professional, compact on mobile, and readable in light 
 
 Main API groups:
 
+Local API base:
+
+```text
+http://localhost:5000/api
+```
+
+Current demo API base:
+
+```text
+https://annually-antarctica-ties-cells.trycloudflare.com/api
+```
+
 Authentication:
 
 - `POST /api/auth/login`
@@ -501,6 +536,8 @@ The system shall store:
 - NFR-20: The app should not lose the latest guard location silently.
 - NFR-21: The database should initialize automatically when the server starts.
 - NFR-22: The app should handle missing geocoding data gracefully.
+- NFR-22A: The deployed frontend shall depend on an available backend tunnel during the current demo deployment.
+- NFR-22B: If the quick tunnel URL changes, the frontend environment variable shall be updated and redeployed.
 
 ## 6.5 Maintainability
 
@@ -565,9 +602,23 @@ The system shall store:
 7. Backend creates activity feed record.
 8. Admin dashboard refreshes.
 
+## 7.6 Current Live Deployment Workflow
+
+1. Developer starts the local Express backend using `npm start`.
+2. Developer starts Cloudflare Tunnel using `cloudflared tunnel --url http://127.0.0.1:5000`.
+3. Cloudflare Tunnel provides a public HTTPS backend URL.
+4. Cloudflare Pages builds the React frontend from the GitHub `main` branch.
+5. Cloudflare Pages uses `VITE_API_URL` to point the frontend to the public backend tunnel.
+6. Users open the live frontend at `https://security-guard-tracking-system.pages.dev`.
+7. Frontend requests are routed through the public tunnel to the local backend.
+8. Backend stores data in local SQLite and selfie files in local uploads.
+
 ## 8. Constraints And Limitations
 
 - This app is local-first.
+- The current live deployment uses a public frontend with a local tunneled backend.
+- The live frontend requires the local backend and tunnel to stay running.
+- Cloudflare quick tunnel URLs can change after restart.
 - SQLite is good for local/demo usage, but not ideal for many remote users writing at the same time.
 - Browser location tracking is not the same as native mobile background tracking.
 - OpenStreetMap tiles require internet access.
@@ -591,6 +642,8 @@ The system is acceptable when:
 - Admin can delete a guard after confirmation.
 - Data is stored in SQLite.
 - Selfie files are stored locally.
+- Frontend is deployable on Cloudflare Pages.
+- Frontend can reach the backend through Cloudflare Tunnel.
 - Mobile layout is usable and compact.
 - Light and dark mode both remain readable.
 - `npm run build` completes successfully.
@@ -609,3 +662,196 @@ Possible future upgrades:
 - Audit logs for all admin actions.
 - Production-ready map/geocoding provider.
 - Offline-first mobile sync.
+
+## 11. Deployment Requirements
+
+## 11.1 Current Demo Deployment
+
+The current deployed version uses a hybrid deployment model:
+
+- The React frontend is deployed publicly on Cloudflare Pages.
+- The Express backend runs locally on the developer machine.
+- Cloudflare Tunnel exposes the local backend through a public HTTPS URL.
+- SQLite and uploaded selfie files remain stored locally.
+
+Current live frontend:
+
+```text
+https://security-guard-tracking-system.pages.dev
+```
+
+Current backend tunnel:
+
+```text
+https://annually-antarctica-ties-cells.trycloudflare.com/api
+```
+
+GitHub repository:
+
+```text
+https://github.com/aestheticwolf/security-guard-tracking-system
+```
+
+## 11.2 Cloudflare Pages Requirements
+
+The frontend deployment shall use these Cloudflare Pages settings:
+
+- Repository: `aestheticwolf/security-guard-tracking-system`
+- Production branch: `main`
+- Framework preset: `React (Vite)`
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Root directory: empty/default
+
+Required Cloudflare Pages environment variables:
+
+```env
+VITE_API_URL=https://annually-antarctica-ties-cells.trycloudflare.com/api
+NODE_VERSION=22
+```
+
+If the tunnel URL changes, the `VITE_API_URL` value shall be updated and the frontend shall be redeployed.
+
+## 11.3 Local Backend Runtime Requirements
+
+The local backend shall be started with:
+
+```powershell
+npm start
+```
+
+The backend shall expose:
+
+```text
+http://localhost:5000/api
+```
+
+The local health check endpoint shall return service status:
+
+```text
+http://localhost:5000/api/health
+```
+
+## 11.4 Cloudflare Tunnel Runtime Requirements
+
+The backend tunnel shall be started with:
+
+```powershell
+cloudflared tunnel --url http://127.0.0.1:5000
+```
+
+If `cloudflared` is not recognized in the terminal, the full executable path may be used:
+
+```powershell
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:5000
+```
+
+The public backend health check shall be tested after tunnel startup:
+
+```text
+https://annually-antarctica-ties-cells.trycloudflare.com/api/health
+```
+
+## 11.5 Deployment Limitation
+
+Because the backend is running locally, the deployed frontend depends on the developer machine remaining online. If the local backend or tunnel is stopped, the live frontend may load but API features such as login, dashboard data, selfie upload, and location sync will not work.
+
+## 12. Backup And Data Safety Requirements
+
+## 12.1 Active Runtime Data
+
+The current active SQLite database is:
+
+```text
+A:\0\infipre\security\server\database\security.db
+```
+
+Uploaded selfies are stored in:
+
+```text
+A:\0\infipre\security\server\uploads\selfies
+```
+
+These files are runtime data and shall not be committed to GitHub.
+
+## 12.2 Backup Requirements
+
+Before replacing or resetting the database, the active database should be copied to a backup file.
+
+Example backup command:
+
+```powershell
+Copy-Item "A:\0\infipre\security\server\database\security.db" "A:\0\infipre\security\server\database\security-backup.db"
+```
+
+The following command shall only be used when intentionally resetting demo data:
+
+```powershell
+npm run db:reset
+```
+
+## 13. Testing And Verification
+
+## 13.1 Build Verification
+
+The frontend build shall complete successfully:
+
+```powershell
+npm run build
+```
+
+## 13.2 API Verification
+
+Local API health check:
+
+```text
+http://localhost:5000/api/health
+```
+
+Public tunnel health check:
+
+```text
+https://annually-antarctica-ties-cells.trycloudflare.com/api/health
+```
+
+Both health checks shall return:
+
+```json
+{"status":"ok","service":"Sentinel Grid API"}
+```
+
+## 13.3 Functional Verification
+
+After deployment, the following workflows shall be tested:
+
+- Admin login
+- Guard login
+- Guard shift start
+- Guard selfie upload
+- Guard location sync
+- Guard shift end
+- Admin live map
+- Admin selected guard detail
+- Admin guard history
+- Admin roster management
+- Mobile responsive layout
+
+## 14. Document Control
+
+Document name:
+
+```text
+Software Requirements Specification - Sentinel Grid
+```
+
+Related deployment guide:
+
+```text
+LIVE_DEPLOYMENT_GUIDE.md
+```
+
+Current status:
+
+```text
+Updated with local-first architecture, Cloudflare Pages frontend deployment, Cloudflare Tunnel backend exposure, SQLite storage, selfie proof, GPS tracking, admin dashboard, guard dashboard, and mobile UI requirements.
+```
