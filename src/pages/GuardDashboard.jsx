@@ -27,10 +27,12 @@ import {
   syncGuardLocation
 } from "../services/guardService";
 import {
+  formatBatteryStatus,
   formatDateTime,
   formatDurationMinutes,
   formatRelative,
-  formatTime
+  formatTime,
+  getLocationDisplayLines
 } from "../utils/format";
 import { getDistanceMeters, hasCoordinates } from "../utils/geo";
 import { publishGuardAdminSignal } from "../utils/guardAdminSignal";
@@ -203,6 +205,9 @@ export default function GuardDashboard() {
     Boolean(lastStoredLocation?.trackedAt) &&
     Date.now() - new Date(lastStoredLocation.trackedAt).getTime() <= autoSyncIntervalMs + 60_000;
   const liveMapLocation = lastStoredLocation || deviceLocation;
+  const liveZoneLines = getLocationDisplayLines(lastStoredLocation);
+  const liveZoneTitle = liveZoneLines[0] || "Waiting for GPS zone";
+  const liveZoneDetail = liveZoneLines[1] || null;
   const latestSelfie = overview?.lastSelfie || null;
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
 
@@ -1000,7 +1005,7 @@ export default function GuardDashboard() {
                   markerLabel="YOU"
                   markerTone={hasSavedMapSync || syncingLocation ? "jade" : "gold"}
                   title={`${user?.fullName || "Field guard"} • Current position`}
-                  subtitle={lastStoredLocation?.zoneDetail || lastStoredLocation?.address || locationLabel || "Field location"}
+                  subtitle={liveZoneLines[0] || locationLabel || "Field location"}
                   focusSequence={mapFocusSequence}
                   followCurrentLocation
                   heightClass="h-[18rem] sm:h-[22rem]"
@@ -1020,11 +1025,17 @@ export default function GuardDashboard() {
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Live zone</p>
                     <p className="mt-2 text-sm text-white">
-                      {lastStoredLocation?.address || "Waiting for GPS zone"}
+                      {liveZoneTitle}
                     </p>
-                    <p className="mt-2 text-xs text-slate-400">
-                      {lastStoredLocation?.zoneDetail || "The GPS-based live zone will appear here after sync."}
-                    </p>
+                    {liveZoneDetail ? (
+                      <p className="mt-2 text-xs text-slate-400">{liveZoneDetail}</p>
+                    ) : (
+                      !lastStoredLocation && (
+                        <p className="mt-2 text-xs text-slate-400">
+                          The GPS-based live zone will appear here after sync.
+                        </p>
+                      )
+                    )}
                     <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-500">Duty label</p>
                     <p className="mt-1 text-sm text-white">
                       {lastStoredLocation?.dutyLabel || locationLabel || user?.shiftLabel || "Field checkpoint"}
@@ -1041,7 +1052,7 @@ export default function GuardDashboard() {
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Battery</p>
                     <p className="mt-2 text-sm text-white">
-                      {liveMapLocation?.battery ?? "N/A"}%
+                      {formatBatteryStatus(liveMapLocation?.battery)}
                     </p>
                   </div>
                 </div>

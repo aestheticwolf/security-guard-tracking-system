@@ -4,10 +4,12 @@ import LiveRouteMap from "../maps/LiveRouteMap";
 import SelfieImageFrame from "../SelfieImageFrame";
 import { buildAssetUrl } from "../../services/apiClient";
 import {
+  formatBatteryStatus,
   formatCoordinates,
   formatDateTime,
   formatDurationMinutes,
   formatRelative,
+  getLocationDisplayLines,
   initials
 } from "../../utils/format";
 import {
@@ -47,6 +49,9 @@ export default function GuardDetailPanel({ guard }) {
   const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
   const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
+  const liveZoneLines = getLocationDisplayLines(guard.latestLocation);
+  const liveZoneTitle = liveZoneLines[0] || "No field zone synced yet";
+  const liveZoneDetail = liveZoneLines[1] || null;
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -101,7 +106,7 @@ export default function GuardDetailPanel({ guard }) {
               markerLabel={initials(guard.fullName)}
               markerTone={guard.shiftState === "On Duty" ? "jade" : "gold"}
               title={guard.fullName}
-              subtitle={guard.latestLocation?.zoneDetail || guard.latestLocation?.address || "Field zone"}
+              subtitle={liveZoneLines[0] || "Field zone"}
               heightClass="h-[15rem] sm:h-[19rem]"
             />
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -114,18 +119,24 @@ export default function GuardDetailPanel({ guard }) {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Battery</p>
                 <p className="mt-2 text-sm text-white">
-                  {guard.latestLocation?.battery ?? "N/A"}%
+                  {formatBatteryStatus(guard.latestLocation?.battery)}
                 </p>
               </div>
             </div>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3.5 sm:p-4">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Live zone</p>
               <p className="mt-2 text-sm text-white">
-                {guard.latestLocation?.address || "No field zone synced yet"}
+                {liveZoneTitle}
               </p>
-              <p className="mt-2 text-sm text-slate-300">
-                {guard.latestLocation?.zoneDetail || "GPS live zone detail will appear here after sync."}
-              </p>
+              {liveZoneDetail ? (
+                <p className="mt-2 text-sm text-slate-300">{liveZoneDetail}</p>
+              ) : (
+                !guard.latestLocation && (
+                  <p className="mt-2 text-sm text-slate-300">
+                    GPS live zone detail will appear here after sync.
+                  </p>
+                )
+              )}
               <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-500">Duty label</p>
               <p className="mt-1 text-sm text-white">
                 {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}

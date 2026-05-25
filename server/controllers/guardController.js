@@ -16,6 +16,40 @@ import {
   now
 } from "../services/coreService.js";
 
+function cleanLocationText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function buildLocationResult({ address, zoneDetail, dutyLabel }) {
+  const cleanAddress = cleanLocationText(address) || "Live field position";
+  const cleanZoneDetail = cleanLocationText(zoneDetail);
+
+  return {
+    address: cleanAddress,
+    zoneDetail:
+      cleanZoneDetail && cleanZoneDetail.toLowerCase() !== cleanAddress.toLowerCase()
+        ? cleanZoneDetail
+        : null,
+    dutyLabel: dutyLabel || null
+  };
+}
+
+function normalizeBattery(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0 || numericValue > 100) {
+    return null;
+  }
+
+  return Math.round(numericValue);
+}
+
 async function buildResolvedLocation({
   latitude,
   longitude,
@@ -23,16 +57,16 @@ async function buildResolvedLocation({
   fallbackAddress
 }) {
   if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
-    return {
+    return buildLocationResult({
       address: fallbackAddress || manualDutyLabel || "Live field position",
       zoneDetail: fallbackAddress || manualDutyLabel || "Live field position",
       dutyLabel: manualDutyLabel || null
-    };
+    });
   }
 
   const resolvedZone = await reverseGeocodeLocation(latitude, longitude);
 
-  return {
+  return buildLocationResult({
     address:
       resolvedZone?.zoneName ||
       fallbackAddress ||
@@ -44,7 +78,7 @@ async function buildResolvedLocation({
       manualDutyLabel ||
       "Live field position",
     dutyLabel: manualDutyLabel || null
-  };
+  });
 }
 
 function appendShiftNote(description, note) {
@@ -136,7 +170,7 @@ export async function checkIn(request, response) {
       address: resolvedLocation.address,
       zoneDetail: resolvedLocation.zoneDetail,
       dutyLabel: resolvedLocation.dutyLabel,
-      battery: battery ? Number(battery) : null,
+      battery: normalizeBattery(battery),
       trackedAt: timestamp
     });
   }
@@ -201,7 +235,7 @@ export async function checkOut(request, response) {
       address: resolvedLocation.address,
       zoneDetail: resolvedLocation.zoneDetail,
       dutyLabel: resolvedLocation.dutyLabel,
-      battery: battery ? Number(battery) : null,
+      battery: normalizeBattery(battery),
       trackedAt: timestamp
     });
   }
@@ -259,7 +293,7 @@ export async function createGuardActivity(request, response) {
       address: resolvedLocation.address,
       zoneDetail: resolvedLocation.zoneDetail,
       dutyLabel: resolvedLocation.dutyLabel,
-      battery: battery ? Number(battery) : null,
+      battery: normalizeBattery(battery),
       trackedAt: timestamp
     });
   }
@@ -299,7 +333,7 @@ export async function syncLocation(request, response) {
     address: resolvedLocation.address,
     zoneDetail: resolvedLocation.zoneDetail,
     dutyLabel: resolvedLocation.dutyLabel,
-    battery: battery ? Number(battery) : null,
+    battery: normalizeBattery(battery),
     trackedAt: timestamp
   });
 

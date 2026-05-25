@@ -35,7 +35,8 @@ import {
   formatCoordinates,
   formatDateTime,
   formatDurationMinutes,
-  formatRelative
+  formatRelative,
+  getLocationDisplayLines
 } from "../utils/format";
 
 const adminRefreshIntervalMs = 5_000;
@@ -591,11 +592,16 @@ export default function AdminDashboard() {
         >
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
             {filteredGuards.length ? (
-              visibleRosterGuards.map((guard) => (
-                <div
-                  key={guard.id}
-                  className="rounded-[22px] border border-white/10 bg-slate-950/45 p-3.5 sm:p-4"
-                >
+              visibleRosterGuards.map((guard) => {
+                const zoneLines = getLocationDisplayLines(guard.latestLocation);
+                const zoneTitle = zoneLines[0] || "No zone sync yet";
+                const zoneDetail = zoneLines[1] || null;
+
+                return (
+                  <div
+                    key={guard.id}
+                    className="rounded-[22px] border border-white/10 bg-slate-950/45 p-3.5 sm:p-4"
+                  >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-display text-[1.55rem] font-semibold text-white sm:text-[1.75rem]">
@@ -618,7 +624,7 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <span>Latest map zone</span>
                       <span className="text-right text-white">
-                        {guard.latestLocation?.address || "No map sync yet"}
+                        {zoneLines[0] || "No map sync yet"}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -650,11 +656,17 @@ export default function AdminDashboard() {
                   <div className="mt-4 rounded-[20px] border border-white/10 bg-white/5 p-3.5">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Latest zone</p>
                     <p className="mt-2 text-sm text-white">
-                      {guard.latestLocation?.address || "No zone sync yet"}
+                      {zoneTitle}
                     </p>
-                    <p className="mt-2 text-xs text-slate-400">
-                      {guard.latestLocation?.zoneDetail || "GPS live zone detail will appear here after sync."}
-                    </p>
+                    {zoneDetail ? (
+                      <p className="mt-2 text-xs text-slate-400">{zoneDetail}</p>
+                    ) : (
+                      !guard.latestLocation && (
+                        <p className="mt-2 text-xs text-slate-400">
+                          GPS live zone detail will appear here after sync.
+                        </p>
+                      )
+                    )}
                     <p className="mt-2 text-sm text-slate-300">
                       {formatCoordinates(guard.latestLocation)}
                     </p>
@@ -705,8 +717,9 @@ export default function AdminDashboard() {
                       Delete guard
                     </button>
                   </div>
-                </div>
-              ))
+                  </div>
+                );
+              })
             ) : (
               <p className="text-sm text-slate-400">No guards matched your search.</p>
             )}

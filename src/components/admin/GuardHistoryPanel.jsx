@@ -6,7 +6,8 @@ import {
   formatCoordinates,
   formatDateTime,
   formatDurationMinutes,
-  formatRelative
+  formatRelative,
+  getLocationDisplayLines
 } from "../../utils/format";
 import { isSelfieVerificationPassed } from "../../utils/selfieVerification";
 
@@ -94,30 +95,36 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
           </div>
           <div className="max-h-[31rem] space-y-3 overflow-y-auto pr-1">
             {locations.length ? (
-              locations.map((entry) => (
-                <div key={entry.id} className="app-surface-soft rounded-[20px] p-3.5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-medium app-copy-primary">
-                        {entry.address || "Live field position"}
-                      </p>
-                      <p className="mt-1 text-xs app-copy-muted">
-                        {entry.zoneDetail || "GPS zone detail unavailable"}
-                      </p>
+              locations.map((entry) => {
+                const zoneLines = getLocationDisplayLines(entry);
+                const zoneTitle = zoneLines[0] || "Live field position";
+                const zoneDetail = zoneLines[1] || null;
+
+                return (
+                  <div key={entry.id} className="app-surface-soft rounded-[20px] p-3.5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-medium app-copy-primary">
+                          {zoneTitle}
+                        </p>
+                        {zoneDetail ? (
+                          <p className="mt-1 text-xs app-copy-muted">{zoneDetail}</p>
+                        ) : null}
+                      </div>
+                      <span className="rounded-full border border-jade-300/30 bg-jade-300/10 px-3 py-1 text-xs font-semibold text-jade-300">
+                        {entry.accuracy ? `${Math.round(entry.accuracy)} m` : "GPS"}
+                      </span>
                     </div>
-                    <span className="rounded-full border border-jade-300/30 bg-jade-300/10 px-3 py-1 text-xs font-semibold text-jade-300">
-                      {entry.accuracy ? `${Math.round(entry.accuracy)} m` : "GPS"}
-                    </span>
+                    <p className="mt-2 text-sm app-copy-muted">{formatCoordinates(entry)}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
+                      Duty label: {entry.dutyLabel || guard.shiftLabel || "No duty label"}
+                    </p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.2em] app-copy-soft">
+                      {formatDateTime(entry.trackedAt)}
+                    </p>
                   </div>
-                  <p className="mt-2 text-sm app-copy-muted">{formatCoordinates(entry)}</p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
-                    Duty label: {entry.dutyLabel || guard.shiftLabel || "No duty label"}
-                  </p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.2em] app-copy-soft">
-                    {formatDateTime(entry.trackedAt)}
-                  </p>
-                </div>
-              ))
+                );
+              })
             ) : (
               <EmptyState>No previous location pings are stored for this guard yet.</EmptyState>
             )}

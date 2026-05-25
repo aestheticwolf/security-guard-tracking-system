@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { Crosshair, LocateFixed, MapPinned, Search } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
-import { formatCoordinates, formatDateTime, formatRelative, initials } from "../../utils/format";
+import {
+  formatCoordinates,
+  formatDateTime,
+  formatRelative,
+  getLocationDisplayLines,
+  initials
+} from "../../utils/format";
 import { dedupeLocations, hasCoordinates, toLatLng } from "../../utils/geo";
 import {
   buildLeafletMapError,
@@ -73,11 +79,9 @@ function buildMarkerGroupPopupHtml(group) {
       group.guards.length > 1
         ? `${group.guards.length} guards at this location`
         : primaryGuard.fullName,
-    subtitle: location?.address || "Field zone",
+    subtitle: getLocationDisplayLines(location)[0] || "Field zone",
     meta: [
-      location?.zoneDetail && location.zoneDetail !== location.address
-        ? location.zoneDetail
-        : null,
+      getLocationDisplayLines(location)[1] || null,
       group.guards.length > 1 ? "Select an exact guard from the shared-location panel." : null,
       ...guardLines,
       location?.dutyLabel ? `Duty label: ${location.dutyLabel}` : null,
@@ -558,6 +562,9 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleLocatedGuards.slice(0, 6).map((guard) => {
           const isSelected = guard.id === selectedGuard?.id;
+          const zoneLines = getLocationDisplayLines(guard.latestLocation);
+          const zoneTitle = zoneLines[0] || "Live zone unavailable";
+          const zoneDetail = zoneLines[1] || null;
 
           return (
             <button
@@ -582,11 +589,17 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
                 </span>
               </div>
               <p className="mt-3 text-sm text-slate-300">
-                {guard.latestLocation?.address || "Live zone unavailable"}
+                {zoneTitle}
               </p>
-              <p className="mt-2 text-xs text-slate-500">
-                {guard.latestLocation?.zoneDetail || "GPS live zone detail unavailable"}
-              </p>
+              {zoneDetail ? (
+                <p className="mt-2 text-xs text-slate-500">{zoneDetail}</p>
+              ) : (
+                !guard.latestLocation && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    GPS live zone detail unavailable
+                  </p>
+                )
+              )}
               <p className="mt-2 text-xs text-slate-500">
                 {formatCoordinates(guard.latestLocation)}
               </p>

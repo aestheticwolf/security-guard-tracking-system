@@ -58,6 +58,48 @@ export function formatDurationMinutes(value) {
   return `${remainingMinutes}m`;
 }
 
+function normalizeDisplayText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export function uniqueDisplayValues(...values) {
+  const seen = new Set();
+
+  return values
+    .map(normalizeDisplayText)
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+}
+
+export function getLocationDisplayLines(location) {
+  return uniqueDisplayValues(location?.address, location?.zoneDetail);
+}
+
+export function formatBatteryStatus(value) {
+  if (value === undefined || value === null || value === "") {
+    return "Not reported";
+  }
+
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0 || numericValue > 100) {
+    return "Not reported";
+  }
+
+  return `Approx. ${Math.round(numericValue)}%`;
+}
+
 export function initials(name) {
   return String(name || "")
     .split(" ")

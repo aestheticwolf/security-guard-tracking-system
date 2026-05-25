@@ -65,7 +65,10 @@ function buildLocationFeedDetail(location) {
     parts.push(location.address);
   }
 
-  if (location?.zoneDetail && location.zoneDetail !== location.address) {
+  if (
+    location?.zoneDetail &&
+    String(location.zoneDetail).trim().toLowerCase() !== String(location.address || "").trim().toLowerCase()
+  ) {
     parts.push(location.zoneDetail);
   }
 

@@ -7,7 +7,7 @@ import StatusBadge from "../components/StatusBadge";
 import DashboardSkeleton from "../components/skeletons/DashboardSkeleton";
 import AppShell from "../layouts/AppShell";
 import { getAdminOverview } from "../services/adminService";
-import { formatCoordinates, formatRelative } from "../utils/format";
+import { formatCoordinates, formatRelative, getLocationDisplayLines } from "../utils/format";
 
 const historyRefreshIntervalMs = 10_000;
 
@@ -158,6 +158,7 @@ export default function AdminHistoryPage() {
             {filteredGuards.length ? (
               filteredGuards.map((guard) => {
                 const isSelected = guard.id === selectedGuard?.id;
+                const zoneLines = getLocationDisplayLines(guard.latestLocation);
 
                 return (
                   <button
@@ -194,7 +195,7 @@ export default function AdminHistoryPage() {
                       </div>
                     </div>
                     <p className="mt-3 text-sm app-copy-muted">
-                      {guard.latestLocation?.address || "No previous location sync"}
+                      {zoneLines[0] || "No previous location sync"}
                     </p>
                     <p className="mt-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
                       {guard.lastSeenAt ? `Last seen ${formatRelative(guard.lastSeenAt)}` : "No prior activity"}

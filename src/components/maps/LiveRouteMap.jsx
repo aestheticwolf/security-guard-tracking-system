@@ -3,6 +3,7 @@ import L from "leaflet";
 import { LocateFixed } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { dedupeLocations, getDistanceMeters, hasCoordinates, toLatLng } from "../../utils/geo";
+import { uniqueDisplayValues } from "../../utils/format";
 import {
   buildLeafletMapError,
   buildLeafletPopupHtml,
@@ -312,9 +313,7 @@ export default function LiveRouteMap({
           title,
           subtitle,
           meta: [
-            currentLocation?.zoneDetail && currentLocation.zoneDetail !== subtitle
-              ? currentLocation.zoneDetail
-              : null,
+            uniqueDisplayValues(subtitle, currentLocation?.zoneDetail)[1] || null,
             currentLocation?.dutyLabel ? `Duty label: ${currentLocation.dutyLabel}` : null,
             currentLocation?.trackedAt ? `Tracked ${currentLocation.trackedAt}` : null,
             accuracyRadiusMeters ? `Approximate within ${accuracyRadiusMeters}m` : null
