@@ -34,7 +34,7 @@ const featureCards = [
   {
     icon: Camera,
     title: "Local selfie storage",
-    copy: "Selfie uploads are stored locally on the server with each attendance checkpoint for easy verification."
+    copy: "Selfie proof can be stored locally for development or permanently in Cloudinary for live deployments."
   }
 ];
 
@@ -81,7 +81,7 @@ export default function LandingPage() {
             transition={{ duration: 0.45 }}
           >
             <div className="inline-flex items-center gap-2 rounded-full border border-gold-400/30 bg-gold-400/10 px-4 py-2 text-xs uppercase tracking-[0.32em] text-gold-200">
-              Premium local-first operations
+              Premium field operations
             </div>
             <h1 className="mt-6 max-w-3xl font-display text-5xl font-semibold leading-[1.02] sm:text-6xl">
               Modern guard tracking built for reliable field execution.

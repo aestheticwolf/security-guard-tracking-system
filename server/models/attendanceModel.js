@@ -1,4 +1,5 @@
 import { getDb } from "../database/connection.js";
+import { getMongoCollection, isMongoEnabled, stripMongoId } from "../database/mongo.js";
 
 const attendanceSelect = `
   id,
@@ -15,6 +16,12 @@ const attendanceSelect = `
 `;
 
 export async function createAttendance(attendance) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("attendance");
+    await collection.insertOne({ ...attendance });
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     `INSERT INTO attendance (
@@ -38,6 +45,16 @@ export async function createAttendance(attendance) {
 }
 
 export async function findOpenAttendanceByUserId(userId) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("attendance");
+    return stripMongoId(
+      await collection.findOne(
+        { userId, status: "checked-in", checkOutAt: null },
+        { sort: { checkInAt: -1 } }
+      )
+    );
+  }
+
   const database = await getDb();
   return database.get(
     `SELECT ${attendanceSelect}
@@ -50,6 +67,15 @@ export async function findOpenAttendanceByUserId(userId) {
 }
 
 export async function updateAttendanceOnCheckout(id, payload) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("attendance");
+    await collection.updateOne(
+      { id },
+      { $set: { checkOutAt: payload.checkOutAt, status: payload.status, note: payload.note } }
+    );
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     `UPDATE attendance
@@ -60,6 +86,12 @@ export async function updateAttendanceOnCheckout(id, payload) {
 }
 
 export async function listAttendanceByUserId(userId) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("attendance");
+    const rows = await collection.find({ userId }).sort({ checkInAt: -1 }).toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${attendanceSelect}
@@ -71,6 +103,15 @@ export async function listAttendanceByUserId(userId) {
 }
 
 export async function listAttendanceForDate(dateKey) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("attendance");
+    const rows = await collection
+      .find({ checkInAt: { $regex: `^${dateKey}` } })
+      .sort({ checkInAt: -1 })
+      .toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${attendanceSelect}

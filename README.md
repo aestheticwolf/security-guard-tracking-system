@@ -4,7 +4,7 @@ Sentinel Grid is a Security Guard Tracking System for managing guards, shifts, s
 
 In simple words: guards log in, start or end a shift, upload a selfie, and sync their location. Admins log in separately and can see guard status, location pings, attendance, activity history, and roster details.
 
-The project runs with a React frontend, an Express backend, and a local SQLite database.
+The project runs with a React frontend and an Express backend. For local development it uses SQLite and local selfie files. For a free live deployment, it can switch to MongoDB Atlas and Cloudinary using environment variables.
 
 ## Live Demo
 
@@ -64,15 +64,18 @@ Backend:
 - Node.js
 - Express
 - SQLite
+- MongoDB Atlas support
 - JWT
 - bcryptjs
 - Multer
+- Cloudinary support
 - dotenv
 
-Local storage:
+Storage:
 
-- SQLite stores users, attendance, activities, location pings, and selfie records.
-- Selfie image files are saved locally in the `server/uploads/selfies` folder.
+- Local mode: SQLite stores users, attendance, activities, location pings, and selfie records.
+- Local mode: selfie image files are saved in `server/uploads/selfies`.
+- Live free mode: MongoDB Atlas stores app data, and Cloudinary stores selfie images permanently.
 
 ## How The App Works
 
@@ -140,7 +143,57 @@ The backend API runs here:
 http://localhost:5000/api
 ```
 
-## Current Live Hosting Setup
+## Recommended Free Live Hosting Setup
+
+For the smoothest free setup without Firebase or Supabase, use:
+
+Frontend:
+
+```text
+Cloudflare Pages
+```
+
+Backend:
+
+```text
+Render Free Web Service
+```
+
+Database:
+
+```text
+MongoDB Atlas Free M0
+```
+
+Permanent selfie storage:
+
+```text
+Cloudinary Free
+```
+
+This is better than keeping SQLite and selfies on Render Free, because Render's free filesystem is not persistent. MongoDB keeps the records, and Cloudinary keeps selfie images available after backend restarts or redeploys.
+
+Render backend environment:
+
+```env
+PORT=5000
+JWT_SECRET=change-this-to-a-long-secure-secret
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster-url>/sentinel_grid
+MONGODB_DB_NAME=sentinel_grid
+CLOUDINARY_CLOUD_NAME=<cloud-name>
+CLOUDINARY_API_KEY=<api-key>
+CLOUDINARY_API_SECRET=<api-secret>
+CLOUDINARY_FOLDER=sentinel-grid/selfies
+GEOCODER_USER_AGENT=SentinelGrid/1.0
+```
+
+Cloudflare Pages frontend environment:
+
+```env
+VITE_API_URL=https://your-render-backend.onrender.com/api
+```
+
+## Current Live Testing Setup
 
 This project is currently live using a no-card hosting approach:
 
@@ -159,13 +212,13 @@ Local Node.js/Express server exposed through Cloudflare Tunnel
 Database:
 
 ```text
-Local SQLite file
+Local SQLite file while no MONGODB_URI is configured
 ```
 
 Selfie uploads:
 
 ```text
-Local server/uploads/selfies folder
+Local server/uploads/selfies folder while no Cloudinary credentials are configured
 ```
 
 The deployed frontend uses this build-time environment variable:
@@ -216,7 +269,14 @@ The `.env.example` file has the values needed for local development.
 PORT=5000
 JWT_SECRET=change-this-secret-before-production
 DB_FILE=
+MONGODB_URI=
+MONGODB_DB_NAME=sentinel_grid
 VITE_API_URL=http://localhost:5000/api
+UPLOAD_DIR=./server/uploads/selfies
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+CLOUDINARY_FOLDER=sentinel-grid/selfies
 GEOCODER_USER_AGENT=SentinelGrid/1.0 (local security guard tracking)
 ```
 
@@ -225,12 +285,18 @@ What each value means:
 - `PORT` is the backend API port.
 - `JWT_SECRET` signs login tokens. Change it before using this outside local development.
 - `DB_FILE` is optional. Leave it blank to use the default SQLite location.
+- `MONGODB_URI` enables MongoDB Atlas instead of SQLite when set.
+- `MONGODB_DB_NAME` selects the MongoDB database name.
 - `VITE_API_URL` tells the React frontend where the backend API is.
+- `UPLOAD_DIR` controls local selfie storage when Cloudinary is not configured.
+- `CLOUDINARY_*` values enable permanent selfie storage on Cloudinary.
 - `GEOCODER_USER_AGENT` identifies the app when reverse geocoding location names.
 
 ## Where The Data Is Stored
 
-The app uses a local SQLite file.
+The app supports two database modes.
+
+Local mode uses a SQLite file.
 
 By default on Windows, the database is created here:
 
@@ -268,7 +334,17 @@ Then run:
 npm run db:reset
 ```
 
-## Database Tables
+Live free mode uses MongoDB Atlas when `MONGODB_URI` is set. It creates collections named:
+
+```text
+users
+attendance
+activities
+locations
+selfies
+```
+
+## Database Tables And Collections
 
 The database schema is created in `server/database/init.js`.
 
@@ -347,7 +423,7 @@ It records:
 
 ## Selfie Image Storage
 
-The actual image files are saved here:
+In local mode, actual image files are saved here:
 
 ```text
 server/uploads/selfies
@@ -356,6 +432,8 @@ server/uploads/selfies
 The database only stores the file path. This keeps the SQLite database smaller and easier to inspect.
 
 Uploaded selfie files are ignored by Git so real evidence images are not pushed to GitHub.
+
+In live free mode, Cloudinary stores selfie image files permanently and the database stores the secure Cloudinary URL.
 
 ## How To View The Database
 
@@ -707,7 +785,8 @@ If `DB_FILE` is set in `.env`, open that file instead.
 
 This is currently a local-first app with a public frontend and a tunneled local backend. It is good for demos, testing, and project presentation. For a real production system, consider:
 
-- PostgreSQL or MySQL instead of local SQLite
+- MongoDB Atlas, PostgreSQL, or MySQL instead of local SQLite
+- Cloudinary, S3, or another object storage provider for evidence images
 - HTTPS
 - stronger session storage
 - rate limiting

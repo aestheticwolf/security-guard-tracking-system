@@ -1,4 +1,5 @@
 import { getDb } from "../database/connection.js";
+import { getMongoCollection, isMongoEnabled, stripMongoId } from "../database/mongo.js";
 
 function mapSelfie(row) {
   if (!row) {
@@ -17,6 +18,12 @@ function mapSelfie(row) {
 }
 
 export async function createSelfie(selfie) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("selfies");
+    await collection.insertOne({ ...selfie });
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     `INSERT INTO selfies (
@@ -35,6 +42,12 @@ export async function createSelfie(selfie) {
 }
 
 export async function listSelfiesByUserId(userId) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("selfies");
+    const rows = await collection.find({ userId }).sort({ capturedAt: -1 }).toArray();
+    return rows.map((row) => mapSelfie(stripMongoId(row)));
+  }
+
   const database = await getDb();
   const rows = await database.all(
     `SELECT

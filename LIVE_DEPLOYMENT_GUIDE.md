@@ -1,6 +1,6 @@
 # Live Deployment Guide
 
-This guide explains exactly how Sentinel Grid was made live using Cloudflare Pages for the frontend and Cloudflare Tunnel for the local backend.
+This guide explains exactly how Sentinel Grid was made live using Cloudflare Pages for the frontend and Cloudflare Tunnel for the local backend. It also documents the recommended free upgrade path: Cloudflare Pages + Render + MongoDB Atlas + Cloudinary.
 
 ## Current Live Links
 
@@ -30,7 +30,7 @@ https://github.com/aestheticwolf/security-guard-tracking-system
 
 ## Hosting Architecture
 
-The app is live with this setup:
+The current testing deployment is live with this setup:
 
 ```text
 React/Vite frontend -> Cloudflare Pages
@@ -41,6 +41,39 @@ Selfie uploads -> Local server/uploads/selfies folder
 ```
 
 This is a no-card deployment approach. It keeps SQLite and uploaded selfies on the local machine while still giving the frontend a public HTTPS URL.
+
+## Recommended Free Permanent Setup
+
+For a smoother live demo without changing tunnel URLs, use this:
+
+```text
+React/Vite frontend -> Cloudflare Pages
+Express API backend -> Render Free Web Service
+Database -> MongoDB Atlas Free M0
+Selfie uploads -> Cloudinary Free
+```
+
+This project now supports that setup through environment variables. If `MONGODB_URI` is present, the backend uses MongoDB instead of SQLite. If Cloudinary credentials are present, selfie images upload to Cloudinary instead of `server/uploads/selfies`.
+
+Render backend variables:
+
+```env
+PORT=5000
+JWT_SECRET=change-this-to-a-long-secure-secret
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster-url>/sentinel_grid
+MONGODB_DB_NAME=sentinel_grid
+CLOUDINARY_CLOUD_NAME=<cloud-name>
+CLOUDINARY_API_KEY=<api-key>
+CLOUDINARY_API_SECRET=<api-secret>
+CLOUDINARY_FOLDER=sentinel-grid/selfies
+GEOCODER_USER_AGENT=SentinelGrid/1.0
+```
+
+Cloudflare Pages frontend variable:
+
+```env
+VITE_API_URL=https://your-render-backend.onrender.com/api
+```
 
 ## Important Rule
 

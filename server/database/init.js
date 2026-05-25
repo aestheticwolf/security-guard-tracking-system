@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { closeDb, getDatabasePath, getDb } from "./connection.js";
+import { initializeMongoDatabase, isMongoEnabled } from "./mongo.js";
 import { createId, now } from "../services/coreService.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -318,6 +319,10 @@ async function seedDatabase(database) {
 }
 
 export async function initializeDatabase({ reset = false } = {}) {
+  if (isMongoEnabled()) {
+    return initializeMongoDatabase({ reset });
+  }
+
   if (reset) {
     await closeDb();
     await removeDatabaseFiles();

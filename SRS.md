@@ -17,9 +17,11 @@ Sentinel Grid is a local-first web application with:
 - React frontend
 - Node.js and Express backend
 - SQLite local database
+- Optional MongoDB Atlas database for free live hosting
 - JWT authentication
 - bcryptjs password hashing
 - Local selfie image storage
+- Optional Cloudinary image storage for permanent live selfie evidence
 - Browser GPS location tracking
 - Leaflet and OpenStreetMap maps
 
@@ -38,6 +40,14 @@ Current demo deployment:
 - Live frontend URL: `https://security-guard-tracking-system.pages.dev`
 - Current public backend tunnel: `https://annually-antarctica-ties-cells.trycloudflare.com/api`
 
+Recommended free live deployment:
+
+- Frontend remains on Cloudflare Pages.
+- Backend runs on Render Free Web Service.
+- MongoDB Atlas Free M0 stores users, attendance, activities, locations, and selfie records.
+- Cloudinary Free stores selfie image files permanently.
+- Cloudflare Pages uses `VITE_API_URL` to call the Render backend URL.
+
 ### 1.3 Intended Users
 
 - Security admins
@@ -52,6 +62,8 @@ Current demo deployment:
 - Guard: A field user who checks in, checks out, and syncs location.
 - JWT: JSON Web Token used for authenticated sessions.
 - SQLite: Local file-based database.
+- MongoDB Atlas: Cloud database option for free live hosting.
+- Cloudinary: Cloud image storage option for permanent selfie proof.
 - GPS: Device/browser geolocation data.
 - Selfie proof: Image captured by the guard during check-in.
 - Live zone: Human-readable location name generated from GPS coordinates.
@@ -61,9 +73,9 @@ Current demo deployment:
 
 ### 2.1 Product Perspective
 
-Sentinel Grid is a full-stack web application. The frontend communicates with the backend API. The backend stores and reads data from SQLite. Selfie image files are stored in the local filesystem.
+Sentinel Grid is a full-stack web application. The frontend communicates with the backend API. In local mode, the backend stores and reads data from SQLite and stores selfie image files in the local filesystem. In live free mode, the backend can store data in MongoDB Atlas and selfie files in Cloudinary.
 
-The application is intended to run locally during development, but it is structured in a way that could later be upgraded for production with a stronger database, hosting, and mobile support.
+The application is intended to run locally during development, but it is now structured so the same API can run with production-style cloud storage for live testing.
 
 ### 2.2 Product Functions
 
@@ -218,8 +230,8 @@ Admins can create and manage guard accounts.
 - FR-20: Admins shall reactivate suspended guards.
 - FR-21: Admins shall delete guard accounts.
 - FR-22: The system shall show a confirmation dialog before deleting a guard.
-- FR-23: Deleting a guard shall remove related database records through cascading deletes.
-- FR-24: Deleting a guard shall remove stored selfie files for that guard.
+- FR-23: Deleting a guard shall remove related database records through cascading deletes or equivalent cloud-storage cleanup.
+- FR-24: Deleting a guard shall remove stored selfie files for that guard when the active storage provider supports deletion.
 
 ## 3.4 Guard Attendance
 
@@ -248,8 +260,8 @@ The guard uploads selfie proof during check-in.
 ### Functional Requirements
 
 - FR-34: The system shall accept selfie image upload during check-in.
-- FR-35: The backend shall store selfie files locally.
-- FR-36: The database shall store the selfie file path.
+- FR-35: The backend shall store selfie files locally in development or in Cloudinary when Cloudinary credentials are configured.
+- FR-36: The database shall store the selfie file path or secure Cloudinary URL.
 - FR-37: The database shall link selfie records to attendance records.
 - FR-38: The dashboard shall show the latest selfie verification snapshot.
 
@@ -275,7 +287,7 @@ The system tracks guard location using browser geolocation.
 - FR-45: Movement changes may trigger a new location sync.
 - FR-46: Failed location syncs shall be queued locally when possible.
 - FR-47: Queued location syncs shall retry automatically.
-- FR-48: The backend shall store each synced location in SQLite.
+- FR-48: The backend shall store each synced location in SQLite locally or MongoDB Atlas when `MONGODB_URI` is configured.
 - FR-49: Admin dashboard shall show latest synced guard location.
 
 ### Limitations

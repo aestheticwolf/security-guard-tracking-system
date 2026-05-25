@@ -1,4 +1,5 @@
 import { getDb } from "../database/connection.js";
+import { getMongoCollection, isMongoEnabled, stripMongoId } from "../database/mongo.js";
 
 const locationSelect = `
   id,
@@ -14,6 +15,12 @@ const locationSelect = `
 `;
 
 export async function createLocation(location) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("locations");
+    await collection.insertOne({ ...location });
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     `INSERT INTO locations (
@@ -35,6 +42,12 @@ export async function createLocation(location) {
 }
 
 export async function listLocationsByUserId(userId) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("locations");
+    const rows = await collection.find({ userId }).sort({ trackedAt: -1 }).toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${locationSelect}
@@ -46,6 +59,11 @@ export async function listLocationsByUserId(userId) {
 }
 
 export async function findLatestLocationByUserId(userId) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("locations");
+    return stripMongoId(await collection.findOne({ userId }, { sort: { trackedAt: -1 } }));
+  }
+
   const database = await getDb();
   return database.get(
     `SELECT ${locationSelect}
@@ -58,6 +76,15 @@ export async function findLatestLocationByUserId(userId) {
 }
 
 export async function listLocationsForDate(dateKey) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("locations");
+    const rows = await collection
+      .find({ trackedAt: { $regex: `^${dateKey}` } })
+      .sort({ trackedAt: -1 })
+      .toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${locationSelect}
@@ -69,6 +96,12 @@ export async function listLocationsForDate(dateKey) {
 }
 
 export async function listAllLocations() {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("locations");
+    const rows = await collection.find({}).sort({ trackedAt: -1 }).toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(`SELECT ${locationSelect} FROM locations ORDER BY tracked_at DESC, rowid DESC`);
 }

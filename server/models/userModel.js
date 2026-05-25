@@ -1,4 +1,5 @@
 import { getDb } from "../database/connection.js";
+import { getMongoCollection, isMongoEnabled, stripMongoId } from "../database/mongo.js";
 
 const userSelect = `
   id,
@@ -18,16 +19,32 @@ const userSelect = `
 `;
 
 export async function findUserById(id) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    return stripMongoId(await users.findOne({ id }));
+  }
+
   const database = await getDb();
   return database.get(`SELECT ${userSelect} FROM users WHERE id = ?`, [id]);
 }
 
 export async function findUserByEmail(email) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    return stripMongoId(await users.findOne({ email }));
+  }
+
   const database = await getDb();
   return database.get(`SELECT ${userSelect} FROM users WHERE email = ?`, [email]);
 }
 
 export async function createUser(user) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    await users.insertOne({ ...user });
+    return findUserById(user.id);
+  }
+
   const database = await getDb();
   await database.run(
     `INSERT INTO users (
@@ -56,6 +73,12 @@ export async function createUser(user) {
 }
 
 export async function updateUserLogin(id, timestamp) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    await users.updateOne({ id }, { $set: { lastLoginAt: timestamp, lastSeenAt: timestamp } });
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     "UPDATE users SET last_login_at = ?, last_seen_at = ? WHERE id = ?",
@@ -64,11 +87,29 @@ export async function updateUserLogin(id, timestamp) {
 }
 
 export async function touchUser(id, timestamp) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    await users.updateOne({ id }, { $set: { lastSeenAt: timestamp } });
+    return;
+  }
+
   const database = await getDb();
   await database.run("UPDATE users SET last_seen_at = ? WHERE id = ?", [timestamp, id]);
 }
 
 export async function incrementSessionVersion(id, timestamp = null) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    await users.updateOne(
+      { id },
+      {
+        $inc: { sessionVersion: 1 },
+        ...(timestamp ? { $set: { lastSeenAt: timestamp } } : {})
+      }
+    );
+    return;
+  }
+
   const database = await getDb();
 
   if (timestamp) {
@@ -86,6 +127,15 @@ export async function incrementSessionVersion(id, timestamp = null) {
 }
 
 export async function updateUserStatus(id, status, timestamp) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    await users.updateOne(
+      { id },
+      { $set: { status, lastSeenAt: timestamp }, $inc: { sessionVersion: 1 } }
+    );
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     `UPDATE users
@@ -96,6 +146,32 @@ export async function updateUserStatus(id, status, timestamp) {
 }
 
 export async function updateGuardDetails(id, guard, timestamp) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    const nextValues = {
+      fullName: guard.fullName,
+      email: guard.email,
+      phone: guard.phone,
+      employeeCode: guard.employeeCode,
+      shiftLabel: guard.shiftLabel,
+      lastSeenAt: timestamp
+    };
+
+    if (guard.passwordHash) {
+      nextValues.passwordHash = guard.passwordHash;
+    }
+
+    await users.updateOne(
+      { id, role: "guard" },
+      {
+        $set: nextValues,
+        ...(guard.passwordHash ? { $inc: { sessionVersion: 1 } } : {})
+      }
+    );
+
+    return findUserById(id);
+  }
+
   const database = await getDb();
   const passwordVersionBump = guard.passwordHash ? 1 : 0;
 
@@ -127,11 +203,35 @@ export async function updateGuardDetails(id, guard, timestamp) {
 }
 
 export async function deleteUserById(id) {
+  if (isMongoEnabled()) {
+    const [users, attendance, activities, locations, selfies] = await Promise.all([
+      getMongoCollection("users"),
+      getMongoCollection("attendance"),
+      getMongoCollection("activities"),
+      getMongoCollection("locations"),
+      getMongoCollection("selfies")
+    ]);
+
+    await Promise.all([
+      attendance.deleteMany({ userId: id }),
+      activities.deleteMany({ userId: id }),
+      locations.deleteMany({ userId: id }),
+      selfies.deleteMany({ userId: id })
+    ]);
+
+    return users.deleteOne({ id });
+  }
+
   const database = await getDb();
   return database.run("DELETE FROM users WHERE id = ?", [id]);
 }
 
 export async function listGuards() {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    return users.find({ role: "guard" }).sort({ fullName: 1 }).toArray().then((rows) => rows.map(stripMongoId));
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${userSelect}
@@ -142,11 +242,21 @@ export async function listGuards() {
 }
 
 export async function listUsers() {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    return users.find({}).sort({ fullName: 1 }).toArray().then((rows) => rows.map(stripMongoId));
+  }
+
   const database = await getDb();
   return database.all(`SELECT ${userSelect} FROM users ORDER BY full_name ASC`);
 }
 
 export async function countGuards() {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    return users.countDocuments({ role: "guard" });
+  }
+
   const database = await getDb();
   const row = await database.get(
     "SELECT COUNT(*) AS count FROM users WHERE role = 'guard'"

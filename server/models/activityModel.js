@@ -1,4 +1,5 @@
 import { getDb } from "../database/connection.js";
+import { getMongoCollection, isMongoEnabled, stripMongoId } from "../database/mongo.js";
 
 const activitySelect = `
   id,
@@ -13,6 +14,12 @@ const activitySelect = `
 `;
 
 export async function createActivity(activity) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("activities");
+    await collection.insertOne({ ...activity });
+    return;
+  }
+
   const database = await getDb();
   await database.run(
     `INSERT INTO activities (
@@ -33,6 +40,12 @@ export async function createActivity(activity) {
 }
 
 export async function listActivitiesByUserId(userId) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("activities");
+    const rows = await collection.find({ userId }).sort({ createdAt: -1 }).toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${activitySelect}
@@ -44,6 +57,15 @@ export async function listActivitiesByUserId(userId) {
 }
 
 export async function listActivitiesForDate(dateKey) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("activities");
+    const rows = await collection
+      .find({ createdAt: { $regex: `^${dateKey}` } })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(
     `SELECT ${activitySelect}
@@ -55,6 +77,12 @@ export async function listActivitiesForDate(dateKey) {
 }
 
 export async function listAllActivities() {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("activities");
+    const rows = await collection.find({}).sort({ createdAt: -1 }).toArray();
+    return rows.map(stripMongoId);
+  }
+
   const database = await getDb();
   return database.all(`SELECT ${activitySelect} FROM activities ORDER BY created_at DESC`);
 }
