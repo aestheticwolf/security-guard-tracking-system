@@ -1,8 +1,6 @@
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 
 let databasePromise;
 
@@ -19,6 +17,10 @@ export function getDatabasePath() {
 }
 
 async function createConnection() {
+  const [{ default: sqlite3 }, { open }] = await Promise.all([
+    import("sqlite3"),
+    import("sqlite")
+  ]);
   const filename = getDatabasePath();
   await fs.mkdir(path.dirname(filename), { recursive: true });
 
