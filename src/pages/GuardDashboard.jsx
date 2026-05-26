@@ -27,14 +27,14 @@ import {
   syncGuardLocation
 } from "../services/guardService";
 import {
-  formatBatteryStatus,
   formatDateTime,
   formatDurationMinutes,
+  formatPositionFreshness,
   formatRelative,
   formatTime,
   getLocationDisplayLines
 } from "../utils/format";
-import { getDistanceMeters, getLatestReportedBattery, hasCoordinates } from "../utils/geo";
+import { getDistanceMeters, hasCoordinates } from "../utils/geo";
 import { publishGuardAdminSignal } from "../utils/guardAdminSignal";
 import {
   clearQueuedGuardLocationSync,
@@ -242,11 +242,6 @@ export default function GuardDashboard() {
   const isShowingUnsyncedDeviceLocation =
     liveMapLocation === deviceLocation &&
     getLocationTimestampMs(deviceLocation) > getLocationTimestampMs(lastStoredLocation);
-  const liveBatteryLevel = getLatestReportedBattery([
-    deviceLocation,
-    lastStoredLocation,
-    ...routeLocations
-  ]);
   const liveZoneLines = getLocationDisplayLines(
     liveMapLocation?.address || liveMapLocation?.zoneDetail ? liveMapLocation : lastStoredLocation
   );
@@ -1065,9 +1060,11 @@ export default function GuardDashboard() {
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Battery</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Position Freshness</p>
                     <p className="mt-2 text-sm text-white">
-                      {formatBatteryStatus(liveBatteryLevel)}
+                      {formatPositionFreshness(
+                        liveMapLocation?.capturedAt || liveMapLocation?.trackedAt
+                      )}
                     </p>
                   </div>
                 </div>

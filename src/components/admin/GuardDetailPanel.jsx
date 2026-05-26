@@ -4,10 +4,10 @@ import LiveRouteMap from "../maps/LiveRouteMap";
 import SelfieImageFrame from "../SelfieImageFrame";
 import { buildAssetUrl } from "../../services/apiClient";
 import {
-  formatBatteryStatus,
   formatCoordinates,
   formatDateTime,
   formatDurationMinutes,
+  formatPositionFreshness,
   formatRelative,
   getLocationDisplayLines,
   initials
@@ -16,7 +16,6 @@ import {
   getSelfieVerificationLabel,
   isSelfieVerificationPassed
 } from "../../utils/selfieVerification";
-import { getLatestReportedBattery } from "../../utils/geo";
 
 function formatVerificationScore(score) {
   if (score === undefined || score === null) {
@@ -53,10 +52,6 @@ export default function GuardDetailPanel({ guard }) {
   const liveZoneLines = getLocationDisplayLines(guard.latestLocation);
   const liveZoneTitle = liveZoneLines[0] || "No field zone synced yet";
   const liveZoneDetail = liveZoneLines[1] || null;
-  const latestBatteryLevel = getLatestReportedBattery([
-    guard.latestLocation,
-    ...(guard.recentLocations || [])
-  ]);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -122,9 +117,11 @@ export default function GuardDetailPanel({ guard }) {
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 sm:p-4">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Battery</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Position Freshness</p>
                 <p className="mt-2 text-sm text-white">
-                  {formatBatteryStatus(latestBatteryLevel)}
+                  {formatPositionFreshness(
+                    guard.latestLocation?.capturedAt || guard.latestLocation?.trackedAt
+                  )}
                 </p>
               </div>
             </div>
