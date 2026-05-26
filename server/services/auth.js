@@ -35,6 +35,9 @@ export function sanitizeUser(user) {
     shiftLabel: user.shiftLabel,
     status: user.status,
     avatarUrl: user.avatarUrl,
+    identityPhotoPath: user.identityPhotoPath ?? null,
+    identitySelfiePath: user.identitySelfiePath ?? null,
+    identityEnrolledAt: user.identityEnrolledAt ?? null,
     lastLoginAt: user.lastLoginAt,
     lastSeenAt: user.lastSeenAt,
     createdAt: user.createdAt

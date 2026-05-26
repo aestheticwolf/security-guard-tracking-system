@@ -59,6 +59,37 @@ function formatLocationCoordinates(location) {
   return `${Number(location.latitude).toFixed(5)}, ${Number(location.longitude).toFixed(5)}`;
 }
 
+function hasDutySiteCoordinates(site) {
+  return (
+    site?.latitude !== undefined &&
+    site?.latitude !== null &&
+    site?.longitude !== undefined &&
+    site?.longitude !== null &&
+    Number.isFinite(Number(site.latitude)) &&
+    Number.isFinite(Number(site.longitude))
+  );
+}
+
+function buildDutySiteMapLocation(site, guard) {
+  if (!hasDutySiteCoordinates(site)) {
+    return null;
+  }
+
+  return {
+    id: `duty-site-${site.id}-${guard.id}`,
+    userId: guard.id,
+    latitude: Number(site.latitude),
+    longitude: Number(site.longitude),
+    accuracy: null,
+    address: site.name,
+    zoneDetail: [site.area, site.address].filter(Boolean).join(" • "),
+    dutyLabel: guard.shiftLabel || site.name,
+    battery: null,
+    trackedAt: null,
+    source: "duty_site"
+  };
+}
+
 function buildLocationFeedDetail(location) {
   const parts = [];
 
@@ -192,13 +223,18 @@ export async function buildGuardRoster(organizationId = null, dutySitesOverride 
       const onDutyMinutes = currentShift ? getMinutesSince(currentShift.checkInAt) : 0;
       const dutyMinutesToday = getAttendanceMinutesForDay(attendance, dateKey);
 
+      const dutySite = guard.dutySiteId ? dutySiteLookup.get(guard.dutySiteId) || null : null;
+      const mapLocation = latestLocation || buildDutySiteMapLocation(dutySite, guard);
+
       return {
         ...sanitizeUser(guard),
-        dutySite: guard.dutySiteId ? dutySiteLookup.get(guard.dutySiteId) || null : null,
+        dutySite,
         lastSeenAt,
         shiftState: currentShift ? "On Duty" : "Off Duty",
         currentShift,
         latestLocation,
+        mapLocation,
+        mapLocationType: latestLocation ? "live" : mapLocation ? "duty_site" : "none",
         latestActivity: recentActivities[0] ?? null,
         recentActivities,
         recentAttendance,

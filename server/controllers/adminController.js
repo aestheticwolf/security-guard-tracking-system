@@ -25,7 +25,7 @@ import {
   now
 } from "../services/coreService.js";
 import { sanitizeUser } from "../services/auth.js";
-import { deleteStoredSelfies } from "../services/selfie.js";
+import { deleteStoredSelfies, storeSelfieFile } from "../services/selfie.js";
 
 function requireOrganizationAdmin(request) {
   if (!request.user.organizationId) {
@@ -85,6 +85,26 @@ async function resolveDutySiteId(dutySiteId, organizationId) {
   }
 
   return dutySite.id;
+}
+
+function getUploadedFile(request, fieldName) {
+  const fileList = request.files?.[fieldName];
+  return Array.isArray(fileList) ? fileList[0] || null : null;
+}
+
+async function storeIdentityEnrollmentImages(request) {
+  const identityPhotoFile = getUploadedFile(request, "identityPhoto");
+  const identitySelfieFile = getUploadedFile(request, "identitySelfie");
+  const [identityPhotoPath, identitySelfiePath] = await Promise.all([
+    storeSelfieFile(identityPhotoFile),
+    storeSelfieFile(identitySelfieFile)
+  ]);
+
+  return {
+    identityPhotoPath,
+    identitySelfiePath,
+    hasIdentityEnrollment: Boolean(identityPhotoPath || identitySelfiePath)
+  };
 }
 
 export async function getOverview(request, response) {
@@ -205,6 +225,7 @@ export async function createGuard(request, response) {
 
   const createdAt = now();
   const assignedDutySiteId = await resolveDutySiteId(dutySiteId, organizationId);
+  const identityEnrollment = await storeIdentityEnrollmentImages(request);
   const guard = await createUser({
     id: createId(),
     fullName: String(fullName).trim(),
@@ -217,7 +238,10 @@ export async function createGuard(request, response) {
     employeeCode: employeeCode ? String(employeeCode).trim() : `GRD-${Math.floor(100 + Math.random() * 900)}`,
     shiftLabel: shiftLabel ? String(shiftLabel).trim() : "Patrol Route",
     status: "active",
-    avatarUrl: null,
+    avatarUrl: identityEnrollment.identityPhotoPath || identityEnrollment.identitySelfiePath || null,
+    identityPhotoPath: identityEnrollment.identityPhotoPath,
+    identitySelfiePath: identityEnrollment.identitySelfiePath,
+    identityEnrolledAt: identityEnrollment.hasIdentityEnrollment ? createdAt : null,
     sessionVersion: 1,
     lastLoginAt: null,
     lastSeenAt: null,
@@ -229,7 +253,9 @@ export async function createGuard(request, response) {
     userId: guard.id,
     type: "assignment",
     title: "Guard added to roster",
-    description: "Admin created a new guard profile and shift assignment.",
+    description: identityEnrollment.hasIdentityEnrollment
+      ? "Admin created a new guard profile, shift assignment, and identity reference images."
+      : "Admin created a new guard profile and shift assignment.",
     priority: "low",
     status: "logged",
     createdAt,
@@ -295,6 +321,7 @@ export async function updateGuard(request, response) {
   const assignedDutySiteId = hasDutySiteAssignment
     ? await resolveDutySiteId(dutySiteId, organizationId)
     : user.dutySiteId ?? null;
+  const identityEnrollment = await storeIdentityEnrollmentImages(request);
   const updatedGuard = await updateGuardDetails(
     request.params.id,
     {
@@ -304,19 +331,32 @@ export async function updateGuard(request, response) {
       phone: phone ? String(phone).trim() : "",
       employeeCode: employeeCode ? String(employeeCode).trim() : user.employeeCode,
       shiftLabel: shiftLabel ? String(shiftLabel).trim() : "Patrol Route",
-      dutySiteId: assignedDutySiteId
+      dutySiteId: assignedDutySiteId,
+      identityPhotoPath: identityEnrollment.identityPhotoPath,
+      identitySelfiePath: identityEnrollment.identitySelfiePath,
+      identityEnrolledAt: identityEnrollment.hasIdentityEnrollment ? updatedAt : null
     },
     updatedAt
   );
+
+  if (identityEnrollment.identityPhotoPath && user.identityPhotoPath) {
+    await deleteStoredSelfies([user.identityPhotoPath]);
+  }
+
+  if (identityEnrollment.identitySelfiePath && user.identitySelfiePath) {
+    await deleteStoredSelfies([user.identitySelfiePath]);
+  }
 
   await createActivity({
     id: createId(),
     userId: updatedGuard.id,
     type: "assignment",
     title: "Guard profile updated",
-    description: nextPassword
-      ? "Admin updated guard details and reset the login password."
-      : "Admin updated guard profile details.",
+    description: identityEnrollment.hasIdentityEnrollment
+      ? "Admin updated guard details and refreshed identity reference images."
+      : nextPassword
+        ? "Admin updated guard details and reset the login password."
+        : "Admin updated guard profile details.",
     priority: "low",
     status: "logged",
     createdAt: updatedAt,
@@ -337,7 +377,11 @@ export async function deleteGuard(request, response) {
   assertSameOrganization(user, organizationId);
 
   const selfies = await listSelfiesByUserId(user.id);
-  await deleteStoredSelfies(selfies.map((entry) => entry.imagePath));
+  await deleteStoredSelfies([
+    ...selfies.map((entry) => entry.imagePath),
+    user.identityPhotoPath,
+    user.identitySelfiePath
+  ]);
   await deleteUserById(user.id);
 
   return response.json({ guards: await buildGuardRoster(organizationId) });

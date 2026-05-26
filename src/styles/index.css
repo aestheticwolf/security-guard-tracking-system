@@ -10,6 +10,7 @@
   --app-text-muted: #cbd5e1;
   --app-text-soft: #94a3b8;
   --app-text-faint: #64748b;
+  --app-danger-text: #fecdd3;
   --app-border: rgba(255, 255, 255, 0.1);
   --app-border-strong: rgba(255, 255, 255, 0.16);
   --app-surface: rgba(8, 16, 29, 0.78);
@@ -40,6 +41,7 @@
   --app-text-muted: #334155;
   --app-text-soft: #64748b;
   --app-text-faint: #94a3b8;
+  --app-danger-text: #be123c;
   --app-border: rgba(148, 163, 184, 0.28);
   --app-border-strong: rgba(148, 163, 184, 0.4);
   --app-surface: rgba(255, 255, 255, 0.78);
@@ -611,6 +613,7 @@ select {
   .app-copy-muted   { color: var(--app-text-muted); }
   .app-copy-soft    { color: var(--app-text-soft); }
   .app-copy-faint   { color: var(--app-text-faint); }
+  .app-error-copy   { color: var(--app-danger-text); }
 
   .app-surface-card {
     background: var(--app-surface-strong);
@@ -1039,6 +1042,10 @@ select {
   .security-map-marker--jade.security-map-marker--pinpoint .security-map-marker__center { background: #34d399; }
   .security-map-marker--jade.security-map-marker--pinpoint .security-map-marker__label  { border-color: rgba(52, 211, 153, 0.28); background: rgba(6, 78, 59, 0.9); color: #ecfdf5; }
 
+  .security-map-marker--slate.security-map-marker--pinpoint .security-map-marker__pulse  { background: rgba(148, 163, 184, 0.18); }
+  .security-map-marker--slate.security-map-marker--pinpoint .security-map-marker__center { background: #94a3b8; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28); }
+  .security-map-marker--slate.security-map-marker--pinpoint .security-map-marker__label  { border-color: rgba(148, 163, 184, 0.32); background: rgba(15, 23, 42, 0.92); color: #f8fafc; }
+
   .security-map-card {
     background: var(--app-surface-soft);
     border: 1px solid var(--app-border);
@@ -1056,10 +1063,10 @@ select {
     backdrop-filter: blur(14px);
   }
 
-  .security-map-recenter-button {
+  .security-map-recenter-button,
+  .security-map-guard-button {
     position: absolute;
     right: 1rem;
-    bottom: 3rem;
     z-index: 520;
     display: inline-flex;
     align-items: center;
@@ -1076,7 +1083,16 @@ select {
     transition: transform 0.2s ease, background 0.2s ease;
   }
 
-  .security-map-recenter-button:hover {
+  .security-map-recenter-button {
+    bottom: 3rem;
+  }
+
+  .security-map-guard-button {
+    bottom: 6.55rem;
+  }
+
+  .security-map-recenter-button:hover,
+  .security-map-guard-button:hover {
     transform: translateY(-1px);
     background: rgba(18, 30, 51, 0.96);
   }
@@ -1372,6 +1388,14 @@ select {
   .security-map-recenter-button {
     right: 0.75rem;
     bottom: 2.45rem;
+    gap: 0.35rem;
+    padding: 0.58rem 0.8rem;
+    font-size: 0.7rem;
+  }
+
+  .security-map-guard-button {
+    right: 0.75rem;
+    bottom: 5.5rem;
     gap: 0.35rem;
     padding: 0.58rem 0.8rem;
     font-size: 0.7rem;

@@ -44,6 +44,46 @@ function isImage(file) {
   return file.mimetype.startsWith("image/");
 }
 
+function normalizeCaptureSource(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (["camera", "live-camera", "admin-camera"].includes(normalized)) {
+    return "camera";
+  }
+
+  if (["upload", "file", "admin-upload"].includes(normalized)) {
+    return "upload";
+  }
+
+  return "unknown";
+}
+
+function buildIdentityReview({ hasReference, captureSource, qualityScore }) {
+  if (!hasReference) {
+    return {
+      identityStatus: "no_reference",
+      identityScore: 0,
+      identityNotes: "No registered reference image is enrolled for this guard."
+    };
+  }
+
+  if (captureSource !== "camera") {
+    return {
+      identityStatus: "upload_review",
+      identityScore: Number(Math.min(qualityScore, 0.68).toFixed(2)),
+      identityNotes: "Reference image exists, but this proof was not captured through the live camera flow."
+    };
+  }
+
+  return {
+    identityStatus: "reference_review",
+    identityScore: Number(Math.min(qualityScore, 0.82).toFixed(2)),
+    identityNotes: "Reference image exists and the proof came from the live camera flow. Manual face review is available in admin."
+  };
+}
+
 export const selfieUpload = multer({
   storage: hasCloudinaryConfig ? multer.memoryStorage() : storage,
   limits: {
@@ -58,9 +98,17 @@ export function getUploadRoot() {
   return path.dirname(uploadDirectory);
 }
 
-export function scoreSelfieCapture(file) {
+export function scoreSelfieCapture(file, options = {}) {
+  const captureSource = normalizeCaptureSource(options.captureSource);
+  const hasReference = Boolean(options.identityPhotoPath || options.identitySelfiePath);
+
   if (!file || !isImage(file)) {
-    return { verified: false, score: 0 };
+    return {
+      verified: false,
+      score: 0,
+      captureSource,
+      ...buildIdentityReview({ hasReference, captureSource, qualityScore: 0 })
+    };
   }
 
   let score = 0.72;
@@ -77,9 +125,13 @@ export function scoreSelfieCapture(file) {
     score += 0.06;
   }
 
+  const qualityScore = Number(Math.min(score, 0.99).toFixed(2));
+
   return {
-    verified: score >= selfieVerificationThreshold,
-    score: Number(Math.min(score, 0.99).toFixed(2))
+    verified: qualityScore >= selfieVerificationThreshold,
+    score: qualityScore,
+    captureSource,
+    ...buildIdentityReview({ hasReference, captureSource, qualityScore })
   };
 }
 

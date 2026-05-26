@@ -168,7 +168,10 @@ export default function GuardDashboard() {
   const [attendanceNote, setAttendanceNote] = useState("");
   const [locationLabel, setLocationLabel] = useState(user?.shiftLabel || "Field checkpoint");
   const [selfieFile, setSelfieFile] = useState(null);
+  const [selfieCaptureSource, setSelfieCaptureSource] = useState("");
   const [selfiePreview, setSelfiePreview] = useState("");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState("");
   const [mapFocusSequence, setMapFocusSequence] = useState(0);
   const { deviceLocation, setDeviceLocation, locationStatus, setLocationStatus, refreshLocation } =
     useLiveLocation();
@@ -181,6 +184,8 @@ export default function GuardDashboard() {
   const flushQueuedLocationSyncRef = useRef(null);
   const shouldAutoSyncRef = useRef(false);
   const cameraSelfieInputRef = useRef(null);
+  const selfieVideoRef = useRef(null);
+  const selfieCameraStreamRef = useRef(null);
 
   useEffect(() => {
     locationLabelRef.current = locationLabel;
@@ -230,6 +235,23 @@ export default function GuardDashboard() {
 
     return () => URL.revokeObjectURL(preview);
   }, [selfieFile]);
+
+  function stopSelfieCamera({ updateState = true } = {}) {
+    selfieCameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    selfieCameraStreamRef.current = null;
+
+    if (updateState) {
+      setCameraActive(false);
+    }
+  }
+
+  useEffect(() => {
+    if (cameraActive && selfieVideoRef.current && selfieCameraStreamRef.current) {
+      selfieVideoRef.current.srcObject = selfieCameraStreamRef.current;
+    }
+  }, [cameraActive]);
+
+  useEffect(() => () => stopSelfieCamera({ updateState: false }), []);
 
   useEffect(() => {
     if (!overview?.lastLocation?.trackedAt) {
@@ -610,6 +632,7 @@ export default function GuardDashboard() {
     const file = event.target.files?.[0] || null;
     const isCheckoutSelfie = Boolean(overview?.currentAttendance);
     setSelfieFile(file);
+    setSelfieCaptureSource(file ? "upload" : "");
     setError("");
 
     if (!file) {
@@ -622,6 +645,82 @@ export default function GuardDashboard() {
     setMessage(nextMessage);
     toast.success(nextMessage);
     event.target.value = "";
+  }
+
+  async function openSelfieCamera() {
+    setCameraError("");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      cameraSelfieInputRef.current?.click();
+      return;
+    }
+
+    try {
+      stopSelfieCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: "user"
+        }
+      });
+      selfieCameraStreamRef.current = stream;
+      setCameraActive(true);
+    } catch {
+      const nextError = "Live camera is not available on this device. Use a device with camera access for verified live capture.";
+      setCameraError(nextError);
+      toast.error(nextError);
+    }
+  }
+
+  function captureLiveSelfie() {
+    const video = selfieVideoRef.current;
+
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      const nextError = "Camera preview is still loading. Please wait a moment and try again.";
+      setCameraError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      const nextError = "Camera capture is not supported in this browser.";
+      setCameraError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          const nextError = "Could not capture the selfie image. Please try again.";
+          setCameraError(nextError);
+          toast.error(nextError);
+          return;
+        }
+
+        const isCheckoutSelfie = Boolean(overview?.currentAttendance);
+        const file = new File([blob], `shift-selfie-${Date.now()}.jpg`, { type: "image/jpeg" });
+        setSelfieFile(file);
+        setSelfieCaptureSource("camera");
+        setCameraError("");
+        stopSelfieCamera();
+
+        const nextMessage = isCheckoutSelfie
+          ? "Check-out selfie captured from live camera. GPS will be verified when you end the shift."
+          : "Check-in selfie captured from live camera. GPS will be verified when you start the shift.";
+        setMessage(nextMessage);
+        toast.success(nextMessage);
+      },
+      "image/jpeg",
+      0.9
+    );
   }
 
   async function handleCheckIn(event) {
@@ -649,6 +748,7 @@ export default function GuardDashboard() {
 
       const formData = new FormData();
       formData.append("selfie", selfieFile);
+      formData.append("captureSource", selfieCaptureSource || "upload");
       formData.append("note", attendanceNote);
       formData.append("locationLabel", locationLabel);
 
@@ -665,6 +765,7 @@ export default function GuardDashboard() {
       clearQueuedGuardLocationSync();
       startTransition(() => setOverview(response));
       setSelfieFile(null);
+      setSelfieCaptureSource("");
       setAttendanceNote("");
       if (response?.lastLocation) {
         lastSyncedLocationRef.current = response.lastLocation;
@@ -711,6 +812,7 @@ export default function GuardDashboard() {
 
       const formData = new FormData();
       formData.append("selfie", selfieFile);
+      formData.append("captureSource", selfieCaptureSource || "upload");
       formData.append("note", attendanceNote);
       formData.append("dutyLabel", locationLabel || user?.shiftLabel || "Field checkpoint");
 
@@ -728,6 +830,7 @@ export default function GuardDashboard() {
       clearQueuedGuardLocationSync();
       startTransition(() => setOverview(response));
       setSelfieFile(null);
+      setSelfieCaptureSource("");
       setAttendanceNote("");
       if (response?.lastLocation) {
         lastSyncedLocationRef.current = response.lastLocation;
@@ -905,15 +1008,48 @@ export default function GuardDashboard() {
                   />
                   <button
                     type="button"
-                    onClick={() => cameraSelfieInputRef.current?.click()}
+                    onClick={openSelfieCamera}
                     className="app-outline-button mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold sm:w-auto"
                   >
                     <Camera className="h-4 w-4" />
                     {overview?.currentAttendance ? "Capture check-out selfie" : "Capture check-in selfie"}
                   </button>
+                  {cameraActive && (
+                    <div className="mt-4 rounded-[20px] border border-white/10 bg-slate-950/45 p-3">
+                      <video
+                        ref={selfieVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="h-56 w-full rounded-2xl bg-black object-cover"
+                      />
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={captureLiveSelfie}
+                          className="app-primary-button rounded-2xl px-4 py-2.5 text-sm font-semibold"
+                        >
+                          Use live selfie
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopSelfieCamera}
+                          className="app-outline-button rounded-2xl px-4 py-2.5 text-sm font-medium"
+                        >
+                          Cancel camera
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {cameraError && (
+                    <p className="mt-3 rounded-2xl border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-xs text-rose-200">
+                      {cameraError}
+                    </p>
+                  )}
                   {selfieFile && (
                     <p className="mt-3 text-xs uppercase tracking-[0.2em] text-jade-200">
-                      Selfie ready for {overview?.currentAttendance ? "check-out" : "check-in"}
+                      Selfie ready for {overview?.currentAttendance ? "check-out" : "check-in"} •{" "}
+                      {selfieCaptureSource === "camera" ? "live camera" : "upload review"}
                     </p>
                   )}
                 </div>

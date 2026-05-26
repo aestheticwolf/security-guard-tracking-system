@@ -376,6 +376,11 @@ async function ensureMongoPlatformRecords(database) {
     { $set: { dutySiteId: null } }
   );
 
+  await database.collection("users").updateMany(
+    { identityPhotoPath: { $exists: false } },
+    { $set: { identityPhotoPath: null, identitySelfiePath: null, identityEnrolledAt: null } }
+  );
+
   await database.collection("users").updateOne(
     { email: "guard@sentinel.local", dutySiteId: null },
     { $set: { dutySiteId: "site-infipre-north" } }

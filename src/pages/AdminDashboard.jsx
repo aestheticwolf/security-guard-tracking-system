@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   Building2,
+  Camera,
   History,
   LayoutDashboard,
   MapPinned,
@@ -33,6 +34,7 @@ import {
   updateGuardProfile,
   updateGuardAccess
 } from "../services/adminService";
+import { buildAssetUrl } from "../services/apiClient";
 import { subscribeGuardAdminSignals } from "../utils/guardAdminSignal";
 import {
   formatCoordinates,
@@ -54,7 +56,9 @@ const emptyGuardForm = {
   phone: "",
   shiftLabel: "",
   dutySiteId: "",
-  employeeCode: ""
+  employeeCode: "",
+  identityPhoto: null,
+  identitySelfie: null
 };
 
 const emptyDutySiteForm = {
@@ -74,7 +78,9 @@ function buildGuardEditForm(guard) {
     phone: guard?.phone || "",
     shiftLabel: guard?.shiftLabel || "",
     dutySiteId: guard?.dutySiteId || "",
-    employeeCode: guard?.employeeCode || ""
+    employeeCode: guard?.employeeCode || "",
+    identityPhoto: null,
+    identitySelfie: null
   };
 }
 
@@ -138,6 +144,119 @@ function formatDutySiteCoordinates(site) {
 function getDashboardErrorMessage(error) {
   return String(error?.message || "")
     .trim() || "Something went wrong while updating the admin dashboard. Please try again.";
+}
+
+const guardTextFieldNames = [
+  "fullName",
+  "email",
+  "password",
+  "phone",
+  "shiftLabel",
+  "dutySiteId",
+  "employeeCode"
+];
+
+function buildGuardSubmissionPayload(form) {
+  const hasIdentityFiles = Boolean(form.identityPhoto || form.identitySelfie);
+
+  if (!hasIdentityFiles) {
+    return guardTextFieldNames.reduce(
+      (payload, fieldName) => ({
+        ...payload,
+        [fieldName]: form[fieldName] ?? ""
+      }),
+      {}
+    );
+  }
+
+  const formData = new FormData();
+
+  guardTextFieldNames.forEach((fieldName) => {
+    formData.append(fieldName, form[fieldName] ?? "");
+  });
+
+  if (form.identityPhoto) {
+    formData.append("identityPhoto", form.identityPhoto);
+  }
+
+  if (form.identitySelfie) {
+    formData.append("identitySelfie", form.identitySelfie);
+  }
+
+  return formData;
+}
+
+function buildVersionedAssetUrl(pathname, versionSeed) {
+  const assetUrl = buildAssetUrl(pathname);
+
+  if (!assetUrl) {
+    return null;
+  }
+
+  const version = encodeURIComponent(versionSeed || pathname);
+  const separator = assetUrl.includes("?") ? "&" : "?";
+  return `${assetUrl}${separator}v=${version}`;
+}
+
+function IdentityImagePicker({
+  label,
+  file,
+  existingPath = "",
+  existingVersion = "",
+  emptyText,
+  helperText,
+  capture = false,
+  onChange
+}) {
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl("");
+      return undefined;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextPreviewUrl);
+
+    return () => URL.revokeObjectURL(nextPreviewUrl);
+  }, [file]);
+
+  const existingUrl = previewUrl
+    ? null
+    : buildVersionedAssetUrl(existingPath, existingVersion || existingPath);
+  const imageUrl = previewUrl || existingUrl;
+  const statusText = file?.name || (existingUrl ? "Current enrolled image" : emptyText);
+
+  return (
+    <label className="block rounded-[20px] border border-white/10 bg-slate-950/25 p-3.5">
+      <span className="app-label">{label}</span>
+      <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={label}
+            className="h-40 w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-40 items-center justify-center px-5 text-center text-xs app-copy-soft">
+            No image selected yet.
+          </div>
+        )}
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        capture={capture ? "user" : undefined}
+        onChange={(event) => onChange(event.target.files?.[0] || null)}
+        className="mt-3 block w-full text-sm app-copy-muted file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-950"
+      />
+      <p className="mt-2 truncate text-xs app-copy-soft">{statusText}</p>
+      {helperText && (
+        <p className="mt-1 text-xs leading-5 app-copy-soft">{helperText}</p>
+      )}
+    </label>
+  );
 }
 
 export default function AdminDashboard() {
@@ -284,7 +403,7 @@ export default function AdminDashboard() {
     setError("");
 
     try {
-      await createGuardAccount(guardForm);
+      await createGuardAccount(buildGuardSubmissionPayload(guardForm));
 
       setGuardForm(emptyGuardForm);
       await reloadDashboard("New guard profile added to the roster.");
@@ -386,7 +505,7 @@ export default function AdminDashboard() {
         password: guardEditForm.password.trim()
       };
 
-      await updateGuardProfile(guardPendingEdit.id, payload);
+      await updateGuardProfile(guardPendingEdit.id, buildGuardSubmissionPayload(payload));
       const updatedName = guardEditForm.fullName.trim() || guardPendingEdit.fullName;
       setSelectedGuardId(guardPendingEdit.id);
       setGuardPendingEdit(null);
@@ -459,7 +578,10 @@ export default function AdminDashboard() {
         guard.employeeCode,
         guard.dutySite?.name,
         guard.dutySite?.area,
-        guard.dutySite?.address
+        guard.dutySite?.address,
+        guard.mapLocation?.address,
+        guard.mapLocation?.zoneDetail,
+        guard.mapLocation?.dutyLabel
       ]
         .join(" ")
         .toLowerCase()
@@ -469,6 +591,7 @@ export default function AdminDashboard() {
   const selectedGuard =
     filteredGuards.find((guard) => guard.id === selectedGuardId) ||
     filteredGuards.find((guard) => guard.latestLocation) ||
+    filteredGuards.find((guard) => guard.mapLocation) ||
     filteredGuards[0] ||
     null;
 
@@ -497,7 +620,9 @@ export default function AdminDashboard() {
 
     if (!filteredGuards.some((guard) => guard.id === selectedGuardId)) {
       setSelectedGuardId(
-        filteredGuards.find((guard) => guard.latestLocation)?.id || filteredGuards[0].id
+        filteredGuards.find((guard) => guard.latestLocation)?.id ||
+          filteredGuards.find((guard) => guard.mapLocation)?.id ||
+          filteredGuards[0].id
       );
     }
   }, [filteredGuards, selectedGuardId]);
@@ -944,6 +1069,49 @@ export default function AdminDashboard() {
                 placeholder="GRD-205"
               />
 
+              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:col-span-2">
+                <div className="flex items-start gap-3">
+                  <div className="app-surface-soft rounded-2xl p-3">
+                    <Camera className="h-5 w-5 text-jade-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium app-copy-primary">Identity enrollment</p>
+                    <p className="mt-1 text-sm app-copy-muted">
+                      Add a registered profile image and an enrollment selfie. Shift selfies will
+                      show admin whether a reference exists and whether the proof came from camera
+                      capture or file upload.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <IdentityImagePicker
+                    label="Registered guard photo"
+                    file={guardForm.identityPhoto}
+                    emptyText="Used as the guard roster reference image."
+                    helperText="This image appears beside shift selfies for admin review."
+                    onChange={(file) =>
+                      setGuardForm((current) => ({
+                        ...current,
+                        identityPhoto: file
+                      }))
+                    }
+                  />
+                  <IdentityImagePicker
+                    label="Enrollment selfie"
+                    file={guardForm.identitySelfie}
+                    emptyText="Best captured live during onboarding."
+                    helperText="Use this as the closer comparison image for start/end shift proof."
+                    capture
+                    onChange={(file) =>
+                      setGuardForm((current) => ({
+                        ...current,
+                        identitySelfie: file
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={busy}
@@ -976,7 +1144,9 @@ export default function AdminDashboard() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
             {filteredGuards.length ? (
               visibleRosterGuards.map((guard) => {
-                const zoneLines = getLocationDisplayLines(guard.latestLocation);
+                const mapLocation = guard.latestLocation || guard.mapLocation || null;
+                const hasLiveLocation = Boolean(guard.latestLocation);
+                const zoneLines = getLocationDisplayLines(mapLocation);
                 const zoneTitle = zoneLines[0] || "No zone sync yet";
                 const zoneDetail = zoneLines[1] || null;
 
@@ -1011,6 +1181,12 @@ export default function AdminDashboard() {
                       <span className="text-right text-white">{guard.shiftState}</span>
                     </div>
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <span>Identity reference</span>
+                      <span className="text-right text-white">
+                        {guard.identityPhotoPath || guard.identitySelfiePath ? "Enrolled" : "Not enrolled"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <span>Latest map zone</span>
                       <span className="text-right text-white">
                         {zoneLines[0] || "No map sync yet"}
@@ -1019,13 +1195,13 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <span>Latest duty label</span>
                       <span className="text-right text-white">
-                        {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
+                        {mapLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <span>Exact sync point</span>
                       <span className="text-right text-white">
-                        {formatCoordinates(guard.latestLocation)}
+                        {formatCoordinates(mapLocation)}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -1037,7 +1213,7 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <span>Location freshness</span>
                       <span className="text-right text-white">
-                        {guard.locationFreshnessMinutes ?? "N/A"} min
+                        {hasLiveLocation ? `${guard.locationFreshnessMinutes ?? "N/A"} min` : "Awaiting live sync"}
                       </span>
                     </div>
                   </div>
@@ -1057,22 +1233,24 @@ export default function AdminDashboard() {
                     {zoneDetail ? (
                       <p className="mt-2 text-xs text-slate-400">{zoneDetail}</p>
                     ) : (
-                      !guard.latestLocation && (
+                      !mapLocation && (
                         <p className="mt-2 text-xs text-slate-400">
                           GPS live zone detail will appear here after sync.
                         </p>
                       )
                     )}
                     <p className="mt-2 text-sm text-slate-300">
-                      {formatCoordinates(guard.latestLocation)}
+                      {formatCoordinates(mapLocation)}
                     </p>
                     <p className="mt-2 text-sm text-slate-300">
-                      Duty label: {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
+                      Duty label: {mapLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {guard.latestLocation?.trackedAt
                         ? formatDateTime(guard.latestLocation.trackedAt)
-                        : "Awaiting first location sync"}
+                        : mapLocation
+                          ? "Showing assigned duty site until first live sync"
+                          : "Awaiting first location sync"}
                     </p>
                     <p className="mt-3 text-sm text-slate-300">
                       {guard.latestActivity?.title || "No recent activity title"}
@@ -1242,6 +1420,52 @@ export default function AdminDashboard() {
                   onChange={(value) => setGuardEditForm((current) => ({ ...current, employeeCode: value }))}
                   placeholder="GRD-205"
                 />
+
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:col-span-2">
+                  <div className="flex items-start gap-3">
+                    <div className="app-surface-soft rounded-2xl p-3">
+                      <Camera className="h-5 w-5 text-jade-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium app-copy-primary">Identity reference images</p>
+                      <p className="mt-1 text-sm app-copy-muted">
+                        Replace these only when the guard needs re-enrollment. Existing reference
+                        images remain active if no new files are selected.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <IdentityImagePicker
+                      label="Replace registered photo"
+                      file={guardEditForm.identityPhoto}
+                      existingPath={guardPendingEdit.identityPhotoPath}
+                      existingVersion={guardPendingEdit.identityEnrolledAt}
+                      emptyText="No registered photo enrolled."
+                      helperText="Selecting a new file replaces the current registered photo after save."
+                      onChange={(file) =>
+                        setGuardEditForm((current) => ({
+                          ...current,
+                          identityPhoto: file
+                        }))
+                      }
+                    />
+                    <IdentityImagePicker
+                      label="Replace enrollment selfie"
+                      file={guardEditForm.identitySelfie}
+                      existingPath={guardPendingEdit.identitySelfiePath}
+                      existingVersion={guardPendingEdit.identityEnrolledAt}
+                      emptyText="No enrollment selfie enrolled."
+                      helperText="Selecting a new file replaces the current enrollment selfie after save."
+                      capture
+                      onChange={(file) =>
+                        setGuardEditForm((current) => ({
+                          ...current,
+                          identitySelfie: file
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
 
                 <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-sm app-copy-muted sm:col-span-2">
                   Password is optional. If you enter a new password, the guard's active session

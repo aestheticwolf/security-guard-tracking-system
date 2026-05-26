@@ -9,7 +9,12 @@ import {
   formatRelative,
   getLocationDisplayLines
 } from "../../utils/format";
-import { isSelfieVerificationPassed } from "../../utils/selfieVerification";
+import {
+  getGuardIdentityEnrollmentLabel,
+  getSelfieCaptureLabel,
+  getSelfieIdentityLabel,
+  isSelfieVerificationPassed
+} from "../../utils/selfieVerification";
 
 function buildSelfieImageUrl(selfie) {
   const assetUrl = buildAssetUrl(selfie?.imagePath);
@@ -185,6 +190,11 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                           ? formatDateTime(selfie.capturedAt)
                           : "Awaiting first capture"}
                       </p>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs app-copy-muted">
+                        <p>{getGuardIdentityEnrollmentLabel(owner)}</p>
+                        <p className="mt-1">{getSelfieIdentityLabel(selfie)}</p>
+                        <p className="mt-1">{getSelfieCaptureLabel(selfie)}</p>
+                      </div>
                     </div>
                   </div>
                 );

@@ -14,6 +14,9 @@ const userSelect = `
   shift_label AS shiftLabel,
   status,
   avatar_url AS avatarUrl,
+  identity_photo_path AS identityPhotoPath,
+  identity_selfie_path AS identitySelfiePath,
+  identity_enrolled_at AS identityEnrolledAt,
   session_version AS sessionVersion,
   last_login_at AS lastLoginAt,
   last_seen_at AS lastSeenAt,
@@ -51,8 +54,9 @@ export async function createUser(user) {
   await database.run(
     `INSERT INTO users (
       id, full_name, email, password_hash, role, organization_id, duty_site_id, phone, employee_code, shift_label,
-      status, avatar_url, session_version, last_login_at, last_seen_at, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      status, avatar_url, identity_photo_path, identity_selfie_path, identity_enrolled_at,
+      session_version, last_login_at, last_seen_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       user.id,
       user.fullName,
@@ -66,6 +70,9 @@ export async function createUser(user) {
       user.shiftLabel,
       user.status,
       user.avatarUrl,
+      user.identityPhotoPath ?? null,
+      user.identitySelfiePath ?? null,
+      user.identityEnrolledAt ?? null,
       user.sessionVersion,
       user.lastLoginAt,
       user.lastSeenAt,
@@ -192,6 +199,18 @@ export async function updateGuardDetails(id, guard, timestamp) {
       nextValues.passwordHash = guard.passwordHash;
     }
 
+    if (guard.identityPhotoPath) {
+      nextValues.identityPhotoPath = guard.identityPhotoPath;
+    }
+
+    if (guard.identitySelfiePath) {
+      nextValues.identitySelfiePath = guard.identitySelfiePath;
+    }
+
+    if (guard.identityEnrolledAt) {
+      nextValues.identityEnrolledAt = guard.identityEnrolledAt;
+    }
+
     await users.updateOne(
       { id, role: "guard" },
       {
@@ -215,6 +234,9 @@ export async function updateGuardDetails(id, guard, timestamp) {
          employee_code = ?,
          shift_label = ?,
          duty_site_id = ?,
+         identity_photo_path = COALESCE(?, identity_photo_path),
+         identity_selfie_path = COALESCE(?, identity_selfie_path),
+         identity_enrolled_at = COALESCE(?, identity_enrolled_at),
          session_version = session_version + ?,
          last_seen_at = ?
      WHERE id = ? AND role = 'guard'`,
@@ -226,6 +248,9 @@ export async function updateGuardDetails(id, guard, timestamp) {
       guard.employeeCode,
       guard.shiftLabel,
       guard.dutySiteId || null,
+      guard.identityPhotoPath || null,
+      guard.identitySelfiePath || null,
+      guard.identityEnrolledAt || null,
       passwordVersionBump,
       timestamp,
       id

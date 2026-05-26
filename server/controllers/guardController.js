@@ -50,6 +50,43 @@ function normalizeBattery(value) {
   return Math.round(numericValue);
 }
 
+function isBlankCoordinate(value) {
+  return value === undefined || value === null || value === "";
+}
+
+function parseLocationCoordinates(latitude, longitude, { required = false } = {}) {
+  const latitudeBlank = isBlankCoordinate(latitude);
+  const longitudeBlank = isBlankCoordinate(longitude);
+
+  if (latitudeBlank && longitudeBlank && !required) {
+    return null;
+  }
+
+  if (latitudeBlank || longitudeBlank) {
+    throw createHttpError(400, "Latitude and longitude must be supplied together.");
+  }
+
+  const parsedLatitude = Number(latitude);
+  const parsedLongitude = Number(longitude);
+
+  if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) {
+    throw createHttpError(400, "Latitude and longitude must be valid numbers.");
+  }
+
+  if (parsedLatitude < -90 || parsedLatitude > 90) {
+    throw createHttpError(400, "Latitude must be between -90 and 90.");
+  }
+
+  if (parsedLongitude < -180 || parsedLongitude > 180) {
+    throw createHttpError(400, "Longitude must be between -180 and 180.");
+  }
+
+  return {
+    latitude: parsedLatitude,
+    longitude: parsedLongitude
+  };
+}
+
 async function buildResolvedLocation({
   latitude,
   longitude,
@@ -107,11 +144,16 @@ export async function checkIn(request, response) {
     throw createHttpError(409, "You are already checked in for an active shift.");
   }
 
-  const { note, locationLabel, latitude, longitude, accuracy, battery } = request.body ?? {};
+  const { note, locationLabel, latitude, longitude, accuracy, battery, captureSource } = request.body ?? {};
+  const parsedCoordinates = parseLocationCoordinates(latitude, longitude);
   const shiftNote = note ? String(note).trim() : "";
   const attendanceId = createId();
   const timestamp = now();
-  const selfieCheck = scoreSelfieCapture(request.file);
+  const selfieCheck = scoreSelfieCapture(request.file, {
+    captureSource,
+    identityPhotoPath: request.user.identityPhotoPath,
+    identitySelfiePath: request.user.identitySelfiePath
+  });
   const selfiePath = await storeSelfieFile(request.file);
 
   await createAttendance({
@@ -122,8 +164,8 @@ export async function checkIn(request, response) {
     status: "checked-in",
     selfiePath,
     locationLabel: locationLabel ? String(locationLabel).trim() : "Field checkpoint",
-    latitude: latitude ? Number(latitude) : null,
-    longitude: longitude ? Number(longitude) : null,
+    latitude: parsedCoordinates?.latitude ?? null,
+    longitude: parsedCoordinates?.longitude ?? null,
     accuracy: accuracy ? Number(accuracy) : null,
     note: shiftNote
   });
@@ -135,6 +177,10 @@ export async function checkIn(request, response) {
     imagePath: selfiePath,
     verified: selfieCheck.verified,
     verificationScore: selfieCheck.score,
+    captureSource: selfieCheck.captureSource,
+    identityStatus: selfieCheck.identityStatus,
+    identityScore: selfieCheck.identityScore,
+    identityNotes: selfieCheck.identityNotes,
     capturedAt: timestamp
   });
 
@@ -153,10 +199,10 @@ export async function checkIn(request, response) {
     updatedAt: timestamp
   });
 
-  if (latitude && longitude) {
+  if (parsedCoordinates) {
     const resolvedLocation = await buildResolvedLocation({
-      latitude,
-      longitude,
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       manualDutyLabel: locationLabel ? String(locationLabel).trim() : "",
       fallbackAddress: "Shift check-in"
     });
@@ -164,8 +210,8 @@ export async function checkIn(request, response) {
     await createLocation({
       id: createId(),
       userId: request.user.id,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       accuracy: accuracy ? Number(accuracy) : null,
       address: resolvedLocation.address,
       zoneDetail: resolvedLocation.zoneDetail,
@@ -191,17 +237,23 @@ export async function checkOut(request, response) {
   }
 
   const timestamp = now();
-  const selfieCheck = scoreSelfieCapture(request.file);
-  const selfiePath = await storeSelfieFile(request.file);
-  const nextNote = request.body?.note ? String(request.body.note).trim() : openAttendance.note;
   const {
     latitude,
     longitude,
     accuracy,
     address,
     dutyLabel,
-    battery
+    battery,
+    captureSource
   } = request.body ?? {};
+  const parsedCoordinates = parseLocationCoordinates(latitude, longitude);
+  const selfieCheck = scoreSelfieCapture(request.file, {
+    captureSource,
+    identityPhotoPath: request.user.identityPhotoPath,
+    identitySelfiePath: request.user.identitySelfiePath
+  });
+  const selfiePath = await storeSelfieFile(request.file);
+  const nextNote = request.body?.note ? String(request.body.note).trim() : openAttendance.note;
 
   await createSelfie({
     id: createId(),
@@ -210,6 +262,10 @@ export async function checkOut(request, response) {
     imagePath: selfiePath,
     verified: selfieCheck.verified,
     verificationScore: selfieCheck.score,
+    captureSource: selfieCheck.captureSource,
+    identityStatus: selfieCheck.identityStatus,
+    identityScore: selfieCheck.identityScore,
+    identityNotes: selfieCheck.identityNotes,
     capturedAt: timestamp
   });
 
@@ -234,10 +290,10 @@ export async function checkOut(request, response) {
     updatedAt: timestamp
   });
 
-  if (latitude && longitude) {
+  if (parsedCoordinates) {
     const resolvedLocation = await buildResolvedLocation({
-      latitude,
-      longitude,
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       manualDutyLabel: dutyLabel ? String(dutyLabel).trim() : "",
       fallbackAddress: address ? String(address).trim() : "Shift check-out"
     });
@@ -245,8 +301,8 @@ export async function checkOut(request, response) {
     await createLocation({
       id: createId(),
       userId: request.user.id,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       accuracy: accuracy ? Number(accuracy) : null,
       address: resolvedLocation.address,
       zoneDetail: resolvedLocation.zoneDetail,
@@ -279,6 +335,7 @@ export async function createGuardActivity(request, response) {
   }
 
   const timestamp = now();
+  const parsedCoordinates = parseLocationCoordinates(latitude, longitude);
 
   await createActivity({
     id: createId(),
@@ -292,10 +349,10 @@ export async function createGuardActivity(request, response) {
     updatedAt: timestamp
   });
 
-  if (latitude && longitude) {
+  if (parsedCoordinates) {
     const resolvedLocation = await buildResolvedLocation({
-      latitude,
-      longitude,
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       manualDutyLabel: dutyLabel ? String(dutyLabel).trim() : "",
       fallbackAddress: address ? String(address).trim() : "Activity update"
     });
@@ -303,8 +360,8 @@ export async function createGuardActivity(request, response) {
     await createLocation({
       id: createId(),
       userId: request.user.id,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       accuracy: accuracy ? Number(accuracy) : null,
       address: resolvedLocation.address,
       zoneDetail: resolvedLocation.zoneDetail,
@@ -328,14 +385,12 @@ export async function syncLocation(request, response) {
     battery
   } = request.body ?? {};
 
-  if (latitude === undefined || longitude === undefined) {
-    throw createHttpError(400, "Latitude and longitude are required.");
-  }
+  const parsedCoordinates = parseLocationCoordinates(latitude, longitude, { required: true });
 
   const timestamp = now();
   const resolvedLocation = await buildResolvedLocation({
-    latitude,
-    longitude,
+    latitude: parsedCoordinates.latitude,
+    longitude: parsedCoordinates.longitude,
     manualDutyLabel: dutyLabel ? String(dutyLabel).trim() : "",
     fallbackAddress: address ? String(address).trim() : "Live location sync"
   });
@@ -343,8 +398,8 @@ export async function syncLocation(request, response) {
   await createLocation({
     id: createId(),
     userId: request.user.id,
-    latitude: Number(latitude),
-    longitude: Number(longitude),
+    latitude: parsedCoordinates.latitude,
+    longitude: parsedCoordinates.longitude,
     accuracy: accuracy ? Number(accuracy) : null,
     address: resolvedLocation.address,
     zoneDetail: resolvedLocation.zoneDetail,

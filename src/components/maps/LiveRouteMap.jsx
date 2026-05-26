@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { LocateFixed } from "lucide-react";
+import { LocateFixed, MapPinned } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import {
   buildContiguousLocationTrail,
   getDistanceMeters,
   toLatLng
 } from "../../utils/geo";
-import { uniqueDisplayValues } from "../../utils/format";
+import {
+  formatCoordinates,
+  formatDistanceMeters,
+  formatRelative,
+  uniqueDisplayValues
+} from "../../utils/format";
 import {
   buildLeafletMapError,
   buildLeafletPopupHtml,
@@ -18,6 +23,7 @@ import {
 } from "../../utils/leafletMaps";
 
 const indiaCenter = [20.5937, 78.9629];
+const defaultSubjectMeta = [];
 
 export default function LiveRouteMap({
   currentLocation,
@@ -28,7 +34,13 @@ export default function LiveRouteMap({
   subtitle = "Awaiting field location sync.",
   focusSequence = 0,
   followCurrentLocation = false,
-  heightClass = "h-[22rem]"
+  heightClass = "h-[22rem]",
+  adminLocation = null,
+  adminLocationLabel = "Operations viewer location",
+  adminDistanceLabel = "",
+  adminLocationLoading = false,
+  onRequestAdminLocation,
+  subjectMeta = defaultSubjectMeta
 }) {
   const { theme } = useTheme();
   const shellRef = useRef(null);
@@ -38,6 +50,8 @@ export default function LiveRouteMap({
   const routeLayerRef = useRef(null);
   const markerRef = useRef(null);
   const accuracyCircleRef = useRef(null);
+  const adminMarkerRef = useRef(null);
+  const adminAccuracyCircleRef = useRef(null);
   const resizeTimersRef = useRef([]);
   const latestFitPointsRef = useRef([]);
   const latestFitZoomRef = useRef(16);
@@ -72,9 +86,31 @@ export default function LiveRouteMap({
 
     return [...trailPoints, currentLocation];
   }, [currentLocation, currentPoint, trailPoints]);
+  const subjectFitPoints = useMemo(
+    () =>
+      mapPoints
+        .map((point) => (Array.isArray(point) ? point : toLatLng(point)))
+        .filter(Boolean),
+    [mapPoints]
+  );
+  const adminPoint = toLatLng(adminLocation);
+  const fitPoints = useMemo(() => {
+    const points = [...subjectFitPoints];
+    const nextAdminPoint = toLatLng(adminLocation);
+
+    if (nextAdminPoint) {
+      points.push(nextAdminPoint);
+    }
+
+    return points;
+  }, [adminLocation, subjectFitPoints]);
   const accuracyRadiusMeters =
     currentLocation?.accuracy !== undefined && currentLocation?.accuracy !== null
       ? Math.max(0, Number(currentLocation.accuracy))
+      : 0;
+  const adminAccuracyRadiusMeters =
+    adminLocation?.accuracy !== undefined && adminLocation?.accuracy !== null
+      ? Math.max(0, Number(adminLocation.accuracy))
       : 0;
 
   function clearScheduledMapResizes() {
@@ -131,10 +167,47 @@ export default function LiveRouteMap({
     });
   }
 
-  function handleRecenter() {
+  function handleLocateSubject() {
     const map = mapRef.current;
 
     if (!map) {
+      return;
+    }
+
+    if (subjectFitPoints.length) {
+      fitLeafletMapToPoints(map, subjectFitPoints, currentPoint ? 17 : 16);
+    }
+  }
+
+  async function handleRecenter() {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    if (!onRequestAdminLocation) {
+      handleLocateSubject();
+      return;
+    }
+
+    let nextFitPoints = fitPoints;
+    let nextAdminPoint = adminPoint;
+
+    const requestedLocation = await onRequestAdminLocation();
+    const requestedPoint = toLatLng(requestedLocation);
+
+    if (requestedPoint) {
+      nextAdminPoint = requestedPoint;
+      nextFitPoints = [...subjectFitPoints, requestedPoint];
+    }
+
+    if (!nextAdminPoint) {
+      return;
+    }
+
+    if (nextAdminPoint && nextFitPoints.length > 1) {
+      fitLeafletMapToPoints(map, nextFitPoints, 15);
       return;
     }
 
@@ -145,21 +218,15 @@ export default function LiveRouteMap({
       return;
     }
 
-    fitLeafletMapToPoints(
-      map,
-      mapPoints.map((point) => (Array.isArray(point) ? point : toLatLng(point))).filter(Boolean),
-      16
-    );
+    fitLeafletMapToPoints(map, nextFitPoints, 16);
   }
 
   useEffect(() => {
-    latestFitPointsRef.current = mapPoints
-      .map((point) => (Array.isArray(point) ? point : toLatLng(point)))
-      .filter(Boolean);
-    latestFitZoomRef.current = currentPoint ? 17 : 16;
+    latestFitPointsRef.current = fitPoints;
+    latestFitZoomRef.current = currentPoint ? (adminPoint ? 15 : 17) : 16;
     latestCurrentPointRef.current = currentPoint;
     latestFollowCurrentLocationRef.current = followCurrentLocation;
-  }, [currentPoint, followCurrentLocation, mapPoints]);
+  }, [adminPoint, currentPoint, fitPoints, followCurrentLocation]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -188,11 +255,15 @@ export default function LiveRouteMap({
 
     return () => {
       clearScheduledMapResizes();
+      adminAccuracyCircleRef.current?.remove();
+      adminMarkerRef.current?.remove();
       accuracyCircleRef.current?.remove();
       markerRef.current?.remove();
       routeLayerRef.current?.remove();
       tileLayerRef.current?.remove();
       map.remove();
+      adminAccuracyCircleRef.current = null;
+      adminMarkerRef.current = null;
       accuracyCircleRef.current = null;
       markerRef.current = null;
       routeLayerRef.current = null;
@@ -235,7 +306,7 @@ export default function LiveRouteMap({
       currentLocation?.capturedAt ||
       `${currentPoint?.[0] ?? ""}:${currentPoint?.[1] ?? ""}`;
 
-    if (followCurrentLocation && currentPoint) {
+    if (followCurrentLocation && currentPoint && !adminPoint) {
       const shouldRefocus = lastFocusRef.current !== currentFocusToken;
       lastFocusRef.current = currentFocusToken;
       const mapCenter = map.getCenter?.();
@@ -265,9 +336,7 @@ export default function LiveRouteMap({
       return;
     }
 
-    const normalizedPoints = mapPoints
-      .map((point) => (Array.isArray(point) ? point : toLatLng(point)))
-      .filter(Boolean);
+    const normalizedPoints = fitPoints;
     const staticFitSignature = `${focusSequence}|${normalizedPoints
       .map((point) => `${Number(point[0]).toFixed(5)},${Number(point[1]).toFixed(5)}`)
       .join("|")}`;
@@ -276,7 +345,7 @@ export default function LiveRouteMap({
       lastStaticFitSignatureRef.current !== staticFitSignature;
 
     if (shouldFitStaticMap) {
-      fitLeafletMapToPoints(map, normalizedPoints, currentPoint ? 16 : 15);
+      fitLeafletMapToPoints(map, normalizedPoints, currentPoint && !adminPoint ? 16 : 15);
       hasInitialFitRef.current = true;
       lastStaticFitSignatureRef.current = staticFitSignature;
     }
@@ -285,6 +354,8 @@ export default function LiveRouteMap({
     currentPoint,
     focusSequence,
     followCurrentLocation,
+    adminPoint,
+    fitPoints,
     mapPoints,
     mapReady,
     markerTone,
@@ -313,6 +384,7 @@ export default function LiveRouteMap({
           subtitle,
           meta: [
             uniqueDisplayValues(subtitle, currentLocation?.zoneDetail)[1] || null,
+            ...subjectMeta.filter(Boolean),
             currentLocation?.dutyLabel ? `Duty label: ${currentLocation.dutyLabel}` : null,
             currentLocation?.trackedAt ? `Tracked ${currentLocation.trackedAt}` : null,
             accuracyRadiusMeters ? `Approximate within ${accuracyRadiusMeters}m` : null
@@ -348,7 +420,73 @@ export default function LiveRouteMap({
     markerLabel,
     markerTone,
     subtitle,
+    subjectMeta,
     title
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    adminMarkerRef.current?.remove();
+    adminAccuracyCircleRef.current?.remove();
+    adminMarkerRef.current = null;
+    adminAccuracyCircleRef.current = null;
+
+    if (!mapReady || !map || !adminPoint) {
+      return;
+    }
+
+    adminMarkerRef.current = L.marker(adminPoint, {
+      icon: createLeafletDivIcon("ME", "slate", "pinpoint", {
+        offsetX: 24,
+        offsetY: -6
+      }),
+      keyboard: false,
+      zIndexOffset: 1400
+    })
+      .bindPopup(
+        buildLeafletPopupHtml({
+          title: "My position",
+          subtitle: adminLocationLabel,
+          meta: [
+            adminDistanceLabel || null,
+            adminAccuracyRadiusMeters
+              ? `Approximate within ${formatDistanceMeters(adminAccuracyRadiusMeters)}`
+              : null,
+            adminLocation?.capturedAt ? `Updated ${formatRelative(adminLocation.capturedAt)}` : null,
+            formatCoordinates(adminLocation)
+          ]
+        }),
+        {
+          offset: [0, -32]
+        }
+      )
+      .addTo(map);
+
+    if (adminAccuracyRadiusMeters > 0) {
+      adminAccuracyCircleRef.current = L.circle(adminPoint, {
+        radius: adminAccuracyRadiusMeters,
+        color: "rgba(148, 163, 184, 0.42)",
+        fillColor: "rgba(15, 23, 42, 0.15)",
+        fillOpacity: 0.5,
+        weight: 1
+      }).addTo(map);
+    }
+
+    return () => {
+      adminMarkerRef.current?.remove();
+      adminAccuracyCircleRef.current?.remove();
+      adminMarkerRef.current = null;
+      adminAccuracyCircleRef.current = null;
+    };
+  }, [
+    adminAccuracyRadiusMeters,
+    adminDistanceLabel,
+    adminLocation,
+    adminLocation?.capturedAt,
+    adminLocationLabel,
+    adminPoint,
+    mapReady
   ]);
 
   useEffect(() => {
@@ -417,17 +555,41 @@ export default function LiveRouteMap({
         type="button"
         onClick={handleRecenter}
         className="security-map-recenter-button"
+        disabled={adminLocationLoading}
       >
         <LocateFixed className="h-4 w-4" />
-        {followCurrentLocation ? "Current location" : "Recenter"}
+        {adminLocationLoading
+          ? "Locating position"
+          : onRequestAdminLocation
+            ? "My Position"
+            : followCurrentLocation
+              ? "Current location"
+              : "Recenter"}
       </button>
+      {onRequestAdminLocation && (
+        <button
+          type="button"
+          onClick={handleLocateSubject}
+          className="security-map-guard-button disabled:cursor-not-allowed disabled:opacity-70"
+          disabled={!subjectFitPoints.length}
+        >
+          <MapPinned className="h-4 w-4" />
+          Locate Guard
+        </button>
+      )}
+      {adminPoint && (
+        <div className="security-map-overlay bottom-4 left-4 inline-flex items-center gap-2">
+          <LocateFixed className="h-3.5 w-3.5 text-slate-200" />
+          {adminDistanceLabel || "Position locked"}
+        </div>
+      )}
       <div ref={containerRef} className="security-map" />
       {mapError && (
-        <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-100 backdrop-blur">
+        <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs app-error-copy backdrop-blur">
           {mapError}
         </div>
       )}
-      {!mapPoints.length && (
+      {!mapPoints.length && !adminPoint && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 px-8 text-center text-sm app-copy-soft">
           Live location will appear here after the device shares its first tracked position.
         </div>

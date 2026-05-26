@@ -5,11 +5,18 @@ import { useTheme } from "../../context/ThemeContext";
 import {
   formatCoordinates,
   formatDateTime,
+  formatDistanceMeters,
   formatRelative,
   getLocationDisplayLines,
   initials
 } from "../../utils/format";
-import { buildContiguousLocationTrail, hasCoordinates, toLatLng } from "../../utils/geo";
+import {
+  buildContiguousLocationTrail,
+  getDistanceMeters,
+  hasCoordinates,
+  toLatLng
+} from "../../utils/geo";
+import { readBestAvailableDeviceContext } from "../../utils/device";
 import {
   buildLeafletMapError,
   buildLeafletPopupHtml,
@@ -21,9 +28,28 @@ import {
 
 const indiaCenter = [20.5937, 78.9629];
 const markerCollisionPrecision = 3;
+const operatorLocationRequestOptions = {
+  forceFresh: false,
+  timeout: 8_000,
+  relaxedTimeout: 6_000,
+  maxPositionAgeMs: 30 * 60_000,
+  storedMaxAgeMs: 30 * 60_000
+};
+
+function getLocationTimestamp(location) {
+  return location?.capturedAt || location?.trackedAt || null;
+}
+
+function getGuardMapLocation(guard) {
+  return hasCoordinates(guard?.latestLocation) ? guard.latestLocation : guard?.mapLocation || null;
+}
+
+function hasLiveLocation(guard) {
+  return hasCoordinates(guard?.latestLocation);
+}
 
 function getMarkerCollisionKey(guard) {
-  const location = guard.latestLocation;
+  const location = getGuardMapLocation(guard);
 
   if (!hasCoordinates(location)) {
     return guard.id;
@@ -37,7 +63,7 @@ function buildMarkerGroups(guards) {
 
   guards.forEach((guard) => {
     const key = getMarkerCollisionKey(guard);
-    const point = toLatLng(guard.latestLocation);
+    const point = toLatLng(getGuardMapLocation(guard));
     const group = groups.get(key) || {
       key,
       point,
@@ -69,7 +95,8 @@ function getMarkerGroupTone(group, selectedGuard) {
 
 function buildMarkerGroupPopupHtml(group) {
   const primaryGuard = group.guards[0];
-  const location = primaryGuard.latestLocation;
+  const location = getGuardMapLocation(primaryGuard);
+  const isLiveLocation = hasLiveLocation(primaryGuard);
   const guardLines = group.guards.map(
     (guard) => `${guard.fullName} - ${guard.employeeCode || "No code"} - ${guard.shiftState}`
   );
@@ -82,9 +109,12 @@ function buildMarkerGroupPopupHtml(group) {
     subtitle: getLocationDisplayLines(location)[0] || "Field zone",
     meta: [
       getLocationDisplayLines(location)[1] || null,
+      isLiveLocation ? "Live location sync" : "Assigned duty site fallback",
       group.guards.length > 1 ? "Select an exact guard from the shared-location panel." : null,
       ...guardLines,
       primaryGuard.dutySite?.name ? `Assigned site: ${primaryGuard.dutySite.name}` : null,
+      primaryGuard.dutySite?.area ? `Assigned area: ${primaryGuard.dutySite.area}` : null,
+      primaryGuard.dutySite?.address ? `Site address: ${primaryGuard.dutySite.address}` : null,
       location?.dutyLabel ? `Duty label: ${location.dutyLabel}` : null,
       formatCoordinates(location),
       location?.trackedAt ? formatDateTime(location.trackedAt) : null
@@ -110,7 +140,10 @@ function matchesGuardSearch(guard, query) {
     guard.latestLocation?.address,
     guard.latestLocation?.zoneDetail,
     guard.latestLocation?.dutyLabel,
-    formatCoordinates(guard.latestLocation)
+    guard.mapLocation?.address,
+    guard.mapLocation?.zoneDetail,
+    guard.mapLocation?.dutyLabel,
+    formatCoordinates(getGuardMapLocation(guard))
   ]
     .filter(Boolean)
     .join(" ")
@@ -126,6 +159,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
   const tileLayerRef = useRef(null);
   const routeLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
+  const adminLayerRef = useRef(null);
   const resizeTimersRef = useRef([]);
   const latestFitPointsRef = useRef([]);
   const latestFitZoomRef = useRef(16);
@@ -136,28 +170,38 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
   const [mapError, setMapError] = useState("");
   const [mapSearch, setMapSearch] = useState("");
   const [activeSharedGroupKey, setActiveSharedGroupKey] = useState("");
+  const [adminLocation, setAdminLocation] = useState(null);
+  const [adminLocationError, setAdminLocationError] = useState("");
+  const [adminLocationLoading, setAdminLocationLoading] = useState(false);
 
   const locatedGuards = useMemo(
-    () => guards.filter((guard) => hasCoordinates(guard.latestLocation)),
+    () => guards.filter((guard) => hasCoordinates(getGuardMapLocation(guard))),
     [guards]
   );
+  const trackedGuardCount = useMemo(
+    () => guards.filter(hasLiveLocation).length,
+    [guards]
+  );
+  const assignedFallbackCount = Math.max(locatedGuards.length - trackedGuardCount, 0);
   const normalizedMapSearch = mapSearch.trim().toLowerCase();
   const visibleLocatedGuards = useMemo(
     () => locatedGuards.filter((guard) => matchesGuardSearch(guard, normalizedMapSearch)),
     [locatedGuards, normalizedMapSearch]
   );
+  const selectedRosterGuard = guards.find((guard) => guard.id === selectedGuardId) || null;
   const selectedGuard =
     (normalizedMapSearch
       ? visibleLocatedGuards.find((guard) => guard.id === selectedGuardId)
       : locatedGuards.find((guard) => guard.id === selectedGuardId)) ||
     visibleLocatedGuards[0] ||
     locatedGuards[0] ||
+    selectedRosterGuard ||
     null;
   const selectedTrail = useMemo(
     () =>
       buildContiguousLocationTrail(
         selectedGuard?.recentLocations || [],
-        selectedGuard?.latestLocation
+        getGuardMapLocation(selectedGuard)
       ),
     [selectedGuard]
   );
@@ -166,13 +210,30 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     [selectedTrail]
   );
   const markerPoints = useMemo(
-    () => visibleLocatedGuards.map((guard) => toLatLng(guard.latestLocation)).filter(Boolean),
+    () => visibleLocatedGuards.map((guard) => toLatLng(getGuardMapLocation(guard))).filter(Boolean),
     [visibleLocatedGuards]
   );
   const markerGroups = useMemo(
     () => buildMarkerGroups(visibleLocatedGuards),
     [visibleLocatedGuards]
   );
+  const adminPoint = toLatLng(adminLocation);
+  const selectedGuardLocation = getGuardMapLocation(selectedGuard);
+  const selectedDistanceMeters =
+    hasCoordinates(adminLocation) && hasCoordinates(selectedGuardLocation)
+      ? getDistanceMeters(adminLocation, selectedGuardLocation)
+      : null;
+  const adminDistanceLabel =
+    Number.isFinite(selectedDistanceMeters) && selectedGuard
+      ? `${formatDistanceMeters(selectedDistanceMeters)} from ${selectedGuard.fullName}`
+      : "";
+  const adminLocationStatus = adminLocationError
+    ? adminLocationError
+    : adminLocation
+      ? `Position updated ${formatRelative(getLocationTimestamp(adminLocation))}${
+          adminLocation.fallbackUsed ? " using a recent device fix" : ""
+        }`
+      : "Click My Position to place your location on this operations map.";
   const activeSharedGroup = useMemo(
     () =>
       markerGroups.find(
@@ -227,10 +288,72 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     });
   }
 
-  function handleRecenter() {
+  async function requestAdminLocation() {
+    if (adminLocationLoading) {
+      return adminLocation;
+    }
+
+    setAdminLocationLoading(true);
+    setAdminLocationError("");
+
+    try {
+      const nextLocation = await readBestAvailableDeviceContext(operatorLocationRequestOptions);
+      setAdminLocation(nextLocation);
+      return nextLocation;
+    } catch (error) {
+      setAdminLocationError(
+        error?.message ||
+          "Unable to read this device location. Check browser and OS location permission."
+      );
+      return null;
+    } finally {
+      setAdminLocationLoading(false);
+    }
+  }
+
+  function handleLocateSelectedGuard() {
     const map = mapRef.current;
 
     if (!map) {
+      return;
+    }
+
+    const selectedPoint = toLatLng(selectedGuardLocation);
+    const fitPoints = selectedTrailPoints.length
+      ? selectedTrailPoints
+      : selectedPoint
+        ? [selectedPoint]
+        : [];
+
+    if (fitPoints.length) {
+      fitLeafletMapToPoints(map, fitPoints, fitPoints.length > 1 ? 16 : 17);
+      return;
+    }
+
+    fitLeafletMapToPoints(map, markerPoints, markerPoints.length > 1 ? 15 : 16);
+  }
+
+  async function handleMyPosition() {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    const nextAdminLocation = await requestAdminLocation();
+    const nextAdminPoint = toLatLng(nextAdminLocation || adminLocation);
+    const fitPoints = [
+      ...(nextAdminPoint ? [nextAdminPoint] : []),
+      ...markerPoints,
+      ...selectedTrailPoints
+    ];
+
+    if (fitPoints.length) {
+      fitLeafletMapToPoints(
+        map,
+        fitPoints,
+        fitPoints.length > 1 ? 15 : 17
+      );
       return;
     }
 
@@ -247,11 +370,12 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
   }
 
   useEffect(() => {
-    latestFitPointsRef.current = selectedTrailPoints.length
-      ? [...markerPoints, ...selectedTrailPoints]
-      : markerPoints;
-    latestFitZoomRef.current = markerPoints.length > 1 ? 15 : 16;
-  }, [markerPoints, selectedTrailPoints]);
+    latestFitPointsRef.current = [
+      ...(adminPoint ? [adminPoint] : []),
+      ...(selectedTrailPoints.length ? [...markerPoints, ...selectedTrailPoints] : markerPoints)
+    ];
+    latestFitZoomRef.current = latestFitPointsRef.current.length > 1 ? 15 : 17;
+  }, [adminPoint, markerPoints, selectedTrailPoints]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -261,6 +385,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     const map = createLeafletMap(containerRef.current, indiaCenter, 5);
     const tileLayer = createLeafletTileLayer();
     const markersLayer = L.layerGroup();
+    const adminLayer = L.layerGroup();
 
     tileLayer.on("tileerror", () => {
       setMapError(buildLeafletMapError());
@@ -272,10 +397,12 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
 
     tileLayer.addTo(map);
     markersLayer.addTo(map);
+    adminLayer.addTo(map);
 
     mapRef.current = map;
     tileLayerRef.current = tileLayer;
     markersLayerRef.current = markersLayer;
+    adminLayerRef.current = adminLayer;
     setMapReady(true);
 
     scheduleMapResize();
@@ -284,10 +411,12 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
       clearScheduledMapResizes();
       routeLayerRef.current?.remove();
       markersLayer.clearLayers();
+      adminLayer.clearLayers();
       tileLayer.remove();
       map.remove();
       routeLayerRef.current = null;
       markersLayerRef.current = null;
+      adminLayerRef.current = null;
       tileLayerRef.current = null;
       mapRef.current = null;
       hadRenderableSizeRef.current = false;
@@ -385,6 +514,65 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
   ]);
 
   useEffect(() => {
+    const adminLayer = adminLayerRef.current;
+
+    if (!mapReady || !adminLayer) {
+      return;
+    }
+
+    adminLayer.clearLayers();
+
+    if (!adminPoint) {
+      return;
+    }
+
+    const adminAccuracyMeters =
+      adminLocation?.accuracy !== undefined && adminLocation?.accuracy !== null
+        ? Math.max(0, Number(adminLocation.accuracy))
+        : 0;
+
+    L.marker(adminPoint, {
+      icon: createLeafletDivIcon("ME", "slate", "pinpoint", {
+        offsetX: 24,
+        offsetY: -6
+      }),
+      keyboard: false,
+      zIndexOffset: 1400
+    })
+      .bindPopup(
+        buildLeafletPopupHtml({
+          title: "My position",
+          subtitle: adminDistanceLabel || "Operations controller location",
+          meta: [
+            adminAccuracyMeters ? `Approximate within ${formatDistanceMeters(adminAccuracyMeters)}` : null,
+            adminLocation?.capturedAt ? `Updated ${formatRelative(adminLocation.capturedAt)}` : null,
+            formatCoordinates(adminLocation)
+          ]
+        }),
+        {
+          offset: [0, -32]
+        }
+      )
+      .addTo(adminLayer);
+
+    if (adminAccuracyMeters > 0) {
+      L.circle(adminPoint, {
+        radius: adminAccuracyMeters,
+        color: "rgba(148, 163, 184, 0.42)",
+        fillColor: "rgba(15, 23, 42, 0.15)",
+        fillOpacity: 0.5,
+        weight: 1
+      }).addTo(adminLayer);
+    }
+  }, [
+    adminDistanceLabel,
+    adminLocation,
+    adminLocation?.capturedAt,
+    adminPoint,
+    mapReady
+  ]);
+
+  useEffect(() => {
     const map = mapRef.current;
 
     if (!mapReady || !map) {
@@ -454,7 +642,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
             <p className="text-xs uppercase tracking-[0.2em] app-copy-soft">
               {normalizedMapSearch
                 ? `${visibleLocatedGuards.length} of ${locatedGuards.length} visible`
-                : `${locatedGuards.length} tracked guard${locatedGuards.length === 1 ? "" : "s"}`}
+                : `${trackedGuardCount} tracked${assignedFallbackCount ? ` • ${assignedFallbackCount} assigned` : ""}`}
             </p>
             {mapSearch && (
               <button
@@ -480,28 +668,46 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
         <div className="security-map-overlay left-3 top-14 inline-flex items-center gap-2 sm:left-auto sm:right-4 sm:top-4">
           <MapPinned className="h-3.5 w-3.5 text-jade-200" />
           {normalizedMapSearch
-            ? `${visibleLocatedGuards.length}/${locatedGuards.length} tracked`
-            : `${locatedGuards.length} tracked guard${locatedGuards.length === 1 ? "" : "s"}`}
+            ? `${visibleLocatedGuards.length}/${locatedGuards.length} visible`
+            : `${trackedGuardCount} tracked${assignedFallbackCount ? ` • ${assignedFallbackCount} assigned` : ""}`}
         </div>
+          <button
+            type="button"
+            onClick={handleMyPosition}
+            className="security-map-recenter-button disabled:cursor-wait disabled:opacity-80"
+            disabled={adminLocationLoading}
+          >
+            <LocateFixed className="h-4 w-4" />
+            {adminLocationLoading ? "Locating position" : "My Position"}
+          </button>
         <button
           type="button"
-          onClick={handleRecenter}
-          className="security-map-recenter-button"
+          onClick={handleLocateSelectedGuard}
+          className="security-map-guard-button disabled:cursor-not-allowed disabled:opacity-70"
+          disabled={!selectedGuard || (!selectedTrailPoints.length && !hasCoordinates(selectedGuardLocation))}
         >
-          <LocateFixed className="h-4 w-4" />
-          Selected guard
+          <MapPinned className="h-4 w-4" />
+          Locate Guard
         </button>
+        {(adminLocation || adminLocationError || adminLocationLoading) && (
+          <div className="security-map-overlay bottom-4 left-3 inline-flex max-w-[calc(100%-9rem)] items-center gap-2 sm:left-4">
+            <LocateFixed className="h-3.5 w-3.5 text-slate-200" />
+            {adminLocationLoading ? "Requesting this device location..." : adminDistanceLabel || adminLocationStatus}
+          </div>
+        )}
         <div ref={containerRef} className="security-map" />
         {mapError && (
-          <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-100 backdrop-blur">
+          <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs app-error-copy backdrop-blur">
             {mapError}
           </div>
         )}
         {!visibleLocatedGuards.length && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 px-8 text-center text-sm app-copy-soft">
-            {locatedGuards.length
-              ? "No tracked guards match this map search."
-              : "Guard positions will appear here after a shift selfie, check-in, or live location sync stores a tracked point."}
+            {selectedGuard && !hasCoordinates(selectedGuardLocation)
+              ? `${selectedGuard.fullName} cannot be located yet. Assign a duty site with coordinates or wait for the next live location sync. Area: ${selectedGuard.dutySite?.area || "not allotted"}.`
+              : locatedGuards.length
+                ? "No guards with live or assigned map positions match this search."
+                : "Guard positions will appear here after a live location sync or after assigning duty-site coordinates."}
           </div>
         )}
       </div>
@@ -515,7 +721,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
               </p>
               <p className="mt-1 text-xs app-copy-muted">
                 {activeSharedGroup.guards.length} guards are at{" "}
-                {activeSharedGroup.guards[0]?.latestLocation?.address || "this live point"}.
+                {getGuardMapLocation(activeSharedGroup.guards[0])?.address || "this map point"}.
                 Select the exact guard to open their detail panel.
               </p>
             </div>
@@ -551,14 +757,19 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
                       </p>
                     </div>
                     <span className="rounded-full border border-white/10 bg-slate-900/70 px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-300">
-                      {formatRelative(guard.latestLocation?.trackedAt)}
+                      {hasLiveLocation(guard)
+                        ? formatRelative(guard.latestLocation?.trackedAt)
+                        : "Assigned site"}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm app-copy-muted">
-                    {guard.dutySite?.name || guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty site"}
+              <p className="mt-3 text-sm app-copy-muted">
+                {guard.dutySite?.name || getGuardMapLocation(guard)?.dutyLabel || guard.shiftLabel || "No duty site"}
+              </p>
+                  <p className="mt-2 text-xs app-copy-soft">
+                    Assigned area: {guard.dutySite?.area || "Area not allotted"}
                   </p>
                   <p className="mt-2 text-xs app-copy-soft">
-                    {formatCoordinates(guard.latestLocation)}
+                    {formatCoordinates(getGuardMapLocation(guard))}
                   </p>
                 </button>
               );
@@ -570,7 +781,9 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleLocatedGuards.slice(0, 6).map((guard) => {
           const isSelected = guard.id === selectedGuard?.id;
-          const zoneLines = getLocationDisplayLines(guard.latestLocation);
+          const mapLocation = getGuardMapLocation(guard);
+          const isLiveLocation = hasLiveLocation(guard);
+          const zoneLines = getLocationDisplayLines(mapLocation);
           const zoneTitle = zoneLines[0] || "Live zone unavailable";
           const zoneDetail = zoneLines[1] || null;
 
@@ -593,7 +806,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
                   </p>
                 </div>
                 <span className="w-fit rounded-full border border-white/10 bg-slate-900/70 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-slate-300">
-                  {formatRelative(guard.latestLocation?.trackedAt)}
+                  {isLiveLocation ? formatRelative(guard.latestLocation?.trackedAt) : "Assigned site"}
                 </span>
               </div>
               <p className="mt-3 text-sm text-slate-300">
@@ -602,32 +815,35 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
               {zoneDetail ? (
                 <p className="mt-2 text-xs text-slate-500">{zoneDetail}</p>
               ) : (
-                !guard.latestLocation && (
+                !mapLocation && (
                   <p className="mt-2 text-xs text-slate-500">
                     GPS live zone detail unavailable
                   </p>
                 )
               )}
               <p className="mt-2 text-xs text-slate-500">
-                {formatCoordinates(guard.latestLocation)}
+                {formatCoordinates(mapLocation)}
               </p>
               <p className="mt-2 text-xs text-slate-500">
                 Duty site: {guard.dutySite?.name || "Unassigned"}
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                Duty label: {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
+                Assigned area: {guard.dutySite?.area || "Area not allotted"}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Duty label: {mapLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
               </p>
               <p className="mt-2 text-xs text-slate-500">
                 {guard.latestLocation?.trackedAt
                   ? formatDateTime(guard.latestLocation.trackedAt)
-                  : "No tracked time"}
+                  : "Showing assigned duty site until first live sync"}
               </p>
             </button>
           );
         })}
         {!visibleLocatedGuards.length && (
           <div className="app-surface-soft rounded-[22px] p-4 text-sm app-copy-soft md:col-span-2 xl:col-span-3">
-            No guard cards match this map search.
+            No guard cards match this map search or no map position is available yet.
           </div>
         )}
       </div>

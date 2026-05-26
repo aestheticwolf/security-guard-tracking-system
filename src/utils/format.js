@@ -90,6 +90,26 @@ export function formatDurationMinutes(value) {
   return `${remainingMinutes}m`;
 }
 
+export function formatDistanceMeters(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return "Distance unavailable";
+  }
+
+  const meters = Math.max(0, Math.round(numericValue));
+
+  if (meters >= 10_000) {
+    return `${Math.round(meters / 1000)} km`;
+  }
+
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+
+  return `${meters} m`;
+}
+
 function normalizeDisplayText(value) {
   return String(value || "")
     .trim()

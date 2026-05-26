@@ -13,6 +13,10 @@ function mapSelfie(row) {
     imagePath: row.imagePath,
     verified: Boolean(row.verified),
     verificationScore: row.verificationScore,
+    captureSource: row.captureSource || "unknown",
+    identityStatus: row.identityStatus || "no_reference",
+    identityScore: row.identityScore ?? 0,
+    identityNotes: row.identityNotes || "",
     capturedAt: row.capturedAt
   };
 }
@@ -27,8 +31,9 @@ export async function createSelfie(selfie) {
   const database = await getDb();
   await database.run(
     `INSERT INTO selfies (
-      id, user_id, attendance_id, image_path, verified, verification_score, captured_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id, user_id, attendance_id, image_path, verified, verification_score,
+      capture_source, identity_status, identity_score, identity_notes, captured_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       selfie.id,
       selfie.userId,
@@ -36,6 +41,10 @@ export async function createSelfie(selfie) {
       selfie.imagePath,
       selfie.verified ? 1 : 0,
       selfie.verificationScore,
+      selfie.captureSource || "unknown",
+      selfie.identityStatus || "no_reference",
+      selfie.identityScore ?? 0,
+      selfie.identityNotes || "",
       selfie.capturedAt
     ]
   );
@@ -57,6 +66,10 @@ export async function listSelfiesByUserId(userId) {
       image_path AS imagePath,
       verified,
       verification_score AS verificationScore,
+      capture_source AS captureSource,
+      identity_status AS identityStatus,
+      identity_score AS identityScore,
+      identity_notes AS identityNotes,
       captured_at AS capturedAt
      FROM selfies
      WHERE user_id = ?

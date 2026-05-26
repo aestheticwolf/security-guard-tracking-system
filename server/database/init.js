@@ -72,6 +72,9 @@ async function createSchema(database) {
       shift_label TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
       avatar_url TEXT,
+      identity_photo_path TEXT,
+      identity_selfie_path TEXT,
+      identity_enrolled_at TEXT,
       session_version INTEGER NOT NULL DEFAULT 1,
       last_login_at TEXT,
       last_seen_at TEXT,
@@ -129,6 +132,10 @@ async function createSchema(database) {
       image_path TEXT NOT NULL,
       verified INTEGER NOT NULL DEFAULT 0,
       verification_score REAL NOT NULL DEFAULT 0,
+      capture_source TEXT NOT NULL DEFAULT 'unknown',
+      identity_status TEXT NOT NULL DEFAULT 'no_reference',
+      identity_score REAL NOT NULL DEFAULT 0,
+      identity_notes TEXT DEFAULT '',
       captured_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (attendance_id) REFERENCES attendance(id) ON DELETE SET NULL
@@ -160,6 +167,13 @@ async function runMigrations(database) {
   await ensureColumn(database, "locations", "duty_label", "TEXT");
   await ensureColumn(database, "users", "organization_id", "TEXT");
   await ensureColumn(database, "users", "duty_site_id", "TEXT");
+  await ensureColumn(database, "users", "identity_photo_path", "TEXT");
+  await ensureColumn(database, "users", "identity_selfie_path", "TEXT");
+  await ensureColumn(database, "users", "identity_enrolled_at", "TEXT");
+  await ensureColumn(database, "selfies", "capture_source", "TEXT NOT NULL DEFAULT 'unknown'");
+  await ensureColumn(database, "selfies", "identity_status", "TEXT NOT NULL DEFAULT 'no_reference'");
+  await ensureColumn(database, "selfies", "identity_score", "REAL NOT NULL DEFAULT 0");
+  await ensureColumn(database, "selfies", "identity_notes", "TEXT DEFAULT ''");
   await database.exec(`
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_users_organization ON users(organization_id, role);

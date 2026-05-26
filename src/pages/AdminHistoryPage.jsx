@@ -133,7 +133,7 @@ export default function AdminHistoryPage() {
         </div>
 
         {error && (
-          <div className="rounded-[22px] border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100 sm:rounded-[24px]">
+          <div className="rounded-[22px] border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm app-error-copy sm:rounded-[24px]">
             {error}
           </div>
         )}
