@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { LocateFixed } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
-import { dedupeLocations, getDistanceMeters, hasCoordinates, toLatLng } from "../../utils/geo";
+import {
+  buildContiguousLocationTrail,
+  getDistanceMeters,
+  toLatLng
+} from "../../utils/geo";
 import { uniqueDisplayValues } from "../../utils/format";
 import {
   buildLeafletMapError,
@@ -14,27 +18,6 @@ import {
 } from "../../utils/leafletMaps";
 
 const indiaCenter = [20.5937, 78.9629];
-
-function buildTrailPoints(recentLocations, currentLocation) {
-  const trail = dedupeLocations(recentLocations);
-  const orderedTrail = [...trail].reverse();
-
-  if (!hasCoordinates(currentLocation)) {
-    return orderedTrail;
-  }
-
-  if (!orderedTrail.length) {
-    return [currentLocation];
-  }
-
-  const latestTrailPoint = orderedTrail[orderedTrail.length - 1];
-
-  if (getDistanceMeters(latestTrailPoint, currentLocation) <= 8) {
-    return orderedTrail;
-  }
-
-  return [...orderedTrail, currentLocation];
-}
 
 export default function LiveRouteMap({
   currentLocation,
@@ -68,11 +51,27 @@ export default function LiveRouteMap({
   const [mapError, setMapError] = useState("");
 
   const trailPoints = useMemo(
-    () => buildTrailPoints(recentLocations, currentLocation),
+    () => buildContiguousLocationTrail(recentLocations, currentLocation),
     [recentLocations, currentLocation]
   );
   const currentPoint = toLatLng(currentLocation);
-  const mapPoints = currentPoint ? [...trailPoints, currentLocation] : trailPoints;
+  const mapPoints = useMemo(() => {
+    if (!currentPoint) {
+      return trailPoints;
+    }
+
+    if (!trailPoints.length) {
+      return [currentLocation];
+    }
+
+    const latestTrailPoint = trailPoints[trailPoints.length - 1];
+
+    if (getDistanceMeters(latestTrailPoint, currentLocation) <= 8) {
+      return trailPoints;
+    }
+
+    return [...trailPoints, currentLocation];
+  }, [currentLocation, currentPoint, trailPoints]);
   const accuracyRadiusMeters =
     currentLocation?.accuracy !== undefined && currentLocation?.accuracy !== null
       ? Math.max(0, Number(currentLocation.accuracy))

@@ -93,7 +93,7 @@ export function formatBatteryStatus(value) {
 
   const numericValue = Number(value);
 
-  if (!Number.isFinite(numericValue) || numericValue <= 0 || numericValue > 100) {
+  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
     return "Not reported";
   }
 

@@ -9,7 +9,7 @@ import {
   getLocationDisplayLines,
   initials
 } from "../../utils/format";
-import { dedupeLocations, hasCoordinates, toLatLng } from "../../utils/geo";
+import { buildContiguousLocationTrail, hasCoordinates, toLatLng } from "../../utils/geo";
 import {
   buildLeafletMapError,
   buildLeafletPopupHtml,
@@ -150,7 +150,11 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     locatedGuards[0] ||
     null;
   const selectedTrail = useMemo(
-    () => dedupeLocations(selectedGuard?.recentLocations || []).reverse(),
+    () =>
+      buildContiguousLocationTrail(
+        selectedGuard?.recentLocations || [],
+        selectedGuard?.latestLocation
+      ),
     [selectedGuard]
   );
   const selectedTrailPoints = useMemo(

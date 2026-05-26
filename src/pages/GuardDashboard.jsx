@@ -34,7 +34,7 @@ import {
   formatTime,
   getLocationDisplayLines
 } from "../utils/format";
-import { getDistanceMeters, hasCoordinates } from "../utils/geo";
+import { getDistanceMeters, getLatestReportedBattery, hasCoordinates } from "../utils/geo";
 import { publishGuardAdminSignal } from "../utils/guardAdminSignal";
 import {
   clearQueuedGuardLocationSync,
@@ -78,6 +78,16 @@ function getLocationTimestamp(location) {
   return location?.capturedAt || location?.trackedAt || null;
 }
 
+function getLocationTimestampMs(location) {
+  const timestamp = getLocationTimestamp(location);
+
+  if (!timestamp) {
+    return Number.NaN;
+  }
+
+  return new Date(timestamp).getTime();
+}
+
 function buildVersionedAssetUrl(pathname, versionSeed) {
   const assetUrl = buildAssetUrl(pathname);
 
@@ -92,6 +102,30 @@ function buildVersionedAssetUrl(pathname, versionSeed) {
 
 function getBestAvailableLocation(...candidates) {
   return candidates.find((entry) => hasCoordinates(entry)) || null;
+}
+
+function getMostRecentLocation(...candidates) {
+  return candidates
+    .map((location, index) => ({
+      location,
+      index,
+      timestamp: getLocationTimestampMs(location)
+    }))
+    .filter((entry) => hasCoordinates(entry.location))
+    .sort((left, right) => {
+      const leftHasTimestamp = Number.isFinite(left.timestamp);
+      const rightHasTimestamp = Number.isFinite(right.timestamp);
+
+      if (leftHasTimestamp && rightHasTimestamp && left.timestamp !== right.timestamp) {
+        return right.timestamp - left.timestamp;
+      }
+
+      if (leftHasTimestamp !== rightHasTimestamp) {
+        return leftHasTimestamp ? -1 : 1;
+      }
+
+      return left.index - right.index;
+    })[0]?.location || null;
 }
 
 function buildSyncSuccessMessage(location) {
@@ -204,9 +238,21 @@ export default function GuardDashboard() {
   const hasFreshSavedMapSync =
     Boolean(lastStoredLocation?.trackedAt) &&
     Date.now() - new Date(lastStoredLocation.trackedAt).getTime() <= autoSyncIntervalMs + 60_000;
-  const liveMapLocation = lastStoredLocation || deviceLocation;
-  const liveZoneLines = getLocationDisplayLines(lastStoredLocation);
-  const liveZoneTitle = liveZoneLines[0] || "Waiting for GPS zone";
+  const liveMapLocation = getMostRecentLocation(deviceLocation, lastStoredLocation);
+  const isShowingUnsyncedDeviceLocation =
+    liveMapLocation === deviceLocation &&
+    getLocationTimestampMs(deviceLocation) > getLocationTimestampMs(lastStoredLocation);
+  const liveBatteryLevel = getLatestReportedBattery([
+    deviceLocation,
+    lastStoredLocation,
+    ...routeLocations
+  ]);
+  const liveZoneLines = getLocationDisplayLines(
+    liveMapLocation?.address || liveMapLocation?.zoneDetail ? liveMapLocation : lastStoredLocation
+  );
+  const liveZoneTitle =
+    liveZoneLines[0] ||
+    (isShowingUnsyncedDeviceLocation ? "Current device position" : "Waiting for GPS zone");
   const liveZoneDetail = liveZoneLines[1] || null;
   const latestSelfie = overview?.lastSelfie || null;
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
@@ -277,9 +323,25 @@ export default function GuardDashboard() {
 
   const syncStatusCopy = syncingLocation
     ? "Syncing your current position now..."
-    : hasFreshSavedMapSync
+    : hasFreshSavedMapSync && !isShowingUnsyncedDeviceLocation
       ? `Synced and pinned at ${formatTime(lastStoredLocation.trackedAt)}`
       : locationStatus;
+
+  async function readFreshLocationWithFallback(statusLabel) {
+    try {
+      return await refreshLocation(statusLabel, {
+        forceFresh: true,
+        timeout: manualSyncFreshTimeoutMs,
+        storedMaxAgeMs: storedLocationFallbackWindowMs
+      });
+    } catch {
+      return getBestAvailableLocation(
+        deviceLocation,
+        lastStoredLocation,
+        lastSyncedLocationRef.current
+      );
+    }
+  }
 
   async function flushQueuedLocationSync({ showMessage = false } = {}) {
     const queuedLocation = getQueuedGuardLocationSync();
@@ -348,7 +410,7 @@ export default function GuardDashboard() {
       );
       let successMessage = "Live location synced successfully.";
 
-      if (!hasCoordinates(liveLocation)) {
+      if (forceFresh || !hasCoordinates(liveLocation)) {
         try {
           liveLocation = await refreshLocation(statusLabel, {
             forceFresh,
@@ -568,27 +630,9 @@ export default function GuardDashboard() {
     setLocationStatus("Syncing current location before shift start...");
 
     try {
-      let activeLocation = getBestAvailableLocation(
-        deviceLocation,
-        lastStoredLocation,
-        lastSyncedLocationRef.current
+      const activeLocation = await readFreshLocationWithFallback(
+        "Capturing map position for shift check-in..."
       );
-
-      if (!activeLocation) {
-        try {
-          activeLocation = await refreshLocation("Capturing map position for shift check-in...", {
-            forceFresh: true,
-            timeout: manualSyncFreshTimeoutMs,
-            storedMaxAgeMs: storedLocationFallbackWindowMs
-          });
-        } catch {
-          activeLocation = getBestAvailableLocation(
-            deviceLocation,
-            lastStoredLocation,
-            lastSyncedLocationRef.current
-          );
-        }
-      }
 
       if (!hasCoordinates(activeLocation)) {
         throw new Error("Location is required to start a shift. Please allow location access and try again.");
@@ -645,27 +689,9 @@ export default function GuardDashboard() {
     setError("");
 
     try {
-      let activeLocation = getBestAvailableLocation(
-        deviceLocation,
-        lastStoredLocation,
-        lastSyncedLocationRef.current
+      const activeLocation = await readFreshLocationWithFallback(
+        "Capturing final map position for shift check-out..."
       );
-
-      if (!activeLocation) {
-        try {
-          activeLocation = await refreshLocation("Capturing final map position for shift check-out...", {
-            forceFresh: true,
-            timeout: manualSyncFreshTimeoutMs,
-            storedMaxAgeMs: storedLocationFallbackWindowMs
-          });
-        } catch {
-          activeLocation = getBestAvailableLocation(
-            deviceLocation,
-            lastStoredLocation,
-            lastSyncedLocationRef.current
-          );
-        }
-      }
 
       const response = await checkOutGuard({
         note: attendanceNote,
@@ -891,19 +917,8 @@ export default function GuardDashboard() {
                     onClick={() =>
                       syncLocation({
                         showMessage: true,
-                        sourceLocation: getBestAvailableLocation(
-                          deviceLocation,
-                          lastStoredLocation,
-                          lastSyncedLocationRef.current
-                        ),
                         statusLabel: "Syncing live route now...",
-                        forceFresh: !hasCoordinates(
-                          getBestAvailableLocation(
-                            deviceLocation,
-                            lastStoredLocation,
-                            lastSyncedLocationRef.current
-                          )
-                        )
+                        forceFresh: true
                       })
                     }
                     disabled={syncingLocation}
@@ -1052,7 +1067,7 @@ export default function GuardDashboard() {
                   <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Battery</p>
                     <p className="mt-2 text-sm text-white">
-                      {formatBatteryStatus(liveMapLocation?.battery)}
+                      {formatBatteryStatus(liveBatteryLevel)}
                     </p>
                   </div>
                 </div>

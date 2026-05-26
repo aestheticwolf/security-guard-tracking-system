@@ -56,3 +56,125 @@ export function dedupeLocations(locations = []) {
     return true;
   });
 }
+
+function getLocationAccuracyMeters(location) {
+  const numericValue = Number(location?.accuracy);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return null;
+  }
+
+  return numericValue;
+}
+
+function isReliableRoutePoint(location, maxPointAccuracyMeters) {
+  if (!hasCoordinates(location)) {
+    return false;
+  }
+
+  const accuracyMeters = getLocationAccuracyMeters(location);
+
+  if (accuracyMeters === null) {
+    return true;
+  }
+
+  return accuracyMeters <= maxPointAccuracyMeters;
+}
+
+function getLocationTimestampMs(location) {
+  if (!location) {
+    return Number.NaN;
+  }
+
+  return new Date(location.trackedAt || location.capturedAt || "").getTime();
+}
+
+export function sortLocationsByNewest(locations = []) {
+  return [...locations]
+    .map((location, index) => ({
+      location,
+      index,
+      timestamp: getLocationTimestampMs(location)
+    }))
+    .sort((left, right) => {
+      const leftHasTimestamp = Number.isFinite(left.timestamp);
+      const rightHasTimestamp = Number.isFinite(right.timestamp);
+
+      if (leftHasTimestamp && rightHasTimestamp && left.timestamp !== right.timestamp) {
+        return right.timestamp - left.timestamp;
+      }
+
+      if (leftHasTimestamp !== rightHasTimestamp) {
+        return leftHasTimestamp ? -1 : 1;
+      }
+
+      return left.index - right.index;
+    })
+    .map((entry) => entry.location);
+}
+
+export function buildContiguousLocationTrail(
+  recentLocations = [],
+  currentLocation = null,
+  {
+    duplicateDistanceMeters = 8,
+    maxSegmentDistanceMeters = 50_000,
+    maxPointAccuracyMeters = 250
+  } = {}
+) {
+  const orderedRecentLocations = sortLocationsByNewest(dedupeLocations(recentLocations)).filter(
+    (location) => isReliableRoutePoint(location, maxPointAccuracyMeters)
+  );
+  const hasCurrentLocation = hasCoordinates(currentLocation);
+  const canUseCurrentLocationInRoute = isReliableRoutePoint(
+    currentLocation,
+    maxPointAccuracyMeters
+  );
+  const newestPoint = canUseCurrentLocationInRoute
+    ? currentLocation
+    : orderedRecentLocations[0] || null;
+
+  if (!newestPoint) {
+    return hasCurrentLocation ? [currentLocation] : [];
+  }
+
+  const sharesLatestTrailPoint =
+    canUseCurrentLocationInRoute &&
+    orderedRecentLocations.length &&
+    getDistanceMeters(orderedRecentLocations[0], currentLocation) <= duplicateDistanceMeters;
+  const newestFirstTrail =
+    sharesLatestTrailPoint
+      ? [currentLocation, ...orderedRecentLocations.slice(1)]
+      : canUseCurrentLocationInRoute
+        ? [currentLocation, ...orderedRecentLocations]
+        : orderedRecentLocations;
+
+  const contiguousNewestFirstTrail = [newestFirstTrail[0]];
+
+  for (let index = 1; index < newestFirstTrail.length; index += 1) {
+    const previousPoint = contiguousNewestFirstTrail[contiguousNewestFirstTrail.length - 1];
+    const nextPoint = newestFirstTrail[index];
+
+    if (getDistanceMeters(previousPoint, nextPoint) > maxSegmentDistanceMeters) {
+      break;
+    }
+
+    contiguousNewestFirstTrail.push(nextPoint);
+  }
+
+  return contiguousNewestFirstTrail.reverse();
+}
+
+export function getLatestReportedBattery(locations = []) {
+  return sortLocationsByNewest(Array.isArray(locations) ? locations.filter(Boolean) : [locations])
+    .map((location) => {
+      const numericValue = Number(location?.battery);
+
+      if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
+        return null;
+      }
+
+      return Math.round(numericValue);
+    })
+    .find((value) => value !== null) ?? null;
+}
