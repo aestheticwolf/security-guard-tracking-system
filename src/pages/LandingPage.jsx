@@ -40,7 +40,12 @@ const featureCards = [
 
 export default function LandingPage() {
   const { user } = useAuth();
-  const dashboardLink = user?.role === "admin" ? "/admin" : "/dashboard";
+  const dashboardLink =
+    user?.role === "super_admin"
+      ? "/super-admin"
+      : user?.role === "admin"
+        ? "/admin"
+        : "/dashboard";
 
   return (
     <div className="mesh-background min-h-screen overflow-hidden text-white">

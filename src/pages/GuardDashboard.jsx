@@ -51,8 +51,9 @@ const autoSyncDistanceMeters = 25;
 const autoSyncStaleMs = 10 * 60_000;
 const autoSyncIntervalMs = 10 * 60_000;
 const queuedSyncRetryIntervalMs = 20_000;
-const manualSyncFreshTimeoutMs = 10_000;
-const storedLocationFallbackWindowMs = 6 * 60 * 60_000;
+const manualSyncFreshTimeoutMs = 25_000;
+const strictGpsMaxAgeMs = 2 * 60_000;
+const storedLocationFallbackWindowMs = 2 * 60_000;
 
 function mergeLocationIntoRecentLocations(recentLocations = [], nextLocation) {
   if (!nextLocation) {
@@ -100,10 +101,6 @@ function buildVersionedAssetUrl(pathname, versionSeed) {
   return `${assetUrl}${separator}v=${version}`;
 }
 
-function getBestAvailableLocation(...candidates) {
-  return candidates.find((entry) => hasCoordinates(entry)) || null;
-}
-
 function getMostRecentLocation(...candidates) {
   return candidates
     .map((location, index) => ({
@@ -128,8 +125,19 @@ function getMostRecentLocation(...candidates) {
     })[0]?.location || null;
 }
 
+function isRecentLocation(location, maxAgeMs) {
+  const timestamp = getLocationTimestampMs(location);
+  return hasCoordinates(location) && Number.isFinite(timestamp) && Date.now() - timestamp <= maxAgeMs;
+}
+
 function buildSyncSuccessMessage(location) {
+  if (location?.fallbackUsed) {
+    return "Location synced using a recent device location fix.";
+  }
+
   switch (location?.source) {
+    case "recent":
+      return "Live location synced using a recent browser location fix.";
     case "watch":
       return "Live location synced after the device delivered a fresh GPS fix.";
     case "relaxed":
@@ -322,19 +330,30 @@ export default function GuardDashboard() {
       ? `Synced and pinned at ${formatTime(lastStoredLocation.trackedAt)}`
       : locationStatus;
 
-  async function readFreshLocationWithFallback(statusLabel) {
+  async function readFreshLocationWithFallback(statusLabel, { allowFallback = false } = {}) {
     try {
       return await refreshLocation(statusLabel, {
         forceFresh: true,
         timeout: manualSyncFreshTimeoutMs,
-        storedMaxAgeMs: storedLocationFallbackWindowMs
+        storedMaxAgeMs: allowFallback ? storedLocationFallbackWindowMs : 0,
+        maxPositionAgeMs: strictGpsMaxAgeMs
       });
-    } catch {
-      return getBestAvailableLocation(
-        deviceLocation,
-        lastStoredLocation,
-        lastSyncedLocationRef.current
-      );
+    } catch (locationError) {
+      if (!allowFallback) {
+        throw locationError;
+      }
+
+      const fallbackLocation = getMostRecentLocation(deviceLocation);
+
+      if (!isRecentLocation(fallbackLocation, storedLocationFallbackWindowMs)) {
+        throw locationError;
+      }
+
+      return {
+        ...fallbackLocation,
+        source: fallbackLocation?.source || "stored",
+        fallbackUsed: true
+      };
     }
   }
 
@@ -385,7 +404,8 @@ export default function GuardDashboard() {
     showMessage = true,
     sourceLocation = null,
     statusLabel = "Auto-syncing live route...",
-    forceFresh = false
+    forceFresh = false,
+    allowRecentFallback = false
   } = {}) {
     if (syncInFlightRef.current) {
       return null;
@@ -397,12 +417,17 @@ export default function GuardDashboard() {
     let liveLocation = sourceLocation;
 
     try {
-      const fallbackLocation = getBestAvailableLocation(
-        sourceLocation,
-        deviceLocation,
-        lastStoredLocation,
-        lastSyncedLocationRef.current
-      );
+      const fallbackLocation = forceFresh
+        ? getMostRecentLocation(sourceLocation, deviceLocation)
+        : getMostRecentLocation(
+            sourceLocation,
+            deviceLocation,
+            lastStoredLocation,
+            lastSyncedLocationRef.current
+          );
+      const usableFallbackLocation = isRecentLocation(fallbackLocation, storedLocationFallbackWindowMs)
+        ? fallbackLocation
+        : null;
       let successMessage = "Live location synced successfully.";
 
       if (forceFresh || !hasCoordinates(liveLocation)) {
@@ -410,22 +435,25 @@ export default function GuardDashboard() {
           liveLocation = await refreshLocation(statusLabel, {
             forceFresh,
             timeout: forceFresh ? manualSyncFreshTimeoutMs : 12_000,
-            storedMaxAgeMs: storedLocationFallbackWindowMs
+            storedMaxAgeMs: forceFresh ? 0 : storedLocationFallbackWindowMs,
+            maxPositionAgeMs: forceFresh ? strictGpsMaxAgeMs : Number.POSITIVE_INFINITY
           });
         } catch (refreshError) {
-          if (!hasCoordinates(fallbackLocation)) {
+          const canUseRecentFallback = allowRecentFallback || !forceFresh;
+
+          if (!canUseRecentFallback || !hasCoordinates(usableFallbackLocation)) {
             throw refreshError;
           }
 
           liveLocation = {
-            ...fallbackLocation,
-            source: fallbackLocation?.source || "stored",
+            ...usableFallbackLocation,
+            source: usableFallbackLocation?.source || "stored",
             fallbackUsed: true
           };
           successMessage = buildSyncSuccessMessage(liveLocation);
           setLocationStatus(
             `GPS was slow, so the latest available location from ${formatTime(
-              getLocationTimestamp(fallbackLocation)
+              getLocationTimestamp(usableFallbackLocation)
             )} was used.`
           );
         }
@@ -580,35 +608,20 @@ export default function GuardDashboard() {
 
   async function handleSelfieSelection(event) {
     const file = event.target.files?.[0] || null;
-    const captureSource = event.currentTarget.dataset.captureSource;
+    const isCheckoutSelfie = Boolean(overview?.currentAttendance);
     setSelfieFile(file);
+    setError("");
 
     if (!file) {
       return;
     }
 
-    try {
-      await refreshLocation("Locking map position for selfie check-in...", {
-        forceFresh: true,
-        timeout: manualSyncFreshTimeoutMs,
-        storedMaxAgeMs: storedLocationFallbackWindowMs
-      });
-      setLocationStatus("Map position is ready for secure shift check-in.");
-      setMessage(
-        captureSource === "camera"
-          ? "Live selfie captured and map position prepared for shift check-in."
-          : "Selfie file attached and map position prepared for shift check-in."
-      );
-      toast.success(
-        captureSource === "camera"
-          ? "Live selfie captured. Map position is ready."
-          : "Selfie attached. Map position is ready."
-      );
-    } catch (locationError) {
-      setLocationStatus(locationError.message);
-      setError(locationError.message);
-      toast.error("Selfie is ready, but location permission is still needed for the full map sync.");
-    }
+    const nextMessage = isCheckoutSelfie
+      ? "Check-out selfie is ready. GPS will be verified when you end the shift."
+      : "Check-in selfie is ready. GPS will be verified when you start the shift.";
+    setMessage(nextMessage);
+    toast.success(nextMessage);
+    event.target.value = "";
   }
 
   async function handleCheckIn(event) {
@@ -626,7 +639,8 @@ export default function GuardDashboard() {
 
     try {
       const activeLocation = await readFreshLocationWithFallback(
-        "Capturing map position for shift check-in..."
+        "Capturing map position for shift check-in...",
+        { allowFallback: true }
       );
 
       if (!hasCoordinates(activeLocation)) {
@@ -680,25 +694,40 @@ export default function GuardDashboard() {
   }
 
   async function handleCheckOut() {
+    if (!selfieFile) {
+      setError("Please capture a checkout selfie before ending your shift.");
+      toast.error("Please capture a checkout selfie before ending your shift.");
+      return;
+    }
+
     setBusy(true);
     setError("");
 
     try {
       const activeLocation = await readFreshLocationWithFallback(
-        "Capturing final map position for shift check-out..."
+        "Capturing final map position for shift check-out...",
+        { allowFallback: true }
       );
 
-      const response = await checkOutGuard({
-        note: attendanceNote,
-        latitude: activeLocation?.latitude,
-        longitude: activeLocation?.longitude,
-        accuracy: activeLocation?.accuracy,
-        dutyLabel: locationLabel || user?.shiftLabel || "Field checkpoint",
-        battery: activeLocation?.battery ?? null
-      });
+      const formData = new FormData();
+      formData.append("selfie", selfieFile);
+      formData.append("note", attendanceNote);
+      formData.append("dutyLabel", locationLabel || user?.shiftLabel || "Field checkpoint");
+
+      if (activeLocation) {
+        formData.append("latitude", String(activeLocation.latitude));
+        formData.append("longitude", String(activeLocation.longitude));
+        formData.append("accuracy", String(activeLocation.accuracy));
+        if (activeLocation.battery !== null && activeLocation.battery !== undefined) {
+          formData.append("battery", String(activeLocation.battery));
+        }
+      }
+
+      const response = await checkOutGuard(formData);
 
       clearQueuedGuardLocationSync();
       startTransition(() => setOverview(response));
+      setSelfieFile(null);
       setAttendanceNote("");
       if (response?.lastLocation) {
         lastSyncedLocationRef.current = response.lastLocation;
@@ -717,8 +746,8 @@ export default function GuardDashboard() {
         userId: user?.id,
         action: "check-out"
       });
-      setMessage("Shift check-out completed.");
-      toast.success("Shift check-out completed.");
+      setMessage("Shift check-out completed with selfie confirmation.");
+      toast.success("Shift check-out completed with selfie confirmation.");
     } catch (submitError) {
       setError(submitError.message);
       toast.error(submitError.message);
@@ -845,46 +874,49 @@ export default function GuardDashboard() {
                     value={attendanceNote}
                     onChange={(event) => setAttendanceNote(event.target.value)}
                     className="app-input"
-                    placeholder="Add anything the control room should know before shift start."
+                    placeholder={
+                      overview?.currentAttendance
+                        ? "Add anything the control room should know before shift end."
+                        : "Add anything the control room should know before shift start."
+                    }
                   />
                 </label>
 
-                {!overview?.currentAttendance && (
-                  <div className="mt-4">
-                    <label className="block">
-                      <span className="app-label">Front-camera selfie</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        data-capture-source="upload"
-                        onChange={handleSelfieSelection}
-                        className="app-input file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950"
-                      />
-                    </label>
-                    <input
-                      ref={cameraSelfieInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="user"
-                      data-capture-source="camera"
-                      onChange={handleSelfieSelection}
-                      className="sr-only"
-                      aria-label="Capture selfie with device camera"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => cameraSelfieInputRef.current?.click()}
-                      className="app-outline-button mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold sm:w-auto"
-                    >
-                      <Camera className="h-4 w-4" />
-                      Capture selfie now
-                    </button>
-                    <p className="mt-2 text-xs leading-5 app-copy-soft">
-                      Choose File lets you attach an existing image. Capture selfie now opens the
-                      device camera when available.
+                <div className="mt-4 rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-sm font-medium text-white">
+                    {overview?.currentAttendance ? "Check-out selfie confirmation" : "Check-in selfie verification"}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 app-copy-soft">
+                    Capture a live front-camera selfie. This proof is required before{" "}
+                    {overview?.currentAttendance ? "ending" : "starting"} the shift.
+                  </p>
+                  <input
+                    ref={cameraSelfieInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    onChange={handleSelfieSelection}
+                    className="sr-only"
+                    aria-label={
+                      overview?.currentAttendance
+                        ? "Capture checkout selfie with device camera"
+                        : "Capture check-in selfie with device camera"
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => cameraSelfieInputRef.current?.click()}
+                    className="app-outline-button mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold sm:w-auto"
+                  >
+                    <Camera className="h-4 w-4" />
+                    {overview?.currentAttendance ? "Capture check-out selfie" : "Capture check-in selfie"}
+                  </button>
+                  {selfieFile && (
+                    <p className="mt-3 text-xs uppercase tracking-[0.2em] text-jade-200">
+                      Selfie ready for {overview?.currentAttendance ? "check-out" : "check-in"}
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   {!overview?.currentAttendance ? (
@@ -913,7 +945,8 @@ export default function GuardDashboard() {
                       syncLocation({
                         showMessage: true,
                         statusLabel: "Syncing live route now...",
-                        forceFresh: true
+                        forceFresh: true,
+                        allowRecentFallback: true
                       })
                     }
                     disabled={syncingLocation}

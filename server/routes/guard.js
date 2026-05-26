@@ -19,7 +19,7 @@ router.use(requireAuth, requireRole("guard"));
 router.get("/overview", asyncHandler(getOverview));
 router.get("/activities", asyncHandler(getActivities));
 router.post("/attendance/check-in", selfieUpload.single("selfie"), asyncHandler(checkIn));
-router.post("/attendance/check-out", asyncHandler(checkOut));
+router.post("/attendance/check-out", selfieUpload.single("selfie"), asyncHandler(checkOut));
 router.post("/activity", asyncHandler(createGuardActivity));
 router.post("/location", asyncHandler(syncLocation));
 router.get("/location/latest", asyncHandler(getLatestLocation));

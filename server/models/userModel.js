@@ -7,6 +7,8 @@ const userSelect = `
   email,
   password_hash AS passwordHash,
   role,
+  organization_id AS organizationId,
+  duty_site_id AS dutySiteId,
   phone,
   employee_code AS employeeCode,
   shift_label AS shiftLabel,
@@ -48,15 +50,17 @@ export async function createUser(user) {
   const database = await getDb();
   await database.run(
     `INSERT INTO users (
-      id, full_name, email, password_hash, role, phone, employee_code, shift_label,
+      id, full_name, email, password_hash, role, organization_id, duty_site_id, phone, employee_code, shift_label,
       status, avatar_url, session_version, last_login_at, last_seen_at, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       user.id,
       user.fullName,
       user.email,
       user.passwordHash,
       user.role,
+      user.organizationId ?? null,
+      user.dutySiteId ?? null,
       user.phone,
       user.employeeCode,
       user.shiftLabel,
@@ -126,6 +130,32 @@ export async function incrementSessionVersion(id, timestamp = null) {
   );
 }
 
+export async function updateUserPassword(id, passwordHash, timestamp) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    await users.updateOne(
+      { id },
+      {
+        $set: { passwordHash, lastSeenAt: timestamp },
+        $inc: { sessionVersion: 1 }
+      }
+    );
+    return findUserById(id);
+  }
+
+  const database = await getDb();
+  await database.run(
+    `UPDATE users
+     SET password_hash = ?,
+         session_version = session_version + 1,
+         last_seen_at = ?
+     WHERE id = ?`,
+    [passwordHash, timestamp, id]
+  );
+
+  return findUserById(id);
+}
+
 export async function updateUserStatus(id, status, timestamp) {
   if (isMongoEnabled()) {
     const users = await getMongoCollection("users");
@@ -154,6 +184,7 @@ export async function updateGuardDetails(id, guard, timestamp) {
       phone: guard.phone,
       employeeCode: guard.employeeCode,
       shiftLabel: guard.shiftLabel,
+      dutySiteId: guard.dutySiteId ?? null,
       lastSeenAt: timestamp
     };
 
@@ -183,6 +214,7 @@ export async function updateGuardDetails(id, guard, timestamp) {
          phone = ?,
          employee_code = ?,
          shift_label = ?,
+         duty_site_id = ?,
          session_version = session_version + ?,
          last_seen_at = ?
      WHERE id = ? AND role = 'guard'`,
@@ -193,6 +225,7 @@ export async function updateGuardDetails(id, guard, timestamp) {
       guard.phone,
       guard.employeeCode,
       guard.shiftLabel,
+      guard.dutySiteId || null,
       passwordVersionBump,
       timestamp,
       id
@@ -226,13 +259,28 @@ export async function deleteUserById(id) {
   return database.run("DELETE FROM users WHERE id = ?", [id]);
 }
 
-export async function listGuards() {
+export async function listGuards(organizationId = null) {
   if (isMongoEnabled()) {
     const users = await getMongoCollection("users");
-    return users.find({ role: "guard" }).sort({ fullName: 1 }).toArray().then((rows) => rows.map(stripMongoId));
+    const query = {
+      role: "guard",
+      ...(organizationId ? { organizationId } : {})
+    };
+    return users.find(query).sort({ fullName: 1 }).toArray().then((rows) => rows.map(stripMongoId));
   }
 
   const database = await getDb();
+
+  if (organizationId) {
+    return database.all(
+      `SELECT ${userSelect}
+       FROM users
+       WHERE role = 'guard' AND organization_id = ?
+       ORDER BY full_name ASC`,
+      [organizationId]
+    );
+  }
+
   return database.all(
     `SELECT ${userSelect}
      FROM users
@@ -241,25 +289,63 @@ export async function listGuards() {
   );
 }
 
-export async function listUsers() {
+export async function listUsers(organizationId = null) {
   if (isMongoEnabled()) {
     const users = await getMongoCollection("users");
-    return users.find({}).sort({ fullName: 1 }).toArray().then((rows) => rows.map(stripMongoId));
+    const query = organizationId ? { organizationId } : {};
+    return users.find(query).sort({ fullName: 1 }).toArray().then((rows) => rows.map(stripMongoId));
   }
 
   const database = await getDb();
+
+  if (organizationId) {
+    return database.all(
+      `SELECT ${userSelect}
+       FROM users
+       WHERE organization_id = ?
+       ORDER BY full_name ASC`,
+      [organizationId]
+    );
+  }
+
   return database.all(`SELECT ${userSelect} FROM users ORDER BY full_name ASC`);
 }
 
-export async function countGuards() {
+export async function countGuards(organizationId = null) {
   if (isMongoEnabled()) {
     const users = await getMongoCollection("users");
-    return users.countDocuments({ role: "guard" });
+    return users.countDocuments({
+      role: "guard",
+      ...(organizationId ? { organizationId } : {})
+    });
+  }
+
+  const database = await getDb();
+
+  if (organizationId) {
+    const row = await database.get(
+      "SELECT COUNT(*) AS count FROM users WHERE role = 'guard' AND organization_id = ?",
+      [organizationId]
+    );
+    return row?.count || 0;
+  }
+
+  const row = await database.get(
+    "SELECT COUNT(*) AS count FROM users WHERE role = 'guard'"
+  );
+  return row?.count || 0;
+}
+
+export async function countOrganizationAdmins(organizationId) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    return users.countDocuments({ role: "admin", organizationId });
   }
 
   const database = await getDb();
   const row = await database.get(
-    "SELECT COUNT(*) AS count FROM users WHERE role = 'guard'"
+    "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND organization_id = ?",
+    [organizationId]
   );
   return row?.count || 0;
 }

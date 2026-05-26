@@ -246,6 +246,12 @@ function AuthRouteVisual() {
   );
 }
 
+function getDashboardPathForRole(role) {
+  if (role === "super_admin") return "/super-admin";
+  if (role === "admin") return "/admin";
+  return "/dashboard";
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -297,7 +303,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (user) {
-      navigate(user.role === "admin" ? "/admin" : "/dashboard", { replace: true });
+      navigate(getDashboardPathForRole(user.role), { replace: true });
     }
   }, [navigate, user]);
 
@@ -321,7 +327,7 @@ export default function AuthPage() {
       const nextUser = await login({ email: trimmedEmail, password });
       setLoginStage("success");
       setTimeout(() => {
-        navigate(location.state?.from || (nextUser.role === "admin" ? "/admin" : "/dashboard"), { replace: true });
+        navigate(location.state?.from || getDashboardPathForRole(nextUser.role), { replace: true });
         toast.success("Secure session started.");
       }, 600);
     } catch (submitError) {
@@ -468,7 +474,8 @@ export default function AuthPage() {
               <p className="font-semibold text-white">Demo credentials</p>
               <span className="ml-auto text-xs text-slate-500">Click any card to copy</span>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <CredentialCard title="Super Admin" email="super@sentinel.local" password="Super@123" accent="jade" />
               <CredentialCard title="Admin" email="admin@sentinel.local" password="Admin@123" accent="gold" />
               <CredentialCard title="Guard" email="guard@sentinel.local" password="Guard@123" accent="jade" />
             </div>

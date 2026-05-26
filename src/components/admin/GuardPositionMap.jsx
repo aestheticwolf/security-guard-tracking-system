@@ -84,6 +84,7 @@ function buildMarkerGroupPopupHtml(group) {
       getLocationDisplayLines(location)[1] || null,
       group.guards.length > 1 ? "Select an exact guard from the shared-location panel." : null,
       ...guardLines,
+      primaryGuard.dutySite?.name ? `Assigned site: ${primaryGuard.dutySite.name}` : null,
       location?.dutyLabel ? `Duty label: ${location.dutyLabel}` : null,
       formatCoordinates(location),
       location?.trackedAt ? formatDateTime(location.trackedAt) : null
@@ -101,6 +102,9 @@ function matchesGuardSearch(guard, query) {
     guard.email,
     guard.employeeCode,
     guard.shiftLabel,
+    guard.dutySite?.name,
+    guard.dutySite?.area,
+    guard.dutySite?.address,
     guard.shiftState,
     guard.status,
     guard.latestLocation?.address,
@@ -442,7 +446,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
             <input
               value={mapSearch}
               onChange={(event) => setMapSearch(event.target.value)}
-              placeholder="Search guard name, employee code, duty label, or live zone..."
+              placeholder="Search guard name, employee code, duty site, or live zone..."
               className="app-input pl-11 text-sm"
             />
           </label>
@@ -551,7 +555,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
                     </span>
                   </div>
                   <p className="mt-3 text-sm app-copy-muted">
-                    {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
+                    {guard.dutySite?.name || guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty site"}
                   </p>
                   <p className="mt-2 text-xs app-copy-soft">
                     {formatCoordinates(guard.latestLocation)}
@@ -606,6 +610,9 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
               )}
               <p className="mt-2 text-xs text-slate-500">
                 {formatCoordinates(guard.latestLocation)}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Duty site: {guard.dutySite?.name || "Unassigned"}
               </p>
               <p className="mt-2 text-xs text-slate-500">
                 Duty label: {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}

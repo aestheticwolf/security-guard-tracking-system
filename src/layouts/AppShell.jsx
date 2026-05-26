@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Building2,
   ChevronLeft,
   ChevronRight,
   History,
@@ -30,7 +31,11 @@ export default function AppShell({
   const mobileQuickLinksRef = useRef(null);
 
   const navigation =
-    user?.role === "admin"
+    user?.role === "super_admin"
+      ? [
+          { to: "/super-admin", label: "Organizations", icon: Building2 }
+        ]
+      : user?.role === "admin"
       ? [
           { to: "/admin", label: "Operations", icon: ShieldCheck },
           { to: "/admin/history", label: "Guard History", icon: History }
@@ -206,7 +211,11 @@ export default function AppShell({
                   <Users className="h-4 w-4 text-jade-200" />
                   <div>
                     <p className="text-sm font-medium app-copy-primary">
-                      {user?.role === "admin" ? "Admin control" : "Field guard"}
+                      {user?.role === "super_admin"
+                        ? "Super admin"
+                        : user?.role === "admin"
+                          ? "Admin control"
+                          : "Field guard"}
                     </p>
                     <p className="text-xs app-copy-muted">{user?.email}</p>
                   </div>
@@ -302,7 +311,11 @@ export default function AppShell({
                       {user?.fullName}
                     </p>
                     <p className="max-w-[6.75rem] truncate text-[11px] app-copy-muted">
-                      {user?.role === "admin" ? "Admin session" : "Guard session"}
+                      {user?.role === "super_admin"
+                        ? "Owner session"
+                        : user?.role === "admin"
+                          ? "Admin session"
+                          : "Guard session"}
                     </p>
                   </div>
                 </div>

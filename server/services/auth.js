@@ -28,6 +28,8 @@ export function sanitizeUser(user) {
     fullName: user.fullName,
     email: user.email,
     role: user.role,
+    organizationId: user.organizationId ?? null,
+    dutySiteId: user.dutySiteId ?? null,
     phone: user.phone,
     employeeCode: user.employeeCode,
     shiftLabel: user.shiftLabel,

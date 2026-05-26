@@ -5,10 +5,14 @@ import {
   watchDeviceContext
 } from "../utils/device";
 
+const initialStoredLocationMaxAgeMs = 2 * 60_000;
+
 export function useLiveLocation(initialStatus = "Waiting for location permission.") {
-  const [deviceLocation, setDeviceLocation] = useState(() => getStoredDeviceLocation());
+  const [deviceLocation, setDeviceLocation] = useState(() =>
+    getStoredDeviceLocation(initialStoredLocationMaxAgeMs)
+  );
   const [locationStatus, setLocationStatus] = useState(() =>
-    getStoredDeviceLocation()
+    getStoredDeviceLocation(initialStoredLocationMaxAgeMs)
       ? "Using the latest saved device location until live tracking refreshes."
       : initialStatus
   );
@@ -29,7 +33,7 @@ export function useLiveLocation(initialStatus = "Waiting for location permission
         setLocationStatus("Live tracking active.");
       },
       (message) => {
-        const cachedLocation = getStoredDeviceLocation();
+        const cachedLocation = getStoredDeviceLocation(initialStoredLocationMaxAgeMs);
         setLocationStatus(
           cachedLocation ? `${message} Using the latest saved device location.` : message
         );

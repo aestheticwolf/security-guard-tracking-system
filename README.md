@@ -91,6 +91,14 @@ Admin:
 - Checks guard attendance and selfie proof.
 - Manages guard status and deletion.
 
+Super Admin:
+
+- Logs in through the same login page.
+- Opens the platform control dashboard.
+- Creates client organizations.
+- Creates organization admin accounts.
+- Maintains manual subscription status and guard limits.
+
 Guard:
 
 - Logs in through the same login page.
@@ -239,6 +247,13 @@ NODE_VERSION: 22
 ```
 
 ## Demo Login Accounts
+
+Super admin account:
+
+```text
+Email: super@sentinel.local
+Password: Super@123
+```
 
 Admin account:
 

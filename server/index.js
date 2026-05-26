@@ -4,6 +4,7 @@ import express from "express";
 import authRoutes from "./routes/auth.js";
 import guardRoutes from "./routes/guard.js";
 import adminRoutes from "./routes/admin.js";
+import superAdminRoutes from "./routes/superAdmin.js";
 import { initializeDatabase } from "./database/init.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { getUploadRoot } from "./services/selfie.js";
@@ -30,6 +31,7 @@ app.get("/api/health", (_request, response) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/guard", guardRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/super-admin", superAdminRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

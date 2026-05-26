@@ -1,6 +1,7 @@
 import { hasCoordinates } from "./geo";
 
 const storageKey = "sentinel-grid-pending-location-sync";
+const maxQueuedLocationAgeMs = 15 * 60_000;
 
 function normalizeQueuedLocation(payload) {
   if (!hasCoordinates(payload)) {
@@ -40,6 +41,19 @@ export function getQueuedGuardLocationSync() {
     }
 
     const queuedLocation = normalizeQueuedLocation(JSON.parse(raw));
+    const capturedAt = queuedLocation?.capturedAt
+      ? new Date(queuedLocation.capturedAt).getTime()
+      : Number.NaN;
+    const queuedAt = queuedLocation?.queuedAt
+      ? new Date(queuedLocation.queuedAt).getTime()
+      : Number.NaN;
+    const newestTimestamp = Math.max(capturedAt, queuedAt);
+
+    if (!queuedLocation || !Number.isFinite(newestTimestamp) || Date.now() - newestTimestamp > maxQueuedLocationAgeMs) {
+      clearQueuedGuardLocationSync();
+      return null;
+    }
+
     return queuedLocation;
   } catch {
     return null;

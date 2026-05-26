@@ -180,6 +180,10 @@ export async function checkIn(request, response) {
 }
 
 export async function checkOut(request, response) {
+  if (!request.file) {
+    throw createHttpError(400, "A checkout selfie is required to end a shift.");
+  }
+
   const openAttendance = await findOpenAttendanceByUserId(request.user.id);
 
   if (!openAttendance) {
@@ -187,6 +191,8 @@ export async function checkOut(request, response) {
   }
 
   const timestamp = now();
+  const selfieCheck = scoreSelfieCapture(request.file);
+  const selfiePath = await storeSelfieFile(request.file);
   const nextNote = request.body?.note ? String(request.body.note).trim() : openAttendance.note;
   const {
     latitude,
@@ -196,6 +202,16 @@ export async function checkOut(request, response) {
     dutyLabel,
     battery
   } = request.body ?? {};
+
+  await createSelfie({
+    id: createId(),
+    userId: request.user.id,
+    attendanceId: openAttendance.id,
+    imagePath: selfiePath,
+    verified: selfieCheck.verified,
+    verificationScore: selfieCheck.score,
+    capturedAt: timestamp
+  });
 
   await updateAttendanceOnCheckout(openAttendance.id, {
     checkOutAt: timestamp,
@@ -207,9 +223,9 @@ export async function checkOut(request, response) {
     id: createId(),
     userId: request.user.id,
     type: "attendance",
-    title: "Shift check-out completed",
+    title: "Shift check-out selfie verified",
     description: appendShiftNote(
-      "Guard wrapped up the active patrol shift with a final location sync.",
+      "Guard wrapped up the active patrol shift with a selfie confirmation and final location sync.",
       nextNote
     ),
     priority: "low",

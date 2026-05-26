@@ -13,6 +13,7 @@ import {
   listLocationsByUserId,
   listAllLocations
 } from "../models/locationModel.js";
+import { listDutySites } from "../models/dutySiteModel.js";
 import { listSelfiesByUserId } from "../models/selfieModel.js";
 import { listGuards, listUsers } from "../models/userModel.js";
 import { sanitizeUser } from "./auth.js";
@@ -91,9 +92,68 @@ function buildAttendanceFeedDetail(entry, fallbackLocationLabel) {
   return parts.filter(Boolean).join(" • ");
 }
 
-export async function buildGuardRoster() {
+function buildDutySiteCoverage(dutySites, guards) {
+  const siteLookup = new Map(dutySites.map((site) => [site.id, site]));
+  const coverage = dutySites.map((site) => {
+    const assignedGuards = guards.filter((guard) => guard.dutySiteId === site.id);
+
+    return {
+      ...site,
+      assignedCount: assignedGuards.length,
+      onDutyCount: assignedGuards.filter((guard) => guard.shiftState === "On Duty").length,
+      trackedCount: assignedGuards.filter((guard) => guard.latestLocation).length,
+      guards: assignedGuards.map((guard) => ({
+        id: guard.id,
+        fullName: guard.fullName,
+        employeeCode: guard.employeeCode,
+        shiftState: guard.shiftState,
+        status: guard.status,
+        latestLocation: guard.latestLocation
+      }))
+    };
+  });
+  const unassignedGuards = guards.filter(
+    (guard) => !guard.dutySiteId || !siteLookup.has(guard.dutySiteId)
+  );
+
+  if (unassignedGuards.length) {
+    coverage.push({
+      id: "unassigned",
+      organizationId: null,
+      name: "Unassigned",
+      area: "Needs duty site assignment",
+      address: "Assign these guards to a duty site from their roster profile.",
+      latitude: null,
+      longitude: null,
+      status: "unassigned",
+      assignedCount: unassignedGuards.length,
+      onDutyCount: unassignedGuards.filter((guard) => guard.shiftState === "On Duty").length,
+      trackedCount: unassignedGuards.filter((guard) => guard.latestLocation).length,
+      guards: unassignedGuards.map((guard) => ({
+        id: guard.id,
+        fullName: guard.fullName,
+        employeeCode: guard.employeeCode,
+        shiftState: guard.shiftState,
+        status: guard.status,
+        latestLocation: guard.latestLocation
+      }))
+    });
+  }
+
+  return coverage;
+}
+
+export async function buildGuardRoster(organizationId = null, dutySitesOverride = null) {
   const dateKey = getDateKey();
-  const guards = await listGuards();
+  const [guards, dutySites] = await Promise.all([
+    listGuards(organizationId),
+    dutySitesOverride
+      ? Promise.resolve(dutySitesOverride)
+      : organizationId
+        ? listDutySites(organizationId)
+        : Promise.resolve([])
+  ]);
+  const dutySiteLookup = new Map(dutySites.map((site) => [site.id, site]));
 
   return Promise.all(
     guards.map(async (guard) => {
@@ -134,6 +194,7 @@ export async function buildGuardRoster() {
 
       return {
         ...sanitizeUser(guard),
+        dutySite: guard.dutySiteId ? dutySiteLookup.get(guard.dutySiteId) || null : null,
         lastSeenAt,
         shiftState: currentShift ? "On Duty" : "Off Duty",
         currentShift,
@@ -158,17 +219,27 @@ export async function buildGuardRoster() {
   );
 }
 
-export async function buildLiveFeed(limit = 20) {
+export async function buildLiveFeed(limit = 20, organizationId = null) {
   const [users, attendance, activities, locations] = await Promise.all([
-    listUsers(),
+    listUsers(organizationId),
     listAttendanceForDate(getDateKey()),
     listAllActivities(),
     listAllLocations()
   ]);
 
   const userLookup = new Map(users.map((user) => [user.id, user]));
+  const scopedUserIds = new Set(users.map((user) => user.id));
+  const scopedAttendance = organizationId
+    ? attendance.filter((entry) => scopedUserIds.has(entry.userId))
+    : attendance;
+  const scopedActivities = organizationId
+    ? activities.filter((entry) => scopedUserIds.has(entry.userId))
+    : activities;
+  const scopedLocations = organizationId
+    ? locations.filter((entry) => scopedUserIds.has(entry.userId))
+    : locations;
 
-  const attendanceEvents = attendance.flatMap((entry) => {
+  const attendanceEvents = scopedAttendance.flatMap((entry) => {
     const user = userLookup.get(entry.userId);
     const shared = {
       id: entry.id,
@@ -199,7 +270,7 @@ export async function buildLiveFeed(limit = 20) {
     return events;
   });
 
-  const activityEvents = activities.map((entry) => {
+  const activityEvents = scopedActivities.map((entry) => {
     const user = userLookup.get(entry.userId);
     return {
       id: entry.id,
@@ -212,7 +283,7 @@ export async function buildLiveFeed(limit = 20) {
     };
   });
 
-  const locationEvents = locations.map((entry) => {
+  const locationEvents = scopedLocations.map((entry) => {
     const user = userLookup.get(entry.userId);
     return {
       id: entry.id,
@@ -231,16 +302,24 @@ export async function buildLiveFeed(limit = 20) {
   ).slice(0, limit);
 }
 
-export async function buildAdminOverview() {
+export async function buildAdminOverview(organizationId = null) {
   const dateKey = getDateKey();
+  const dutySites = organizationId ? await listDutySites(organizationId) : [];
   const [guards, attendance, activities, liveFeed] = await Promise.all([
-    buildGuardRoster(),
+    buildGuardRoster(organizationId, dutySites),
     listAttendanceForDate(dateKey),
     listActivitiesForDate(dateKey),
-    buildLiveFeed(20)
+    buildLiveFeed(20, organizationId)
   ]);
+  const guardIds = new Set(guards.map((guard) => guard.id));
+  const scopedAttendance = organizationId
+    ? attendance.filter((entry) => guardIds.has(entry.userId))
+    : attendance;
+  const scopedActivities = organizationId
+    ? activities.filter((entry) => guardIds.has(entry.userId))
+    : activities;
 
-  const incidents = activities.filter(
+  const incidents = scopedActivities.filter(
     (entry) => entry.type === "incident" || entry.type === "alert"
   );
 
@@ -248,22 +327,26 @@ export async function buildAdminOverview() {
     metrics: {
       totalGuards: guards.length,
       onDuty: guards.filter((guard) => guard.shiftState === "On Duty").length,
-      attendanceRate: guards.length ? Math.round((attendance.length / guards.length) * 100) : 0,
+      attendanceRate: guards.length ? Math.round((scopedAttendance.length / guards.length) * 100) : 0,
       incidentCount: incidents.length,
       trackedGuards: guards.filter((guard) => guard.latestLocation).length,
+      activeDutySites: dutySites.filter((site) => site.status === "active").length,
+      assignedToDutySites: guards.filter((guard) => guard.dutySite).length,
       locationPingsToday: guards.reduce(
         (total, guard) => total + (guard.locationPingsToday ?? 0),
         0
       )
     },
     guards,
-    attendance: attendance.map((entry) => {
+    attendance: scopedAttendance.map((entry) => {
       const user = guards.find((guard) => guard.id === entry.userId);
       return {
         ...entry,
         userName: user?.fullName ?? "Unknown guard"
       };
     }),
+    dutySites,
+    siteCoverage: buildDutySiteCoverage(dutySites, guards),
     liveFeed
   };
 }

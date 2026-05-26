@@ -1,12 +1,15 @@
 import { Router } from "express";
 import {
   createGuard,
+  createDutySite,
   deleteGuard,
+  getDutySites,
   getGuards,
   getLiveFeed,
   getOverview,
   updateGuard,
-  updateGuardStatus
+  updateGuardStatus,
+  updateDutySite
 } from "../controllers/adminController.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
@@ -16,6 +19,9 @@ const router = Router();
 router.use(requireAuth, requireRole("admin"));
 
 router.get("/overview", asyncHandler(getOverview));
+router.get("/duty-sites", asyncHandler(getDutySites));
+router.post("/duty-sites", asyncHandler(createDutySite));
+router.patch("/duty-sites/:id", asyncHandler(updateDutySite));
 router.get("/guards", asyncHandler(getGuards));
 router.get("/live-feed", asyncHandler(getLiveFeed));
 router.post("/guards", asyncHandler(createGuard));

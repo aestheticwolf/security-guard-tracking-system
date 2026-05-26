@@ -2,6 +2,8 @@ import { hasCoordinates } from "./geo";
 
 const deviceLocationStorageKey = "sentinel-grid-last-device-location";
 const defaultMaximumAge = 20_000;
+const defaultFreshPositionMaxAge = 2 * 60_000;
+const quickRecentPositionTimeout = 3_000;
 
 function mapGeolocationError(error) {
   if (!error) {
@@ -17,7 +19,7 @@ function mapGeolocationError(error) {
   }
 
   if (error.code === 3) {
-    return "Location request timed out. Please try again.";
+    return "This device did not return a location in time. Keep location permission on and make sure device location/GPS is enabled.";
   }
 
   return error.message || "Unable to read device location.";
@@ -44,6 +46,24 @@ function normalizePosition(position, battery) {
     battery,
     capturedAt: new Date(position.timestamp || Date.now()).toISOString()
   };
+}
+
+function isFreshPosition(location, maxPositionAgeMs) {
+  if (!Number.isFinite(maxPositionAgeMs)) {
+    return true;
+  }
+
+  const capturedAt = location?.capturedAt ? new Date(location.capturedAt).getTime() : Number.NaN;
+
+  return Number.isFinite(capturedAt) && Date.now() - capturedAt <= maxPositionAgeMs;
+}
+
+function assertFreshPosition(location, maxPositionAgeMs) {
+  if (isFreshPosition(location, maxPositionAgeMs)) {
+    return;
+  }
+
+  throw new Error("The device returned an old GPS position. Please turn location on, wait for a fresh fix, and try again.");
 }
 
 function persistDeviceLocation(location) {
@@ -99,6 +119,7 @@ async function readPositionAttempt({
   enableHighAccuracy = true,
   maximumAge = defaultMaximumAge,
   timeout = 12_000,
+  maxPositionAgeMs = Number.POSITIVE_INFINITY,
   source = "browser"
 } = {}) {
   if (!navigator.geolocation) {
@@ -117,6 +138,7 @@ async function readPositionAttempt({
 
   const battery = await readBatteryLevel();
   const location = normalizePosition(position, battery);
+  assertFreshPosition(location, maxPositionAgeMs);
   persistDeviceLocation(location);
   return decorateLocation(location, source);
 }
@@ -125,6 +147,7 @@ async function readWatchPositionAttempt({
   enableHighAccuracy = true,
   maximumAge = 0,
   timeout = 16_000,
+  maxPositionAgeMs = defaultFreshPositionMaxAge,
   source = "watch"
 } = {}) {
   if (!navigator.geolocation) {
@@ -165,7 +188,7 @@ async function readWatchPositionAttempt({
     );
 
     timeoutId = globalThis.setTimeout(
-      () => finish(reject, { code: 3, message: "Location request timed out. Please try again." }),
+      () => finish(reject, { code: 3, message: "GPS did not respond in time." }),
       timeout + 1_500
     );
   }).catch((error) => {
@@ -174,17 +197,23 @@ async function readWatchPositionAttempt({
 
   const battery = await readBatteryLevel();
   const location = normalizePosition(position, battery);
+  assertFreshPosition(location, maxPositionAgeMs);
   persistDeviceLocation(location);
   return decorateLocation(location, source, source !== "watch");
 }
 
 export async function readDeviceContext(options = {}) {
-  const { forceFresh = false, timeout = 12_000 } = options;
+  const {
+    forceFresh = false,
+    timeout = 12_000,
+    maxPositionAgeMs = forceFresh ? defaultFreshPositionMaxAge : Number.POSITIVE_INFINITY
+  } = options;
 
   return readPositionAttempt({
     enableHighAccuracy: true,
     maximumAge: forceFresh ? 0 : defaultMaximumAge,
     timeout,
+    maxPositionAgeMs,
     source: forceFresh ? "fresh" : "browser"
   });
 }
@@ -193,20 +222,36 @@ export async function readBestAvailableDeviceContext(options = {}) {
   const {
     forceFresh = false,
     timeout = 12_000,
-    storedMaxAgeMs = 6 * 60 * 60_000,
-    watchTimeout = Math.min(Math.max(timeout, 6_000), 10_000),
-    relaxedTimeout = Math.min(Math.max(timeout, 5_000), 8_000)
+    storedMaxAgeMs = 2 * 60_000,
+    maxPositionAgeMs = forceFresh ? defaultFreshPositionMaxAge : Number.POSITIVE_INFINITY,
+    watchTimeout = Math.min(Math.max(timeout, 10_000), 30_000),
+    relaxedTimeout = Math.min(Math.max(timeout, 8_000), 20_000)
   } = options;
 
-  const attempts = [
+  const attempts = [];
+
+  if (forceFresh && Number.isFinite(maxPositionAgeMs)) {
+    attempts.push(() =>
+      readPositionAttempt({
+        enableHighAccuracy: false,
+        maximumAge: maxPositionAgeMs,
+        timeout: quickRecentPositionTimeout,
+        maxPositionAgeMs,
+        source: "recent"
+      })
+    );
+  }
+
+  attempts.push(
     () =>
       readPositionAttempt({
         enableHighAccuracy: true,
         maximumAge: forceFresh ? 0 : defaultMaximumAge,
         timeout,
+        maxPositionAgeMs,
         source: forceFresh ? "fresh" : "browser"
       })
-  ];
+  );
 
   if (forceFresh) {
     attempts.push(() =>
@@ -214,6 +259,7 @@ export async function readBestAvailableDeviceContext(options = {}) {
         enableHighAccuracy: true,
         maximumAge: 0,
         timeout: watchTimeout,
+        maxPositionAgeMs,
         source: "watch"
       })
     );
@@ -222,8 +268,9 @@ export async function readBestAvailableDeviceContext(options = {}) {
   attempts.push(() =>
     readPositionAttempt({
       enableHighAccuracy: false,
-      maximumAge: forceFresh ? 90_000 : 120_000,
+      maximumAge: forceFresh && Number.isFinite(maxPositionAgeMs) ? maxPositionAgeMs : 120_000,
       timeout: relaxedTimeout,
+      maxPositionAgeMs,
       source: "relaxed"
     })
   );
@@ -267,7 +314,7 @@ export function watchDeviceContext(onSuccess, onError) {
     (error) => onError?.(mapGeolocationError(error)),
     {
       enableHighAccuracy: true,
-      maximumAge: 15_000,
+      maximumAge: 0,
       timeout: 15_000
     }
   );

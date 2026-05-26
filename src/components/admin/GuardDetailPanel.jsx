@@ -1,4 +1,4 @@
-import { Camera, Clock3, MapPinned, RadioTower, ShieldCheck } from "lucide-react";
+import { Building2, Camera, Clock3, MapPinned, RadioTower, ShieldCheck } from "lucide-react";
 import StatusBadge from "../StatusBadge";
 import LiveRouteMap from "../maps/LiveRouteMap";
 import SelfieImageFrame from "../SelfieImageFrame";
@@ -73,6 +73,15 @@ export default function GuardDetailPanel({ guard }) {
               <p className="mt-2 text-sm text-white">{guard.shiftLabel || "Unassigned"}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3.5 sm:p-4">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Duty site</p>
+              <p className="mt-2 text-sm text-white">
+                {guard.dutySite?.name || "Unassigned"}
+              </p>
+              {guard.dutySite?.area && (
+                <p className="mt-1 text-xs text-slate-400">{guard.dutySite.area}</p>
+              )}
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3.5 sm:p-4">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Employee code</p>
               <p className="mt-2 text-sm text-white">{guard.employeeCode || "Not assigned"}</p>
             </div>
@@ -143,6 +152,14 @@ export default function GuardDetailPanel({ guard }) {
               <p className="mt-1 text-sm text-white">
                 {guard.latestLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
               </p>
+              <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-500">Assigned duty site</p>
+              <div className="mt-1 flex items-start gap-2 text-sm text-white">
+                <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-jade-200" />
+                <span>
+                  {guard.dutySite?.name || "Unassigned"}
+                  {guard.dutySite?.address ? ` - ${guard.dutySite.address}` : ""}
+                </span>
+              </div>
               <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-500">Exact sync point</p>
               <p className="mt-1 text-sm text-white">{formatCoordinates(guard.latestLocation)}</p>
             </div>

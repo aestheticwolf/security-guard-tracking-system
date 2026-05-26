@@ -5,6 +5,7 @@ import AdminHistoryPage from "./pages/AdminHistoryPage";
 import AuthPage from "./pages/AuthPage";
 import GuardDashboard from "./pages/GuardDashboard";
 import LandingPage from "./pages/LandingPage";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 
 export default function App() {
   return (
@@ -16,6 +17,14 @@ export default function App() {
         element={
           <ProtectedRoute roles={["guard"]}>
             <GuardDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin"
+        element={
+          <ProtectedRoute roles={["super_admin"]}>
+            <SuperAdminDashboard />
           </ProtectedRoute>
         }
       />
