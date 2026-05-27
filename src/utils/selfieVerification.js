@@ -8,6 +8,9 @@ const identityLabels = {
   mismatch: "Identity mismatch",
   face_not_detected: "Face not detected"
 };
+const automaticIdentityStatuses = new Set(["matched", "mismatch", "face_not_detected"]);
+const positiveIdentityStatuses = new Set(["matched"]);
+const negativeIdentityStatuses = new Set(["mismatch", "face_not_detected"]);
 
 export function isSelfieVerificationPassed(selfie) {
   if (!selfie) {
@@ -39,6 +42,74 @@ export function getSelfieIdentityLabel(selfie) {
   return identityLabels[selfie.identityStatus] || "Identity review pending";
 }
 
+export function hasAutomaticIdentityScore(selfie) {
+  return automaticIdentityStatuses.has(selfie?.identityStatus);
+}
+
+export function getSelfieIdentityScorePercent(selfie) {
+  if (!hasAutomaticIdentityScore(selfie)) {
+    return null;
+  }
+
+  const numericScore = Number(selfie?.identityScore);
+
+  if (!Number.isFinite(numericScore)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(Math.round(numericScore * 100), 100));
+}
+
+export function formatSelfieIdentityScore(selfie) {
+  const score = getSelfieIdentityScorePercent(selfie);
+
+  return score === null ? "Match pending" : `${score}% match`;
+}
+
+export function getSelfieIdentityDecision(selfie) {
+  if (!selfie) {
+    return "Awaiting shift selfie";
+  }
+
+  if (positiveIdentityStatuses.has(selfie.identityStatus)) {
+    return "Likely registered guard";
+  }
+
+  if (selfie.identityStatus === "mismatch") {
+    return "Identity mismatch requires review";
+  }
+
+  if (selfie.identityStatus === "face_not_detected") {
+    return "Face not detected";
+  }
+
+  if (selfie.identityStatus === "upload_review") {
+    return "Uploaded proof needs review";
+  }
+
+  if (selfie.identityStatus === "no_reference") {
+    return "No registered reference";
+  }
+
+  return "Manual review required";
+}
+
+export function getSelfieIdentityTone(selfie) {
+  if (!selfie) {
+    return "pending";
+  }
+
+  if (positiveIdentityStatuses.has(selfie.identityStatus)) {
+    return "success";
+  }
+
+  if (negativeIdentityStatuses.has(selfie.identityStatus)) {
+    return "danger";
+  }
+
+  return "warning";
+}
+
 export function getSelfieCaptureLabel(selfie) {
   if (!selfie?.captureSource || selfie.captureSource === "unknown") {
     return "Capture source unknown";
@@ -61,4 +132,16 @@ export function getGuardIdentityEnrollmentLabel(guard) {
   return guard?.identityEnrolledAt
     ? "Identity reference enrolled"
     : "Reference image available";
+}
+
+export function getGuardIdentityReferenceType(guard) {
+  if (guard?.identitySelfiePath) {
+    return "Enrollment selfie";
+  }
+
+  if (guard?.identityPhotoPath) {
+    return "Registered photo";
+  }
+
+  return "No reference";
 }

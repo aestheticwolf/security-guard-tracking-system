@@ -11,8 +11,11 @@ import {
 } from "../../utils/format";
 import {
   getGuardIdentityEnrollmentLabel,
+  formatSelfieIdentityScore,
+  getSelfieIdentityDecision,
   getSelfieCaptureLabel,
   getSelfieIdentityLabel,
+  getSelfieIdentityScorePercent,
   isSelfieVerificationPassed
 } from "../../utils/selfieVerification";
 
@@ -150,6 +153,7 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
             <div className="grid gap-3 sm:grid-cols-2">
               {selfieCards.map(({ owner, selfie }) => {
                 const selfieUrl = buildSelfieImageUrl(selfie);
+                const identityScorePercent = getSelfieIdentityScorePercent(selfie);
 
                 return (
                   <div key={owner.id} className="app-surface-soft overflow-hidden rounded-[20px]">
@@ -193,7 +197,20 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                       <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs app-copy-muted">
                         <p>{getGuardIdentityEnrollmentLabel(owner)}</p>
                         <p className="mt-1">{getSelfieIdentityLabel(selfie)}</p>
+                        <p className="mt-1 font-semibold app-copy-primary">
+                          {formatSelfieIdentityScore(selfie)}
+                        </p>
                         <p className="mt-1">{getSelfieCaptureLabel(selfie)}</p>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/40">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-gold-400 to-jade-300"
+                            style={{ width: `${identityScorePercent ?? 0}%` }}
+                          />
+                        </div>
+                        <p className="mt-2">{getSelfieIdentityDecision(selfie)}</p>
+                        {selfie?.identityNotes && (
+                          <p className="mt-2 leading-5">{selfie.identityNotes}</p>
+                        )}
                       </div>
                     </div>
                   </div>

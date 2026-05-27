@@ -17,9 +17,14 @@ import {
 import { getDistanceMeters, hasCoordinates } from "../../utils/geo";
 import { readBestAvailableDeviceContext } from "../../utils/device";
 import {
+  formatSelfieIdentityScore,
+  getGuardIdentityReferenceType,
   getGuardIdentityEnrollmentLabel,
+  getSelfieIdentityDecision,
   getSelfieCaptureLabel,
   getSelfieIdentityLabel,
+  getSelfieIdentityScorePercent,
+  getSelfieIdentityTone,
   getSelfieVerificationLabel,
   hasGuardIdentityReference,
   isSelfieVerificationPassed
@@ -31,6 +36,30 @@ function formatVerificationScore(score) {
   }
 
   return `${Math.round(Number(score) * 100)}%`;
+}
+
+function getIdentityToneClasses(tone) {
+  if (tone === "success") {
+    return {
+      panel: "border-jade-300/30 bg-jade-300/10",
+      text: "text-jade-100",
+      bar: "from-jade-400 to-emerald-300"
+    };
+  }
+
+  if (tone === "danger") {
+    return {
+      panel: "border-rose-300/30 bg-rose-400/10",
+      text: "app-error-copy",
+      bar: "from-rose-400 to-orange-300"
+    };
+  }
+
+  return {
+    panel: "border-gold-300/25 bg-gold-300/10",
+    text: "text-gold-100",
+    bar: "from-gold-400 to-jade-300"
+  };
 }
 
 function buildSelfieImageUrl(selfie) {
@@ -102,6 +131,9 @@ export default function GuardDetailPanel({ guard }) {
   const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
   const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
+  const identityScorePercent = getSelfieIdentityScorePercent(latestSelfie);
+  const identityTone = getSelfieIdentityTone(latestSelfie);
+  const identityToneClasses = getIdentityToneClasses(identityTone);
   const identityReferencePath = guard.identitySelfiePath || guard.identityPhotoPath || null;
   const identityReferenceUrl = buildVersionedAssetUrl(
     identityReferencePath,
@@ -285,6 +317,49 @@ export default function GuardDetailPanel({ guard }) {
               <Camera className="h-4 w-4 text-jade-200" />
               Latest selfie verification
             </div>
+            <div className={`mt-4 rounded-[22px] border p-4 ${identityToneClasses.panel}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                    Automatic face match
+                  </p>
+                  <p className={`mt-2 text-lg font-semibold ${identityToneClasses.text}`}>
+                    {getSelfieIdentityDecision(latestSelfie)}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-300">
+                    Compares today&apos;s live shift selfie with the registered identity reference.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-right">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Match score</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">
+                    {formatSelfieIdentityScore(latestSelfie)}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-950/55">
+                <div
+                  className={`h-full rounded-full bg-gradient-to-r ${identityToneClasses.bar}`}
+                  style={{ width: `${identityScorePercent ?? 0}%` }}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Reference used</p>
+                  <p className="mt-1 text-sm text-white">{getGuardIdentityReferenceType(guard)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Shift proof</p>
+                  <p className="mt-1 text-sm text-white">{getSelfieCaptureLabel(latestSelfie)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Captured</p>
+                  <p className="mt-1 text-sm text-white">
+                    {latestSelfie?.capturedAt ? formatRelative(latestSelfie.capturedAt) : "No capture yet"}
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/60">
                 {identityReferenceUrl ? (
@@ -301,10 +376,10 @@ export default function GuardDetailPanel({ guard }) {
                 )}
                 <div className="border-t border-white/10 p-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Registered reference
+                    Registered reference image
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
-                    {getGuardIdentityEnrollmentLabel(guard)}
+                    {getGuardIdentityReferenceType(guard)} - {getGuardIdentityEnrollmentLabel(guard)}
                   </p>
                 </div>
               </div>
@@ -324,7 +399,7 @@ export default function GuardDetailPanel({ guard }) {
                 )}
                 <div className="border-t border-white/10 p-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Shift selfie proof
+                    Today&apos;s shift selfie
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
                     {getSelfieCaptureLabel(latestSelfie)}
@@ -345,6 +420,9 @@ export default function GuardDetailPanel({ guard }) {
                 <p className="mt-2 text-sm text-slate-300">
                   Identity: {getSelfieIdentityLabel(latestSelfie)}
                 </p>
+                <p className="mt-2 text-sm text-slate-300">
+                  Match score: {formatSelfieIdentityScore(latestSelfie)}
+                </p>
                 {latestSelfie?.identityNotes && (
                   <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs leading-5 text-slate-300">
                     {latestSelfie.identityNotes}
@@ -361,7 +439,7 @@ export default function GuardDetailPanel({ guard }) {
                         : formatVerificationScore(latestSelfie?.verificationScore)
                   }
                 />
-                <StatusBadge status={getSelfieIdentityLabel(latestSelfie)} />
+                <StatusBadge status={getSelfieIdentityDecision(latestSelfie)} />
               </div>
             </div>
           </div>
