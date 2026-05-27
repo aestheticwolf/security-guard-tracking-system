@@ -17,12 +17,19 @@ export default function StatusBadge({ status }) {
     "mismatch",
     "failed"
   ]);
+  const processingStatuses = new Set([
+    "face match processing",
+    "processing",
+    "identity processing"
+  ]);
   const classes =
     successStatuses.has(normalized)
       ? "status-badge status-badge--success"
       : dangerStatuses.has(normalized)
         ? "status-badge status-badge--danger"
-        : "status-badge status-badge--warning";
+        : processingStatuses.has(normalized)
+          ? "status-badge status-badge--warning"
+          : "status-badge status-badge--warning";
 
   return (
     <span className={classes}>{status}</span>

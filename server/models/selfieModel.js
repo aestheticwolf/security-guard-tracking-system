@@ -50,6 +50,44 @@ export async function createSelfie(selfie) {
   );
 }
 
+export async function updateSelfieVerification(id, verification) {
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("selfies");
+    await collection.updateOne(
+      { id },
+      {
+        $set: {
+          verified: Boolean(verification.verified),
+          verificationScore: verification.verificationScore,
+          identityStatus: verification.identityStatus || "reference_review",
+          identityScore: verification.identityScore ?? 0,
+          identityNotes: verification.identityNotes || ""
+        }
+      }
+    );
+    return;
+  }
+
+  const database = await getDb();
+  await database.run(
+    `UPDATE selfies
+     SET verified = ?,
+         verification_score = ?,
+         identity_status = ?,
+         identity_score = ?,
+         identity_notes = ?
+     WHERE id = ?`,
+    [
+      verification.verified ? 1 : 0,
+      verification.verificationScore,
+      verification.identityStatus || "reference_review",
+      verification.identityScore ?? 0,
+      verification.identityNotes || "",
+      id
+    ]
+  );
+}
+
 export async function listSelfiesByUserId(userId) {
   if (isMongoEnabled()) {
     const collection = await getMongoCollection("selfies");

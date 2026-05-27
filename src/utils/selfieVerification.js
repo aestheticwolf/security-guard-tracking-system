@@ -4,6 +4,7 @@ const identityLabels = {
   no_reference: "No reference enrolled",
   reference_review: "Reference review ready",
   upload_review: "Uploaded image review",
+  identity_processing: "Face match processing",
   matched: "Identity matched",
   mismatch: "Identity mismatch",
   face_not_detected: "Face not detected"
@@ -87,6 +88,10 @@ export function getSelfieIdentityDecision(selfie) {
     return "Uploaded proof needs review";
   }
 
+  if (selfie.identityStatus === "identity_processing") {
+    return "Face match processing";
+  }
+
   if (selfie.identityStatus === "no_reference") {
     return "No registered reference";
   }
@@ -105,6 +110,10 @@ export function getSelfieIdentityTone(selfie) {
 
   if (negativeIdentityStatuses.has(selfie.identityStatus)) {
     return "danger";
+  }
+
+  if (selfie.identityStatus === "identity_processing") {
+    return "processing";
   }
 
   return "warning";

@@ -367,6 +367,51 @@ export async function verifySelfieCapture(file, options = {}) {
   };
 }
 
+export function shouldRunAutomaticFaceMatch(options = {}) {
+  const fallback = scoreSelfieCapture(options.file, options);
+  return Boolean(
+    isCompreFaceConfigured() &&
+      fallback.captureSource === "camera" &&
+      getReferenceCandidates(options).length
+  );
+}
+
+export function buildPendingFaceMatchReview(file, options = {}) {
+  const fallback = scoreSelfieCapture(file, options);
+
+  if (shouldRunAutomaticFaceMatch({ ...options, file })) {
+    return {
+      ...fallback,
+      verified: false,
+      identityStatus: "identity_processing",
+      identityScore: 0,
+      identityNotes: "Automatic face matching is processing in the background. Shift capture was saved immediately."
+    };
+  }
+
+  return fallback;
+}
+
+export function verifySelfieCaptureInBackground({ file, options = {}, onComplete }) {
+  if (!shouldRunAutomaticFaceMatch({ ...options, file })) {
+    return;
+  }
+
+  setTimeout(async () => {
+    try {
+      const result = await verifySelfieCapture(file, options);
+      await onComplete?.(result);
+    } catch (error) {
+      const fallback = scoreSelfieCapture(file, options);
+      await onComplete?.({
+        ...fallback,
+        identityStatus: "reference_review",
+        identityNotes: `Automatic face matching could not complete. Manual review is required. ${sanitizeFailureMessage(error?.message)}`
+      });
+    }
+  }, 0);
+}
+
 export function toPublicSelfiePath(file) {
   return `/uploads/selfies/${path.basename(file.path)}`;
 }

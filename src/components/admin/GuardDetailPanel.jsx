@@ -55,6 +55,14 @@ function getIdentityToneClasses(tone) {
     };
   }
 
+  if (tone === "processing") {
+    return {
+      panel: "border-sky-300/25 bg-sky-300/10",
+      text: "text-sky-100",
+      bar: "from-sky-400 to-jade-300"
+    };
+  }
+
   return {
     panel: "border-gold-300/25 bg-gold-300/10",
     text: "text-gold-100",

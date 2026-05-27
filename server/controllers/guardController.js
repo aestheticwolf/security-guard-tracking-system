@@ -5,10 +5,14 @@ import {
   updateAttendanceOnCheckout
 } from "../models/attendanceModel.js";
 import { createLocation, findLatestLocationByUserId } from "../models/locationModel.js";
-import { createSelfie } from "../models/selfieModel.js";
+import { createSelfie, updateSelfieVerification } from "../models/selfieModel.js";
 import { touchUser } from "../models/userModel.js";
 import { reverseGeocodeLocation } from "../services/geocoding.js";
-import { storeSelfieFile, verifySelfieCapture } from "../services/selfie.js";
+import {
+  buildPendingFaceMatchReview,
+  storeSelfieFile,
+  verifySelfieCaptureInBackground
+} from "../services/selfie.js";
 import { buildGuardOverview } from "../services/guardDashboardService.js";
 import {
   createHttpError,
@@ -149,12 +153,14 @@ export async function checkIn(request, response) {
   const shiftNote = note ? String(note).trim() : "";
   const attendanceId = createId();
   const timestamp = now();
-  const selfieCheck = await verifySelfieCapture(request.file, {
+  const selfieOptions = {
     captureSource,
     identityPhotoPath: request.user.identityPhotoPath,
     identitySelfiePath: request.user.identitySelfiePath
-  });
+  };
+  const selfieCheck = buildPendingFaceMatchReview(request.file, selfieOptions);
   const selfiePath = await storeSelfieFile(request.file);
+  const selfieId = createId();
 
   await createAttendance({
     id: attendanceId,
@@ -171,7 +177,7 @@ export async function checkIn(request, response) {
   });
 
   await createSelfie({
-    id: createId(),
+    id: selfieId,
     userId: request.user.id,
     attendanceId,
     imagePath: selfiePath,
@@ -182,6 +188,19 @@ export async function checkIn(request, response) {
     identityScore: selfieCheck.identityScore,
     identityNotes: selfieCheck.identityNotes,
     capturedAt: timestamp
+  });
+
+  verifySelfieCaptureInBackground({
+    file: request.file,
+    options: selfieOptions,
+    onComplete: (result) =>
+      updateSelfieVerification(selfieId, {
+        verified: result.verified,
+        verificationScore: result.score,
+        identityStatus: result.identityStatus,
+        identityScore: result.identityScore,
+        identityNotes: result.identityNotes
+      })
   });
 
   await createActivity({
@@ -247,16 +266,18 @@ export async function checkOut(request, response) {
     captureSource
   } = request.body ?? {};
   const parsedCoordinates = parseLocationCoordinates(latitude, longitude);
-  const selfieCheck = await verifySelfieCapture(request.file, {
+  const selfieOptions = {
     captureSource,
     identityPhotoPath: request.user.identityPhotoPath,
     identitySelfiePath: request.user.identitySelfiePath
-  });
+  };
+  const selfieCheck = buildPendingFaceMatchReview(request.file, selfieOptions);
   const selfiePath = await storeSelfieFile(request.file);
+  const selfieId = createId();
   const nextNote = request.body?.note ? String(request.body.note).trim() : openAttendance.note;
 
   await createSelfie({
-    id: createId(),
+    id: selfieId,
     userId: request.user.id,
     attendanceId: openAttendance.id,
     imagePath: selfiePath,
@@ -267,6 +288,19 @@ export async function checkOut(request, response) {
     identityScore: selfieCheck.identityScore,
     identityNotes: selfieCheck.identityNotes,
     capturedAt: timestamp
+  });
+
+  verifySelfieCaptureInBackground({
+    file: request.file,
+    options: selfieOptions,
+    onComplete: (result) =>
+      updateSelfieVerification(selfieId, {
+        verified: result.verified,
+        verificationScore: result.score,
+        identityStatus: result.identityStatus,
+        identityScore: result.identityScore,
+        identityNotes: result.identityNotes
+      })
   });
 
   await updateAttendanceOnCheckout(openAttendance.id, {
