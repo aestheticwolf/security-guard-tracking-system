@@ -161,8 +161,185 @@ async function ensureColumn(database, tableName, columnName, columnDefinition) {
   await database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
 }
 
+const userLinkedTableDefinitions = {
+  attendance: {
+    columns: [
+      "id",
+      "user_id",
+      "check_in_at",
+      "check_out_at",
+      "status",
+      "selfie_path",
+      "location_label",
+      "latitude",
+      "longitude",
+      "accuracy",
+      "note"
+    ],
+    createSql: `
+      CREATE TABLE attendance (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        check_in_at TEXT NOT NULL,
+        check_out_at TEXT,
+        status TEXT NOT NULL,
+        selfie_path TEXT,
+        location_label TEXT,
+        latitude REAL,
+        longitude REAL,
+        accuracy REAL,
+        note TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `
+  },
+  activities: {
+    columns: [
+      "id",
+      "user_id",
+      "type",
+      "title",
+      "description",
+      "priority",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    createSql: `
+      CREATE TABLE activities (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `
+  },
+  locations: {
+    columns: [
+      "id",
+      "user_id",
+      "latitude",
+      "longitude",
+      "accuracy",
+      "address",
+      "zone_detail",
+      "duty_label",
+      "battery",
+      "tracked_at"
+    ],
+    createSql: `
+      CREATE TABLE locations (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        accuracy REAL,
+        address TEXT,
+        zone_detail TEXT,
+        duty_label TEXT,
+        battery INTEGER,
+        tracked_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `
+  },
+  selfies: {
+    columns: [
+      "id",
+      "user_id",
+      "attendance_id",
+      "image_path",
+      "verified",
+      "verification_score",
+      "capture_source",
+      "identity_status",
+      "identity_score",
+      "identity_notes",
+      "captured_at"
+    ],
+    createSql: `
+      CREATE TABLE selfies (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        attendance_id TEXT,
+        image_path TEXT NOT NULL,
+        verified INTEGER NOT NULL DEFAULT 0,
+        verification_score REAL NOT NULL DEFAULT 0,
+        capture_source TEXT NOT NULL DEFAULT 'unknown',
+        identity_status TEXT NOT NULL DEFAULT 'no_reference',
+        identity_score REAL NOT NULL DEFAULT 0,
+        identity_notes TEXT DEFAULT '',
+        captured_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (attendance_id) REFERENCES attendance(id) ON DELETE SET NULL
+      );
+    `
+  }
+};
+
+async function rebuildTableWithDefinition(database, tableName, definition) {
+  const backupTableName = `${tableName}_legacy_fk_repair`;
+  const existingColumns = await database.all(`PRAGMA table_info(${tableName})`);
+  const existingColumnNames = new Set(existingColumns.map((column) => column.name));
+  const copyColumns = definition.columns.filter((columnName) => existingColumnNames.has(columnName));
+  const quotedColumns = copyColumns.map((columnName) => `"${columnName}"`).join(", ");
+
+  await database.exec(`DROP TABLE IF EXISTS "${backupTableName}"`);
+  await database.exec(`ALTER TABLE "${tableName}" RENAME TO "${backupTableName}"`);
+  await database.exec(definition.createSql);
+
+  if (copyColumns.length) {
+    await database.exec(
+      `INSERT INTO "${tableName}" (${quotedColumns}) SELECT ${quotedColumns} FROM "${backupTableName}"`
+    );
+  }
+
+  await database.exec(`DROP TABLE "${backupTableName}"`);
+}
+
+async function repairLegacyUserForeignKeys(database) {
+  const tables = await database.all(
+    `SELECT name, sql
+     FROM sqlite_master
+     WHERE type = 'table'
+       AND name IN ('attendance', 'activities', 'locations', 'selfies')`
+  );
+  const tablesNeedingRepair = tables
+    .filter((table) => String(table.sql || "").includes("users_legacy"))
+    .map((table) => table.name);
+
+  if (!tablesNeedingRepair.length) {
+    return;
+  }
+
+  await database.exec("PRAGMA foreign_keys = OFF");
+  await database.exec("BEGIN");
+
+  try {
+    for (const tableName of ["attendance", "activities", "locations", "selfies"]) {
+      if (tablesNeedingRepair.includes(tableName)) {
+        await rebuildTableWithDefinition(database, tableName, userLinkedTableDefinitions[tableName]);
+      }
+    }
+
+    await database.exec("COMMIT");
+  } catch (error) {
+    await database.exec("ROLLBACK");
+    throw error;
+  } finally {
+    await database.exec("PRAGMA foreign_keys = ON");
+  }
+}
+
 async function runMigrations(database) {
   await migrateUsersRoleConstraint(database);
+  await repairLegacyUserForeignKeys(database);
   await ensureColumn(database, "locations", "zone_detail", "TEXT");
   await ensureColumn(database, "locations", "duty_label", "TEXT");
   await ensureColumn(database, "users", "organization_id", "TEXT");

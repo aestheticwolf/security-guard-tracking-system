@@ -47,6 +47,19 @@ import {
   getSelfieVerificationLabel,
   isSelfieVerificationPassed
 } from "../utils/selfieVerification";
+import {
+  buildCameraConstraints,
+  cameraSelectionModes,
+  createDeviceCameraSelection,
+  getCameraLabel,
+  getCameraSelectionLabel,
+  getDefaultCameraSelection,
+  getVideoInputDevices,
+  hasOnlyVirtualCameras,
+  isLikelyMobileDevice,
+  isVirtualCameraDevice,
+  normalizeCameraSelection
+} from "../utils/cameraCapture";
 
 const selfieCaptureMaxDimension = 960;
 const selfieMatchRefreshDelaysMs = [1_200, 2_500, 5_000, 8_000];
@@ -197,6 +210,9 @@ export default function GuardDashboard() {
   const [selfiePreview, setSelfiePreview] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [cameraDevices, setCameraDevices] = useState([]);
+  const [selectedCameraSelection, setSelectedCameraSelection] = useState("");
+  const [activeCameraLabel, setActiveCameraLabel] = useState("");
   const [mapFocusSequence, setMapFocusSequence] = useState(0);
   const { deviceLocation, setDeviceLocation, locationStatus, setLocationStatus, refreshLocation } =
     useLiveLocation();
@@ -267,6 +283,7 @@ export default function GuardDashboard() {
 
     if (updateState) {
       setCameraActive(false);
+      setActiveCameraLabel("");
     }
   }
 
@@ -420,6 +437,34 @@ export default function GuardDashboard() {
     : hasFreshSavedMapSync && !isShowingUnsyncedDeviceLocation
       ? `Synced and pinned at ${formatTime(lastStoredLocation.trackedAt)}`
       : locationStatus;
+  const isMobileCamera = isLikelyMobileDevice();
+  const cameraSelectionOptions = [
+    {
+      value: cameraSelectionModes.front,
+      label: isMobileCamera ? "Front selfie camera" : "Laptop / webcam camera"
+    },
+    ...(isMobileCamera
+      ? [
+          {
+            value: cameraSelectionModes.rear,
+            label: "Back camera"
+          }
+        ]
+      : []),
+    {
+      value: cameraSelectionModes.default,
+      label: "Browser default camera"
+    },
+    ...cameraDevices
+      .filter((device) => device.deviceId)
+      .map((device, index) => ({
+        value: createDeviceCameraSelection(device.deviceId),
+        label: `${getCameraLabel(device, index)}${isVirtualCameraDevice(device) ? " (virtual)" : ""}`
+      }))
+  ];
+  const cameraAvailabilityNote = hasOnlyVirtualCameras(cameraDevices)
+    ? "Only virtual cameras are visible to this browser. To use the laptop webcam directly, enable the MSI camera/privacy setting or disable virtual camera apps, then reopen capture."
+    : "";
 
   async function readFreshLocationWithFallback(statusLabel, { allowFallback = false } = {}) {
     try {
@@ -716,29 +761,74 @@ export default function GuardDashboard() {
     event.target.value = "";
   }
 
-  async function openSelfieCamera() {
+  async function openSelfieCamera(selectionOverride = null) {
     setCameraError("");
 
-    if (!navigator.mediaDevices?.getUserMedia) {
+    if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
       cameraSelfieInputRef.current?.click();
       return;
     }
 
     try {
       stopSelfieCamera();
+      let devices = await getVideoInputDevices();
+
+      if (!devices.length || devices.every((device) => !device.label)) {
+        const permissionStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: buildCameraConstraints(cameraSelectionModes.front, [])
+        });
+        permissionStream.getTracks().forEach((track) => track.stop());
+        devices = await getVideoInputDevices();
+      }
+
+      const requestedSelection =
+        typeof selectionOverride === "string" ? selectionOverride : selectedCameraSelection;
+      const nextSelection = normalizeCameraSelection(
+        requestedSelection || getDefaultCameraSelection(devices),
+        devices
+      );
+      setCameraDevices(devices);
+
+      if (!devices.length && nextSelection === cameraSelectionModes.default) {
+        throw new Error("No camera devices were found.");
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: {
-          facingMode: "user"
-        }
+        video: buildCameraConstraints(nextSelection, devices)
       });
+      const activeTrackLabel = stream.getVideoTracks()[0]?.label || "";
       selfieCameraStreamRef.current = stream;
+      setSelectedCameraSelection(nextSelection);
+      setActiveCameraLabel(activeTrackLabel || getCameraSelectionLabel(nextSelection, devices));
       setCameraActive(true);
-    } catch {
-      const nextError = "Live camera is not available on this device. Use a device with camera access for verified live capture.";
+    } catch (cameraAccessError) {
+      const nextError =
+        cameraAccessError?.message === "No camera devices were found."
+          ? "No camera device was found. Check Windows camera privacy settings and MSI webcam hotkey/utility controls."
+          : "Live camera is not available. Check browser permission, Windows camera privacy settings, or choose another camera mode.";
       setCameraError(nextError);
       toast.error(nextError);
     }
+  }
+
+  function handleCameraSelectionChange(selection) {
+    setSelectedCameraSelection(selection);
+
+    if (cameraActive) {
+      window.setTimeout(() => {
+        openSelfieCamera(selection);
+      }, 0);
+    }
+  }
+
+  function switchMobileCamera() {
+    const nextSelection =
+      selectedCameraSelection === cameraSelectionModes.rear
+        ? cameraSelectionModes.front
+        : cameraSelectionModes.rear;
+    handleCameraSelectionChange(nextSelection);
   }
 
   function captureLiveSelfie() {
@@ -1059,7 +1149,7 @@ export default function GuardDashboard() {
                     {overview?.currentAttendance ? "Check-out selfie confirmation" : "Check-in selfie verification"}
                   </p>
                   <p className="mt-2 text-xs leading-5 app-copy-soft">
-                    Capture a live front-camera selfie. This proof is required before{" "}
+                    Capture a live camera selfie. On mobile, use front camera for identity proof or switch to back camera when the duty site needs context. This proof is required before{" "}
                     {overview?.currentAttendance ? "ending" : "starting"} the shift.
                   </p>
                   <input
@@ -1077,14 +1167,40 @@ export default function GuardDashboard() {
                   />
                   <button
                     type="button"
-                    onClick={openSelfieCamera}
+                    onClick={() => openSelfieCamera()}
                     className="app-outline-button mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold sm:w-auto"
                   >
                     <Camera className="h-4 w-4" />
                     {overview?.currentAttendance ? "Capture check-out selfie" : "Capture check-in selfie"}
                   </button>
+                  {(cameraDevices.length > 0 || cameraActive) && (
+                    <label className="mt-3 block">
+                      <span className="app-label">Camera mode</span>
+                      <select
+                        value={selectedCameraSelection}
+                        onChange={(event) => handleCameraSelectionChange(event.target.value)}
+                        className="app-input"
+                      >
+                        {cameraSelectionOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {cameraAvailabilityNote && (
+                    <p className="mt-2 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-5 text-amber-100">
+                      {cameraAvailabilityNote}
+                    </p>
+                  )}
                   {cameraActive && (
                     <div className="mt-4 rounded-[20px] border border-white/10 bg-slate-950/45 p-3">
+                      {activeCameraLabel && (
+                        <p className="mb-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
+                          Active camera: {activeCameraLabel}
+                        </p>
+                      )}
                       <video
                         ref={selfieVideoRef}
                         autoPlay
@@ -1107,11 +1223,22 @@ export default function GuardDashboard() {
                         >
                           Cancel camera
                         </button>
+                        {isMobileCamera && (
+                          <button
+                            type="button"
+                            onClick={switchMobileCamera}
+                            className="app-outline-button rounded-2xl px-4 py-2.5 text-sm font-medium"
+                          >
+                            {selectedCameraSelection === cameraSelectionModes.rear
+                              ? "Switch to front camera"
+                              : "Switch to back camera"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
                   {cameraError && (
-                    <p className="mt-3 rounded-2xl border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-xs text-rose-200">
+                    <p className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs leading-5 app-error-copy">
                       {cameraError}
                     </p>
                   )}

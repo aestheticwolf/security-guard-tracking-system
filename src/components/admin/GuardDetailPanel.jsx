@@ -22,6 +22,7 @@ import {
   getGuardIdentityEnrollmentLabel,
   getSelfieIdentityDecision,
   getSelfieCaptureLabel,
+  getSelfieIdentityGuidance,
   getSelfieIdentityLabel,
   getSelfieIdentityScorePercent,
   getSelfieIdentityTone,
@@ -139,6 +140,7 @@ export default function GuardDetailPanel({ guard }) {
   const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
   const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
+  const selfieIdentityGuidance = getSelfieIdentityGuidance(latestSelfie);
   const identityScorePercent = getSelfieIdentityScorePercent(latestSelfie);
   const identityTone = getSelfieIdentityTone(latestSelfie);
   const identityToneClasses = getIdentityToneClasses(identityTone);
@@ -335,7 +337,7 @@ export default function GuardDetailPanel({ guard }) {
                     {getSelfieIdentityDecision(latestSelfie)}
                   </p>
                   <p className="mt-2 text-sm text-slate-300">
-                    Compares today&apos;s live shift selfie with the registered identity reference.
+                    Reviews the live shift selfie against the enrolled identity reference and highlights whether supervisor action is needed.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-right">
@@ -431,9 +433,9 @@ export default function GuardDetailPanel({ guard }) {
                 <p className="mt-2 text-sm text-slate-300">
                   Match score: {formatSelfieIdentityScore(latestSelfie)}
                 </p>
-                {latestSelfie?.identityNotes && (
+                {selfieIdentityGuidance && (
                   <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs leading-5 text-slate-300">
-                    {latestSelfie.identityNotes}
+                    {selfieIdentityGuidance}
                   </p>
                 )}
               </div>

@@ -43,11 +43,25 @@ import {
   formatRelative,
   getLocationDisplayLines
 } from "../utils/format";
+import {
+  buildCameraConstraints,
+  cameraSelectionModes,
+  createDeviceCameraSelection,
+  getCameraLabel,
+  getCameraSelectionLabel,
+  getDefaultCameraSelection,
+  getVideoInputDevices,
+  hasOnlyVirtualCameras,
+  isLikelyMobileDevice,
+  isVirtualCameraDevice,
+  normalizeCameraSelection
+} from "../utils/cameraCapture";
 
 const adminRefreshIntervalMs = 5_000;
 const adminSignalRefreshDebounceMs = 800;
 const initialLiveFeedVisibleCount = 5;
 const initialRosterVisibleCount = 2;
+const identityCaptureMaxDimension = 960;
 
 const emptyGuardForm = {
   fullName: "",
@@ -209,6 +223,14 @@ function IdentityImagePicker({
   onChange
 }) {
   const [previewUrl, setPreviewUrl] = useState("");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [cameraDevices, setCameraDevices] = useState([]);
+  const [selectedCameraSelection, setSelectedCameraSelection] = useState("");
+  const [activeCameraLabel, setActiveCameraLabel] = useState("");
+  const videoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!file) {
@@ -222,14 +244,191 @@ function IdentityImagePicker({
     return () => URL.revokeObjectURL(nextPreviewUrl);
   }, [file]);
 
+  function stopCamera({ updateState = true } = {}) {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+
+    if (updateState) {
+      setCameraActive(false);
+      setActiveCameraLabel("");
+    }
+  }
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && cameraStreamRef.current) {
+      videoRef.current.srcObject = cameraStreamRef.current;
+    }
+  }, [cameraActive]);
+
+  useEffect(() => () => stopCamera({ updateState: false }), []);
+
+  async function openCamera(selectionOverride = null) {
+    if (!capture) {
+      return;
+    }
+
+    setCameraError("");
+
+    if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
+      const nextError = "Live camera capture is not supported in this browser. Use the file picker instead.";
+      setCameraError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    try {
+      stopCamera();
+      let devices = await getVideoInputDevices();
+
+      if (!devices.length || devices.every((device) => !device.label)) {
+        const permissionStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: buildCameraConstraints(cameraSelectionModes.front, [])
+        });
+        permissionStream.getTracks().forEach((track) => track.stop());
+        devices = await getVideoInputDevices();
+      }
+
+      const requestedSelection =
+        typeof selectionOverride === "string" ? selectionOverride : selectedCameraSelection;
+      const nextSelection = normalizeCameraSelection(
+        requestedSelection || getDefaultCameraSelection(devices),
+        devices
+      );
+      setCameraDevices(devices);
+
+      if (!devices.length && nextSelection === cameraSelectionModes.default) {
+        throw new Error("No camera devices were found.");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: buildCameraConstraints(nextSelection, devices)
+      });
+      const activeTrackLabel = stream.getVideoTracks()[0]?.label || "";
+      cameraStreamRef.current = stream;
+      setSelectedCameraSelection(nextSelection);
+      setActiveCameraLabel(activeTrackLabel || getCameraSelectionLabel(nextSelection, devices));
+      setCameraActive(true);
+    } catch (cameraAccessError) {
+      const nextError =
+        cameraAccessError?.message === "No camera devices were found."
+          ? "No camera device was found. Check browser permission and device camera settings."
+          : "Live camera is not available. Check browser permission or choose another camera mode.";
+      setCameraError(nextError);
+      toast.error(nextError);
+    }
+  }
+
+  function handleCameraSelectionChange(selection) {
+    setSelectedCameraSelection(selection);
+
+    if (cameraActive) {
+      window.setTimeout(() => {
+        openCamera(selection);
+      }, 0);
+    }
+  }
+
+  function switchMobileCamera() {
+    const nextSelection =
+      selectedCameraSelection === cameraSelectionModes.rear
+        ? cameraSelectionModes.front
+        : cameraSelectionModes.rear;
+    handleCameraSelectionChange(nextSelection);
+  }
+
+  function captureSelfieFromCamera() {
+    const video = videoRef.current;
+
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      const nextError = "Camera preview is still loading. Please wait a moment and try again.";
+      setCameraError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    const scale = Math.min(
+      1,
+      identityCaptureMaxDimension / Math.max(video.videoWidth, video.videoHeight)
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      const nextError = "Camera capture is not supported in this browser.";
+      setCameraError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          const nextError = "Could not capture the selfie image. Please try again.";
+          setCameraError(nextError);
+          toast.error(nextError);
+          return;
+        }
+
+        const capturedFile = new File([blob], `identity-selfie-${Date.now()}.jpg`, {
+          type: "image/jpeg"
+        });
+        onChange(capturedFile);
+        setCameraError("");
+        stopCamera();
+        toast.success("Enrollment selfie captured from live camera.");
+      },
+      "image/jpeg",
+      0.82
+    );
+  }
+
+  function handleFileSelection(event) {
+    onChange(event.target.files?.[0] || null);
+    setCameraError("");
+    stopCamera();
+  }
+
   const existingUrl = previewUrl
     ? null
     : buildVersionedAssetUrl(existingPath, existingVersion || existingPath);
   const imageUrl = previewUrl || existingUrl;
   const statusText = file?.name || (existingUrl ? "Current enrolled image" : emptyText);
+  const isMobileCamera = isLikelyMobileDevice();
+  const cameraSelectionOptions = [
+    {
+      value: cameraSelectionModes.front,
+      label: isMobileCamera ? "Front selfie camera" : "Laptop / webcam camera"
+    },
+    ...(isMobileCamera
+      ? [
+          {
+            value: cameraSelectionModes.rear,
+            label: "Back camera"
+          }
+        ]
+      : []),
+    {
+      value: cameraSelectionModes.default,
+      label: "Browser default camera"
+    },
+    ...cameraDevices
+      .filter((device) => device.deviceId)
+      .map((device, index) => ({
+        value: createDeviceCameraSelection(device.deviceId),
+        label: `${getCameraLabel(device, index)}${isVirtualCameraDevice(device) ? " (virtual)" : ""}`
+      }))
+  ];
+  const cameraAvailabilityNote = hasOnlyVirtualCameras(cameraDevices)
+    ? "Only virtual cameras are visible to this browser. To use the laptop webcam directly, enable the device camera/privacy setting or disable virtual camera apps, then reopen capture."
+    : "";
 
   return (
-    <label className="block rounded-[20px] border border-white/10 bg-slate-950/25 p-3.5">
+    <div className="block rounded-[20px] border border-white/10 bg-slate-950/25 p-3.5">
       <span className="app-label">{label}</span>
       <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
         {imageUrl ? (
@@ -244,18 +443,118 @@ function IdentityImagePicker({
           </div>
         )}
       </div>
+      {capture && (
+        <div className="mt-3 space-y-3">
+          <button
+            type="button"
+            onClick={() => openCamera()}
+            className="app-outline-button inline-flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-xs font-semibold"
+          >
+            <Camera className="h-4 w-4" />
+            Capture live selfie
+          </button>
+          {(cameraDevices.length > 0 || cameraActive) && (
+            <label className="block">
+              <span className="app-label">Camera mode</span>
+              <select
+                value={selectedCameraSelection}
+                onChange={(event) => handleCameraSelectionChange(event.target.value)}
+                className="app-input"
+              >
+                {cameraSelectionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {cameraAvailabilityNote && (
+            <p className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-5 text-amber-100">
+              {cameraAvailabilityNote}
+            </p>
+          )}
+          {cameraActive && (
+            <div className="rounded-[18px] border border-white/10 bg-slate-950/45 p-3">
+              {activeCameraLabel && (
+                <p className="mb-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
+                  Active camera: {activeCameraLabel}
+                </p>
+              )}
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="h-40 w-full rounded-2xl bg-black object-cover"
+              />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={captureSelfieFromCamera}
+                  className="app-primary-button rounded-2xl px-3 py-2.5 text-xs font-semibold"
+                >
+                  Use this selfie
+                </button>
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="app-outline-button rounded-2xl px-3 py-2.5 text-xs font-medium"
+                >
+                  Cancel camera
+                </button>
+                {isMobileCamera && (
+                  <button
+                    type="button"
+                    onClick={switchMobileCamera}
+                    className="app-outline-button rounded-2xl px-3 py-2.5 text-xs font-medium sm:col-span-2"
+                  >
+                    {selectedCameraSelection === cameraSelectionModes.rear
+                      ? "Switch to front camera"
+                      : "Switch to back camera"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {cameraError && (
+            <p className="rounded-2xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs leading-5 app-error-copy">
+              {cameraError}
+            </p>
+          )}
+        </div>
+      )}
       <input
+        ref={fileInputRef}
         type="file"
         accept="image/*"
         capture={capture ? "user" : undefined}
-        onChange={(event) => onChange(event.target.files?.[0] || null)}
-        className="mt-3 block w-full text-sm app-copy-muted file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-950"
+        onChange={handleFileSelection}
+        className="sr-only"
       />
-      <p className="mt-2 truncate text-xs app-copy-soft">{statusText}</p>
+      <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="app-outline-button inline-flex items-center justify-center rounded-2xl px-3 py-2.5 text-xs font-semibold"
+          >
+            Choose image
+          </button>
+          <span className="min-w-0 truncate text-xs app-copy-muted">
+            {statusText}
+          </span>
+        </div>
+        {capture && (
+          <p className="mt-2 text-xs leading-5 app-copy-soft">
+            Use camera for a stronger identity reference, or choose an image if the webcam is not available.
+          </p>
+        )}
+      </div>
       {helperText && (
         <p className="mt-1 text-xs leading-5 app-copy-soft">{helperText}</p>
       )}
-    </label>
+    </div>
   );
 }
 

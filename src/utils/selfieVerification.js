@@ -5,12 +5,12 @@ const identityLabels = {
   reference_review: "Reference review ready",
   upload_review: "Uploaded image review",
   identity_processing: "Face match processing",
-  match_not_configured: "Matcher not configured",
-  match_unavailable: "Matcher unavailable",
+  match_not_configured: "Manual identity review",
+  match_unavailable: "Manual identity review",
   matched: "Identity matched",
   possible_match: "Review-band match",
   mismatch: "Identity mismatch",
-  face_not_detected: "Face not detected"
+  face_not_detected: "Face not clear"
 };
 const automaticIdentityStatuses = new Set(["matched", "possible_match", "mismatch", "face_not_detected"]);
 const positiveIdentityStatuses = new Set(["matched"]);
@@ -51,7 +51,7 @@ export function getSelfieVerificationLabel(selfie) {
 
   return isSelfieVerificationPassed(selfie)
     ? "Verification passed"
-    : "Capture recorded for review";
+    : "Selfie captured for review";
 }
 
 export function getSelfieIdentityLabel(selfie) {
@@ -102,11 +102,11 @@ export function formatSelfieIdentityScore(selfie) {
   }
 
   if (selfie?.identityStatus === "match_not_configured") {
-    return "Matcher not configured";
+    return "Manual review";
   }
 
   if (selfie?.identityStatus === "match_unavailable") {
-    return "Matcher unavailable";
+    return "Manual review";
   }
 
   const score = getSelfieIdentityScorePercent(selfie);
@@ -132,7 +132,7 @@ export function getSelfieIdentityDecision(selfie) {
   }
 
   if (selfie.identityStatus === "face_not_detected") {
-    return "Face not detected";
+    return "Retake recommended";
   }
 
   if (selfie.identityStatus === "upload_review") {
@@ -148,11 +148,11 @@ export function getSelfieIdentityDecision(selfie) {
   }
 
   if (selfie.identityStatus === "match_not_configured") {
-    return "Matcher not configured";
+    return "Manual review required";
   }
 
   if (selfie.identityStatus === "match_unavailable") {
-    return "Matcher unavailable";
+    return "Manual review required";
   }
 
   return "Manual review required";
@@ -180,6 +180,36 @@ export function getSelfieIdentityTone(selfie) {
   }
 
   return "warning";
+}
+
+export function getSelfieIdentityGuidance(selfie) {
+  if (!selfie) {
+    return "";
+  }
+
+  switch (selfie.identityStatus) {
+    case "matched":
+      return "The live selfie matches the enrolled reference. Keep the capture on record with this shift.";
+    case "possible_match":
+      return "The result is close but needs supervisor confirmation before accepting it as a verified match.";
+    case "mismatch":
+      return "The live selfie does not confidently match the enrolled reference. Review both images before approving the shift proof.";
+    case "face_not_detected":
+      return "The selfie is not clear enough for reliable verification. Ask the guard to retake a front-facing selfie.";
+    case "match_not_configured":
+    case "match_unavailable":
+      return "Automatic matching did not complete for this capture. Review the enrolled reference and shift selfie manually.";
+    case "upload_review":
+      return "This proof came from an uploaded image. Prefer live camera capture for stronger identity assurance.";
+    case "reference_review":
+      return "Live camera proof is saved. Review it against the enrolled reference before marking it verified.";
+    case "identity_processing":
+      return "Automatic matching is still processing. Refresh shortly or review manually if the result does not return.";
+    case "no_reference":
+      return "No enrolled reference is available. Add a registered photo or enrollment selfie to enable identity review.";
+    default:
+      return "";
+  }
 }
 
 export function getSelfieCaptureLabel(selfie) {

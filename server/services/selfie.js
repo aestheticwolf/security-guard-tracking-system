@@ -105,13 +105,6 @@ function isCompreFaceConfigured() {
   return Boolean(comprefaceBaseUrl && comprefaceApiKey);
 }
 
-function sanitizeFailureMessage(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .slice(0, 160);
-}
-
 function getImageMimeType(filename = "", fallback = "image/jpeg") {
   const extension = path.extname(filename).toLowerCase();
 
@@ -394,7 +387,7 @@ function buildCompreFaceReview({ fallback, result, referenceLabel }) {
       score: similarityScore,
       identityStatus: "matched",
       identityScore: similarityScore,
-      identityNotes: `Automatic face verification matched the live selfie with the ${referenceLabel}. Similarity: ${similarityPercent}%. Required threshold: ${Math.round(comprefaceThreshold * 100)}%.`
+      identityNotes: `Live selfie matched the ${referenceLabel} with ${similarityPercent}% similarity.`
     };
   }
 
@@ -405,7 +398,7 @@ function buildCompreFaceReview({ fallback, result, referenceLabel }) {
       score: similarityScore,
       identityStatus: "possible_match",
       identityScore: similarityScore,
-      identityNotes: `Automatic face verification returned a review-band result against the ${referenceLabel}. Similarity: ${similarityPercent}%. Required threshold: ${Math.round(comprefaceThreshold * 100)}%. Admin review is recommended.`
+      identityNotes: `Similarity is ${similarityPercent}%, which is close but below automatic approval. Review both images before accepting.`
     };
   }
 
@@ -416,8 +409,8 @@ function buildCompreFaceReview({ fallback, result, referenceLabel }) {
     identityStatus: result.faceDetected ? "mismatch" : "face_not_detected",
     identityScore: similarityScore,
     identityNotes: result.faceDetected
-      ? `CompreFace could not confidently match the live selfie with the ${referenceLabel}. Similarity: ${similarityPercent}%.`
-      : `CompreFace could not detect a usable face in the live selfie or ${referenceLabel}.`
+      ? `The live selfie did not confidently match the ${referenceLabel}. Similarity: ${similarityPercent}%.`
+      : "A usable face was not detected. Ask the guard to retake a clear, front-facing selfie."
   };
 }
 
@@ -436,12 +429,11 @@ export async function verifySelfieCapture(file, options = {}) {
       identityStatus: "match_not_configured",
       identityScore: 0,
       identityNotes:
-        "Automatic face matching is not configured. Add COMPREFACE_BASE_URL and COMPREFACE_API_KEY in .env, then restart the backend."
+        "Automatic face matching is not enabled for this workspace. Review both images manually."
     };
   }
 
   let bestReview = null;
-  let lastError = null;
 
   for (const reference of referenceCandidates) {
     try {
@@ -459,8 +451,8 @@ export async function verifySelfieCapture(file, options = {}) {
       if (!bestReview || Number(review.identityScore) > Number(bestReview.identityScore)) {
         bestReview = review;
       }
-    } catch (error) {
-      lastError = error;
+    } catch {
+      // Try the next enrolled reference before falling back to manual review.
     }
   }
 
@@ -473,7 +465,8 @@ export async function verifySelfieCapture(file, options = {}) {
     verified: false,
     identityStatus: "match_unavailable",
     identityScore: 0,
-    identityNotes: `Automatic face matching is unavailable. Confirm CompreFace is running, the verification API key is correct, and the reference images are reachable. ${sanitizeFailureMessage(lastError?.message)}`
+    identityNotes:
+      "Automatic face match could not be completed for this capture. Review both images manually or ask the guard to retake a clearer selfie."
   };
 }
 
@@ -497,7 +490,7 @@ export function buildPendingFaceMatchReview(file, options = {}) {
       identityStatus: "match_not_configured",
       identityScore: 0,
       identityNotes:
-        "Automatic face matching is not configured. Add COMPREFACE_BASE_URL and COMPREFACE_API_KEY in .env, then restart the backend."
+        "Automatic face matching is not enabled for this workspace. Review both images manually."
     };
   }
 
@@ -530,7 +523,8 @@ export function verifySelfieCaptureInBackground({ file, options = {}, onComplete
         verified: false,
         identityStatus: "match_unavailable",
         identityScore: 0,
-        identityNotes: `Automatic face matching could not complete. Confirm CompreFace is running and retry. ${sanitizeFailureMessage(error?.message)}`
+        identityNotes:
+          "Automatic face match could not be completed for this capture. Review both images manually or ask the guard to retake a clearer selfie."
       });
     }
   }, 0);
@@ -561,7 +555,8 @@ export async function resolveSelfieCaptureWithQuickMatch({
       verified: false,
       identityStatus: "match_unavailable",
       identityScore: 0,
-      identityNotes: `Automatic face matching could not complete. Confirm CompreFace is running and retry. ${sanitizeFailureMessage(error?.message)}`
+      identityNotes:
+        "Automatic face match could not be completed for this capture. Review both images manually or ask the guard to retake a clearer selfie."
     };
   });
 
