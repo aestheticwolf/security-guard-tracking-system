@@ -1,11 +1,9 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import {
   Camera,
   Clock3,
   LayoutDashboard,
   MapPinned,
-  RadioTower,
   ShieldCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -43,7 +41,6 @@ import {
   shouldRetryGuardLocationSync
 } from "../utils/guardLocationSyncQueue";
 import {
-  formatSelfieIdentityScore,
   getSelfieVerificationLabel,
   isSelfieVerificationPassed
 } from "../utils/selfieVerification";
@@ -175,16 +172,10 @@ function getSelfieProofValue(selfie) {
   }
 
   if (isSelfieIdentityProcessing(selfie)) {
-    return "Matching";
+    return "Reviewing";
   }
 
-  if (["matched", "possible_match", "mismatch", "face_not_detected"].includes(selfie.identityStatus)) {
-    return formatSelfieIdentityScore(selfie);
-  }
-
-  return selfie.verificationScore
-    ? `${Math.round(selfie.verificationScore * 100)}% quality`
-    : "Captured";
+  return isSelfieVerificationPassed(selfie) ? "Verified" : "Captured";
 }
 
 function publishGuardUpdateToAdmin(type, payload = {}) {
@@ -1040,8 +1031,7 @@ export default function GuardDashboard() {
       mobileQuickLinks={[
         { id: "guard-overview", label: "Overview", icon: LayoutDashboard },
         { id: "guard-attendance", label: "Check-In", icon: Camera },
-        { id: "guard-map", label: "Live Map", icon: MapPinned },
-        { id: "guard-timeline", label: "Timeline", icon: RadioTower }
+        { id: "guard-map", label: "Live Map", icon: MapPinned }
       ]}
     >
       <div className="space-y-5">
@@ -1327,7 +1317,7 @@ export default function GuardDashboard() {
                       </p>
                       {latestSelfie && (
                         <p className="mt-1 text-xs app-copy-soft">
-                          Identity match: {formatSelfieIdentityScore(latestSelfie)}
+                          Identity review is visible to the control room.
                         </p>
                       )}
                       <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
@@ -1456,43 +1446,6 @@ export default function GuardDashboard() {
               </div>
             </Panel>
 
-            <Panel
-              id="guard-timeline"
-              title="Shift Event Timeline"
-              subtitle="Attendance events and verified field updates appear here for you and the admin team."
-              collapsibleOnMobile
-              defaultCollapsed
-            >
-              <div className="space-y-4">
-                {overview?.recentActivities?.length ? (
-                  overview.recentActivities.map((entry) => (
-                    <motion.div
-                      key={entry.id}
-                      layout
-                      className="rounded-[22px] border border-white/10 bg-white/5 p-4"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-medium text-white">{entry.title}</p>
-                          <p className="mt-2 text-sm text-slate-300">
-                            {entry.description || "No additional detail provided."}
-                          </p>
-                        </div>
-                        <StatusBadge status={entry.priority} />
-                      </div>
-                      <div className="mt-3 flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                        <RadioTower className="h-3.5 w-3.5" />
-                        {entry.type}
-                        <span className="text-slate-600">•</span>
-                        {formatRelative(entry.createdAt)}
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-400">No shift events have been logged yet.</p>
-                )}
-              </div>
-            </Panel>
           </div>
         </div>
       </div>
