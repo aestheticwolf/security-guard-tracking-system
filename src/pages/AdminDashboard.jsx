@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Building2,
   Camera,
-  History,
   LayoutDashboard,
   MapPinned,
   Pencil,
@@ -129,7 +128,6 @@ const adminSectionLinks = [
   { id: "admin-duty-sites", label: "Duty Sites", icon: Building2 },
   { id: "admin-map", label: "Live Map", icon: MapPinned },
   { id: "admin-guard-detail", label: "Guard Detail", icon: ShieldCheck },
-  { id: "/admin/history", label: "Guard History", icon: History, to: "/admin/history" },
   { id: "admin-feed", label: "Ops Feed", icon: Activity },
   { id: "admin-create-guard", label: "Add Guard", icon: UserPlus },
   { id: "admin-roster", label: "Roster", icon: Users }
@@ -1090,7 +1088,7 @@ export default function AdminDashboard() {
           </div>
         </MobileCollapseSection>
 
-        <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid gap-5">
           <Panel
             id="admin-map"
             title="Operations Live Map"

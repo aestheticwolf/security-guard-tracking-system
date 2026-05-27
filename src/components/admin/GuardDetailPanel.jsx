@@ -75,6 +75,30 @@ function buildSelfieImageUrl(selfie) {
   return buildVersionedAssetUrl(selfie?.imagePath, selfie?.capturedAt || selfie?.id || selfie?.imagePath);
 }
 
+function getSelfieHistoryKey(selfie) {
+  if (!selfie) {
+    return "";
+  }
+
+  return String(selfie.id || `${selfie.imagePath || ""}-${selfie.capturedAt || ""}`);
+}
+
+function getTodaySelfieKeys(evidence) {
+  const keys = new Set();
+
+  evidence.forEach((entry) => {
+    [entry.checkInSelfie, entry.checkOutSelfie].forEach((selfie) => {
+      const key = getSelfieHistoryKey(selfie);
+
+      if (key) {
+        keys.add(key);
+      }
+    });
+  });
+
+  return keys;
+}
+
 function buildVersionedAssetUrl(pathname, versionSeed) {
   const assetUrl = buildAssetUrl(pathname);
 
@@ -110,10 +134,10 @@ function SelfieHistoryCard({ selfie, index, guardName }) {
         <SelfieImageFrame
           src={selfieUrl}
           alt={`${guardName} selfie capture from ${formatDateTime(selfie.capturedAt)}`}
-          className="h-44 w-full sm:h-52"
+          className="h-36 w-full sm:h-40"
         />
       ) : (
-        <div className="flex h-44 items-center justify-center bg-gradient-to-br from-gold-400/10 to-jade-400/10 px-6 text-center text-sm text-slate-400 sm:h-52">
+        <div className="flex h-36 items-center justify-center bg-gradient-to-br from-gold-400/10 to-jade-400/10 px-6 text-center text-sm text-slate-400 sm:h-40">
           Selfie image is not available.
         </div>
       )}
@@ -172,10 +196,10 @@ function ShiftSelfieSlot({ title, selfie, timestamp, guardName, emptyCopy }) {
         <SelfieImageFrame
           src={selfieUrl}
           alt={`${guardName} ${title.toLowerCase()} selfie from ${formatDateTime(selfie.capturedAt || timestamp)}`}
-          className="h-40 w-full sm:h-48"
+          className="h-36 w-full sm:h-40"
         />
       ) : (
-        <div className="flex h-40 items-center justify-center bg-slate-950/45 px-5 text-center text-sm text-slate-400 sm:h-48">
+        <div className="flex h-36 items-center justify-center bg-slate-950/45 px-5 text-center text-sm text-slate-400 sm:h-40">
           {emptyCopy}
         </div>
       )}
@@ -204,6 +228,16 @@ function ShiftSelfieSlot({ title, selfie, timestamp, guardName, emptyCopy }) {
 }
 
 function TodaySelfieEvidence({ guard, evidence = [] }) {
+  const [showAll, setShowAll] = useState(false);
+  const sortedEvidence = [...evidence].sort((first, second) => {
+    const firstTime = new Date(first.checkOutAt || first.checkInAt || 0).getTime();
+    const secondTime = new Date(second.checkOutAt || second.checkInAt || 0).getTime();
+
+    return secondTime - firstTime;
+  });
+  const visibleEvidence = showAll ? sortedEvidence : sortedEvidence.slice(0, 1);
+  const hiddenCount = Math.max(sortedEvidence.length - visibleEvidence.length, 0);
+
   return (
     <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -219,9 +253,9 @@ function TodaySelfieEvidence({ guard, evidence = [] }) {
         <StatusBadge status={`${evidence.length} shift${evidence.length === 1 ? "" : "s"} today`} />
       </div>
 
-      <div className="mt-4 space-y-4">
-        {evidence.length ? (
-          evidence.map((entry) => (
+      <div className={`mt-4 space-y-4 ${showAll ? "max-h-[56rem] overflow-y-auto pr-1" : ""}`}>
+        {sortedEvidence.length ? (
+          visibleEvidence.map((entry) => (
             <article
               key={entry.attendanceId}
               className="rounded-[22px] border border-white/10 bg-white/5 p-3.5 sm:p-4"
@@ -269,7 +303,87 @@ function TodaySelfieEvidence({ guard, evidence = [] }) {
             No check-in or check-out selfies have been recorded today.
           </div>
         )}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-jade-200/50 hover:bg-jade-300/10"
+          >
+            Show {hiddenCount} earlier shift proof{hiddenCount === 1 ? "" : "s"}
+          </button>
+        )}
+        {showAll && sortedEvidence.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(false)}
+            className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:text-white"
+          >
+            Show latest shift proof only
+          </button>
+        )}
       </div>
+    </div>
+  );
+}
+
+function PreviousSelfieHistory({ guardName, selfieHistory = [] }) {
+  const [expanded, setExpanded] = useState(false);
+  const captureLabel = `${selfieHistory.length} older capture${selfieHistory.length === 1 ? "" : "s"}`;
+
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-white">
+            <Camera className="h-4 w-4 text-gold-200" />
+            More selfie history
+          </div>
+          <p className="mt-2 text-sm text-slate-300">
+            Older saved captures are kept available for audit without stretching the live detail view.
+          </p>
+        </div>
+        <StatusBadge status={captureLabel} />
+      </div>
+
+      {selfieHistory.length ? (
+        <div className="mt-4">
+          {!expanded ? (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-jade-200/50 hover:bg-jade-300/10"
+            >
+              Show older selfie captures
+            </button>
+          ) : (
+            <>
+              <div className="max-h-[34rem] overflow-y-auto pr-1">
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {selfieHistory.map((selfie, index) => (
+                    <SelfieHistoryCard
+                      key={selfie.id || `${selfie.imagePath}-${selfie.capturedAt}`}
+                      selfie={selfie}
+                      index={index}
+                      guardName={guardName}
+                    />
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:text-white"
+              >
+                Hide older selfie captures
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-[20px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-sm text-slate-400">
+          No older selfie captures are stored for this guard yet.
+        </div>
+      )}
     </div>
   );
 }
@@ -319,6 +433,12 @@ export default function GuardDetailPanel({ guard }) {
       ? [latestSelfie]
       : [];
   const todaySelfieEvidence = guard.todaySelfieEvidence || [];
+  const todaySelfieKeys = getTodaySelfieKeys(todaySelfieEvidence);
+  const previousSelfieHistory = selfieHistory.filter((selfie) => {
+    const key = getSelfieHistoryKey(selfie);
+
+    return !key || !todaySelfieKeys.has(key);
+  });
   const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
   const selfieIdentityGuidance = getSelfieIdentityGuidance(latestSelfie);
@@ -558,10 +678,10 @@ export default function GuardDetailPanel({ guard }) {
                     key={identityReferencePath}
                     src={identityReferenceUrl}
                     alt={`${guard.fullName} registered identity reference`}
-                    className="h-44 w-full sm:h-52"
+                    className="h-36 w-full sm:h-40"
                   />
                 ) : (
-                  <div className="flex h-44 items-center justify-center px-6 text-center text-sm text-slate-400 sm:h-52">
+                  <div className="flex h-36 items-center justify-center px-6 text-center text-sm text-slate-400 sm:h-40">
                     No registered identity reference has been enrolled for this guard.
                   </div>
                 )}
@@ -581,10 +701,10 @@ export default function GuardDetailPanel({ guard }) {
                     key={latestSelfie?.id || latestSelfie?.capturedAt || latestSelfie?.imagePath}
                     src={latestSelfieUrl}
                     alt={`${guard.fullName} latest selfie`}
-                    className="h-44 w-full sm:h-52"
+                    className="h-36 w-full sm:h-40"
                   />
                 ) : (
-                  <div className="flex h-44 items-center justify-center px-6 text-center text-sm text-slate-400 sm:h-52">
+                  <div className="flex h-36 items-center justify-center px-6 text-center text-sm text-slate-400 sm:h-40">
                     No verification selfie has been recorded for this guard yet.
                   </div>
                 )}
@@ -637,38 +757,7 @@ export default function GuardDetailPanel({ guard }) {
 
           <TodaySelfieEvidence guard={guard} evidence={todaySelfieEvidence} />
 
-          <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-white">
-                  <Camera className="h-4 w-4 text-gold-200" />
-                  Previous selfie history
-                </div>
-                <p className="mt-2 text-sm text-slate-300">
-                  Every saved shift selfie for this guard, newest first.
-                </p>
-              </div>
-              <StatusBadge status={`${selfieHistory.length} capture${selfieHistory.length === 1 ? "" : "s"}`} />
-            </div>
-            <div className="mt-4 max-h-[42rem] overflow-y-auto pr-1">
-              {selfieHistory.length ? (
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {selfieHistory.map((selfie, index) => (
-                    <SelfieHistoryCard
-                      key={selfie.id || `${selfie.imagePath}-${selfie.capturedAt}`}
-                      selfie={selfie}
-                      index={index}
-                      guardName={guard.fullName}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-sm text-slate-400">
-                  No previous selfie captures are stored for this guard yet.
-                </div>
-              )}
-            </div>
-          </div>
+          <PreviousSelfieHistory guardName={guard.fullName} selfieHistory={previousSelfieHistory} />
         </div>
 
         <div className="space-y-4">
