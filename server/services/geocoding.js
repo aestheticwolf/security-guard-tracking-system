@@ -1,6 +1,11 @@
 const geocodeCache = new Map();
 const defaultUserAgent =
   process.env.GEOCODER_USER_AGENT?.trim() || "SentinelGrid/1.0 (local security guard tracking)";
+const configuredGeocoderTimeoutMs = Number(process.env.GEOCODER_TIMEOUT_MS || 3500);
+const geocoderTimeoutMs =
+  Number.isFinite(configuredGeocoderTimeoutMs) && configuredGeocoderTimeoutMs > 0
+    ? configuredGeocoderTimeoutMs
+    : 3500;
 
 function buildCacheKey(latitude, longitude) {
   return `${Number(latitude).toFixed(4)}:${Number(longitude).toFixed(4)}`;
@@ -73,12 +78,21 @@ export async function reverseGeocodeLocation(latitude, longitude) {
       zoom: "18",
       addressdetails: "1"
     });
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query.toString()}`, {
-      headers: {
-        "User-Agent": defaultUserAgent,
-        Accept: "application/json"
-      }
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), geocoderTimeoutMs);
+    let response;
+
+    try {
+      response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query.toString()}`, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": defaultUserAgent,
+          Accept: "application/json"
+        }
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       throw new Error(`Reverse geocoding failed with status ${response.status}`);

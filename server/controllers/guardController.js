@@ -10,8 +10,8 @@ import { touchUser } from "../models/userModel.js";
 import { reverseGeocodeLocation } from "../services/geocoding.js";
 import {
   buildPendingFaceMatchReview,
-  resolveSelfieCaptureWithQuickMatch,
   storeSelfieFile,
+  verifySelfieCaptureInBackground
 } from "../services/selfie.js";
 import { buildGuardOverview } from "../services/guardDashboardService.js";
 import {
@@ -141,19 +141,13 @@ async function updateSelfieVerificationFromResult(selfieId, result) {
   return updateSelfieVerification(selfieId, buildSelfieVerificationUpdate(result));
 }
 
-async function resolveSelfieVerification(selfieId, file, options, initialReview) {
-  const result = await resolveSelfieCaptureWithQuickMatch({
+function queueSelfieVerification(selfieId, file, options) {
+  verifySelfieCaptureInBackground({
     file,
     options,
     onBackgroundComplete: (backgroundResult) =>
       updateSelfieVerificationFromResult(selfieId, backgroundResult)
   });
-
-  if (result.identityStatus !== "identity_processing") {
-    await updateSelfieVerificationFromResult(selfieId, result);
-  }
-
-  return result || initialReview;
 }
 
 export async function getOverview(request, response) {
@@ -219,12 +213,7 @@ export async function checkIn(request, response) {
     capturedAt: timestamp
   });
 
-  const selfieVerificationPromise = resolveSelfieVerification(
-    selfieId,
-    request.file,
-    selfieOptions,
-    selfieCheck
-  );
+  queueSelfieVerification(selfieId, request.file, selfieOptions);
 
   await createActivity({
     id: createId(),
@@ -264,7 +253,6 @@ export async function checkIn(request, response) {
   }
 
   await touchUser(request.user.id, timestamp);
-  await selfieVerificationPromise;
   return response.status(201).json(await buildGuardOverview(request.user.id));
 }
 
@@ -314,12 +302,7 @@ export async function checkOut(request, response) {
     capturedAt: timestamp
   });
 
-  const selfieVerificationPromise = resolveSelfieVerification(
-    selfieId,
-    request.file,
-    selfieOptions,
-    selfieCheck
-  );
+  queueSelfieVerification(selfieId, request.file, selfieOptions);
 
   await updateAttendanceOnCheckout(openAttendance.id, {
     checkOutAt: timestamp,
@@ -365,7 +348,6 @@ export async function checkOut(request, response) {
   }
 
   await touchUser(request.user.id, timestamp);
-  await selfieVerificationPromise;
   return response.json(await buildGuardOverview(request.user.id));
 }
 

@@ -2,9 +2,11 @@ import axios from "axios";
 import { getStoredSession } from "../utils/sessionStorage";
 
 const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const requestTimeoutMs = 75_000;
 
 export const apiClient = axios.create({
-  baseURL
+  baseURL,
+  timeout: requestTimeoutMs
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -22,10 +24,13 @@ apiClient.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     const serverMessage = error.response?.data?.message;
+    const timedOut = error.code === "ECONNABORTED" || /timeout/i.test(error.message || "");
     const rawMessage = serverMessage || error.message || "Request failed.";
     const safeMessage =
-      status >= 500
-        ? "The local backend could not complete the request. Please restart the app server and try again."
+      timedOut
+        ? "The request is taking too long. Check your connection and try again."
+        : status >= 500
+        ? "The backend could not complete the request. Please try again in a moment."
         : rawMessage;
     const wrappedError = new Error(safeMessage);
     wrappedError.status = error.response?.status;
