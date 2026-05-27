@@ -42,8 +42,14 @@ const selfieVerificationThreshold = 0.75;
 const comprefaceBaseUrl = String(process.env.COMPREFACE_BASE_URL || "").replace(/\/+$/, "");
 const comprefaceApiKey = process.env.COMPREFACE_API_KEY || "";
 const comprefaceThreshold = Number(process.env.COMPREFACE_VERIFY_THRESHOLD || 0.86);
-const comprefaceTimeoutMs = Number(process.env.COMPREFACE_TIMEOUT_MS || 8_000);
+const comprefaceTimeoutMs = readDurationMs(process.env.COMPREFACE_TIMEOUT_MS, 8_000);
+const comprefaceInlineTimeoutMs = readDurationMs(process.env.COMPREFACE_INLINE_TIMEOUT_MS, 2_500);
 const comprefaceDetectionThreshold = process.env.COMPREFACE_DET_PROB_THRESHOLD || "0.8";
+
+function readDurationMs(value, fallback) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration >= 0 ? duration : fallback;
+}
 
 function isImage(file) {
   return file.mimetype.startsWith("image/");
@@ -410,6 +416,53 @@ export function verifySelfieCaptureInBackground({ file, options = {}, onComplete
       });
     }
   }, 0);
+}
+
+function completeBackgroundVerification(verificationPromise, onBackgroundComplete) {
+  verificationPromise
+    .then((result) => onBackgroundComplete?.(result))
+    .catch(() => undefined);
+}
+
+export async function resolveSelfieCaptureWithQuickMatch({
+  file,
+  options = {},
+  onBackgroundComplete
+}) {
+  const initialReview = buildPendingFaceMatchReview(file, options);
+
+  if (!shouldRunAutomaticFaceMatch({ ...options, file })) {
+    return initialReview;
+  }
+
+  const verificationPromise = verifySelfieCapture(file, options).catch((error) => {
+    const fallback = scoreSelfieCapture(file, options);
+
+    return {
+      ...fallback,
+      identityStatus: "reference_review",
+      identityNotes: `Automatic face matching could not complete. Manual review is required. ${sanitizeFailureMessage(error?.message)}`
+    };
+  });
+
+  if (comprefaceInlineTimeoutMs <= 0) {
+    completeBackgroundVerification(verificationPromise, onBackgroundComplete);
+    return initialReview;
+  }
+
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), comprefaceInlineTimeoutMs);
+  });
+  const quickResult = await Promise.race([verificationPromise, timeoutPromise]);
+  clearTimeout(timeoutId);
+
+  if (quickResult) {
+    return quickResult;
+  }
+
+  completeBackgroundVerification(verificationPromise, onBackgroundComplete);
+  return initialReview;
 }
 
 export function toPublicSelfiePath(file) {

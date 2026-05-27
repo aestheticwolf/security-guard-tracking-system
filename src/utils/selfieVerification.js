@@ -62,9 +62,29 @@ export function getSelfieIdentityScorePercent(selfie) {
 }
 
 export function formatSelfieIdentityScore(selfie) {
+  if (!selfie) {
+    return "Awaiting capture";
+  }
+
+  if (selfie?.identityStatus === "identity_processing") {
+    return "Processing";
+  }
+
+  if (selfie?.identityStatus === "no_reference") {
+    return "No reference";
+  }
+
+  if (selfie?.identityStatus === "upload_review") {
+    return "Upload review";
+  }
+
+  if (selfie?.identityStatus === "reference_review") {
+    return "Manual review";
+  }
+
   const score = getSelfieIdentityScorePercent(selfie);
 
-  return score === null ? "Match pending" : `${score}% match`;
+  return score === null ? "Not available" : `${score}% match`;
 }
 
 export function getSelfieIdentityDecision(selfie) {

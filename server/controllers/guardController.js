@@ -10,8 +10,8 @@ import { touchUser } from "../models/userModel.js";
 import { reverseGeocodeLocation } from "../services/geocoding.js";
 import {
   buildPendingFaceMatchReview,
+  resolveSelfieCaptureWithQuickMatch,
   storeSelfieFile,
-  verifySelfieCaptureInBackground
 } from "../services/selfie.js";
 import { buildGuardOverview } from "../services/guardDashboardService.js";
 import {
@@ -127,6 +127,35 @@ function appendShiftNote(description, note) {
   return cleanNote ? `${description} Shift note: ${cleanNote}` : description;
 }
 
+function buildSelfieVerificationUpdate(result) {
+  return {
+    verified: result.verified,
+    verificationScore: result.score,
+    identityStatus: result.identityStatus,
+    identityScore: result.identityScore,
+    identityNotes: result.identityNotes
+  };
+}
+
+async function updateSelfieVerificationFromResult(selfieId, result) {
+  return updateSelfieVerification(selfieId, buildSelfieVerificationUpdate(result));
+}
+
+async function resolveSelfieVerification(selfieId, file, options, initialReview) {
+  const result = await resolveSelfieCaptureWithQuickMatch({
+    file,
+    options,
+    onBackgroundComplete: (backgroundResult) =>
+      updateSelfieVerificationFromResult(selfieId, backgroundResult)
+  });
+
+  if (result.identityStatus !== "identity_processing") {
+    await updateSelfieVerificationFromResult(selfieId, result);
+  }
+
+  return result || initialReview;
+}
+
 export async function getOverview(request, response) {
   return response.json(await buildGuardOverview(request.user.id));
 }
@@ -190,18 +219,12 @@ export async function checkIn(request, response) {
     capturedAt: timestamp
   });
 
-  verifySelfieCaptureInBackground({
-    file: request.file,
-    options: selfieOptions,
-    onComplete: (result) =>
-      updateSelfieVerification(selfieId, {
-        verified: result.verified,
-        verificationScore: result.score,
-        identityStatus: result.identityStatus,
-        identityScore: result.identityScore,
-        identityNotes: result.identityNotes
-      })
-  });
+  const selfieVerificationPromise = resolveSelfieVerification(
+    selfieId,
+    request.file,
+    selfieOptions,
+    selfieCheck
+  );
 
   await createActivity({
     id: createId(),
@@ -241,6 +264,7 @@ export async function checkIn(request, response) {
   }
 
   await touchUser(request.user.id, timestamp);
+  await selfieVerificationPromise;
   return response.status(201).json(await buildGuardOverview(request.user.id));
 }
 
@@ -290,18 +314,12 @@ export async function checkOut(request, response) {
     capturedAt: timestamp
   });
 
-  verifySelfieCaptureInBackground({
-    file: request.file,
-    options: selfieOptions,
-    onComplete: (result) =>
-      updateSelfieVerification(selfieId, {
-        verified: result.verified,
-        verificationScore: result.score,
-        identityStatus: result.identityStatus,
-        identityScore: result.identityScore,
-        identityNotes: result.identityNotes
-      })
-  });
+  const selfieVerificationPromise = resolveSelfieVerification(
+    selfieId,
+    request.file,
+    selfieOptions,
+    selfieCheck
+  );
 
   await updateAttendanceOnCheckout(openAttendance.id, {
     checkOutAt: timestamp,
@@ -347,6 +365,7 @@ export async function checkOut(request, response) {
   }
 
   await touchUser(request.user.id, timestamp);
+  await selfieVerificationPromise;
   return response.json(await buildGuardOverview(request.user.id));
 }
 

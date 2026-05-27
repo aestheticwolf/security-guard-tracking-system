@@ -43,10 +43,13 @@ import {
   shouldRetryGuardLocationSync
 } from "../utils/guardLocationSyncQueue";
 import {
+  formatSelfieIdentityScore,
   getSelfieVerificationLabel,
   isSelfieVerificationPassed
 } from "../utils/selfieVerification";
 
+const selfieCaptureMaxDimension = 960;
+const selfieMatchRefreshDelaysMs = [1_200, 2_500, 5_000, 8_000];
 const autoSyncDistanceMeters = 25;
 const autoSyncStaleMs = 10 * 60_000;
 const autoSyncIntervalMs = 10 * 60_000;
@@ -147,6 +150,28 @@ function buildSyncSuccessMessage(location) {
     default:
       return "Live location synced successfully.";
   }
+}
+
+function isSelfieIdentityProcessing(selfie) {
+  return selfie?.identityStatus === "identity_processing";
+}
+
+function getSelfieProofValue(selfie) {
+  if (!selfie) {
+    return "Pending";
+  }
+
+  if (isSelfieIdentityProcessing(selfie)) {
+    return "Matching";
+  }
+
+  if (["matched", "mismatch", "face_not_detected"].includes(selfie.identityStatus)) {
+    return formatSelfieIdentityScore(selfie);
+  }
+
+  return selfie.verificationScore
+    ? `${Math.round(selfie.verificationScore * 100)}% quality`
+    : "Captured";
 }
 
 function publishGuardUpdateToAdmin(type, payload = {}) {
@@ -281,6 +306,50 @@ export default function GuardDashboard() {
   const liveZoneDetail = liveZoneLines[1] || null;
   const latestSelfie = overview?.lastSelfie || null;
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
+
+  useEffect(() => {
+    const selfieId = latestSelfie?.id;
+
+    if (!selfieId || !isSelfieIdentityProcessing(latestSelfie)) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const refreshTimers = selfieMatchRefreshDelaysMs.map((delayMs) =>
+      window.setTimeout(async () => {
+        if (cancelled) {
+          return;
+        }
+
+        try {
+          const response = await getGuardOverview();
+          const nextSelfie = response?.lastSelfie || null;
+
+          if (cancelled) {
+            return;
+          }
+
+          startTransition(() => setOverview(response));
+
+          if (nextSelfie?.id === selfieId && !isSelfieIdentityProcessing(nextSelfie)) {
+            cancelled = true;
+            publishGuardUpdateToAdmin("selfie-match", {
+              userId: user?.id,
+              selfieId,
+              identityStatus: nextSelfie.identityStatus
+            });
+          }
+        } catch {
+          // Normal polling will recover if this short verification refresh fails.
+        }
+      }, delayMs)
+    );
+
+    return () => {
+      cancelled = true;
+      refreshTimers.forEach((timerId) => window.clearTimeout(timerId));
+    };
+  }, [latestSelfie?.id, latestSelfie?.identityStatus, user?.id]);
 
   function applySyncedLocation(responseLocation, liveLocation, options = {}) {
     if (!responseLocation) {
@@ -682,9 +751,13 @@ export default function GuardDashboard() {
       return;
     }
 
+    const scale = Math.min(
+      1,
+      selfieCaptureMaxDimension / Math.max(video.videoWidth, video.videoHeight)
+    );
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     const context = canvas.getContext("2d");
 
     if (!context) {
@@ -719,7 +792,7 @@ export default function GuardDashboard() {
         toast.success(nextMessage);
       },
       "image/jpeg",
-      0.9
+      0.82
     );
   }
 
@@ -907,11 +980,7 @@ export default function GuardDashboard() {
             <StatCard
               icon={Camera}
               label="Selfie proof"
-              value={
-                latestSelfie?.verificationScore
-                  ? `${Math.round(latestSelfie.verificationScore * 100)}%`
-                  : "Pending"
-              }
+              value={getSelfieProofValue(latestSelfie)}
               detail={
                 latestSelfie
                   ? `${latestSelfieVerified ? "Verified" : "Captured"} ${formatRelative(latestSelfie.capturedAt)}`
@@ -1125,6 +1194,11 @@ export default function GuardDashboard() {
                       <p className="text-sm text-slate-300">
                         {getSelfieVerificationLabel(latestSelfie)}
                       </p>
+                      {latestSelfie && (
+                        <p className="mt-1 text-xs app-copy-soft">
+                          Identity match: {formatSelfieIdentityScore(latestSelfie)}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
                         {latestSelfie
                           ? formatDateTime(latestSelfie.capturedAt)
