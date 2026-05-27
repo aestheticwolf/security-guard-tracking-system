@@ -1206,7 +1206,11 @@ export default function GuardDashboard() {
                         autoPlay
                         muted
                         playsInline
-                        className="h-56 w-full rounded-2xl bg-black object-cover"
+                        className={`h-[340px] w-full rounded-2xl bg-black sm:h-56 ${
+                          selectedCameraSelection === cameraSelectionModes.rear
+                            ? "object-contain"
+                            : "object-cover"
+                        }`}
                       />
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <button

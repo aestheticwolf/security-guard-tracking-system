@@ -486,7 +486,11 @@ function IdentityImagePicker({
                 autoPlay
                 muted
                 playsInline
-                className="h-40 w-full rounded-2xl bg-black object-cover"
+                className={`h-[320px] w-full rounded-2xl bg-black sm:h-40 ${
+                  selectedCameraSelection === cameraSelectionModes.rear
+                    ? "object-contain"
+                    : "object-cover"
+                }`}
               />
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <button
