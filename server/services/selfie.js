@@ -41,7 +41,8 @@ const storage = multer.diskStorage({
 const selfieVerificationThreshold = 0.75;
 const comprefaceBaseUrl = String(process.env.COMPREFACE_BASE_URL || "").replace(/\/+$/, "");
 const comprefaceApiKey = process.env.COMPREFACE_API_KEY || "";
-const comprefaceThreshold = Number(process.env.COMPREFACE_VERIFY_THRESHOLD || 0.86);
+const comprefaceThreshold = readScore(process.env.COMPREFACE_VERIFY_THRESHOLD, 0.78);
+const comprefaceReviewThreshold = readScore(process.env.COMPREFACE_REVIEW_THRESHOLD, 0.65);
 const comprefaceTimeoutMs = readDurationMs(process.env.COMPREFACE_TIMEOUT_MS, 8_000);
 const comprefaceInlineTimeoutMs = readDurationMs(process.env.COMPREFACE_INLINE_TIMEOUT_MS, 2_500);
 const comprefaceDetectionThreshold = process.env.COMPREFACE_DET_PROB_THRESHOLD || "0.8";
@@ -49,6 +50,11 @@ const comprefaceDetectionThreshold = process.env.COMPREFACE_DET_PROB_THRESHOLD |
 function readDurationMs(value, fallback) {
   const duration = Number(value);
   return Number.isFinite(duration) && duration >= 0 ? duration : fallback;
+}
+
+function readScore(value, fallback) {
+  const score = Number(value);
+  return Number.isFinite(score) && score >= 0 && score <= 1 ? score : fallback;
 }
 
 function isImage(file) {
@@ -106,6 +112,29 @@ function sanitizeFailureMessage(value) {
     .slice(0, 160);
 }
 
+function getImageMimeType(filename = "", fallback = "image/jpeg") {
+  const extension = path.extname(filename).toLowerCase();
+
+  switch (extension) {
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    case ".bmp":
+      return "image/bmp";
+    case ".gif":
+      return "image/gif";
+    case ".tif":
+    case ".tiff":
+      return "image/tiff";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    default:
+      return fallback;
+  }
+}
+
 function getReferenceCandidates(options = {}) {
   return [
     {
@@ -145,17 +174,25 @@ function resolveStoredImagePath(pathname) {
   return absolutePath;
 }
 
-async function readImageInputAsBase64(input) {
+async function readImageInputAsUpload(input, fallbackFilename = "selfie.jpg") {
   if (!input) {
     throw new Error("Image input is missing.");
   }
 
   if (input.buffer) {
-    return input.buffer.toString("base64");
+    return {
+      buffer: Buffer.from(input.buffer),
+      filename: input.originalname || fallbackFilename,
+      mimeType: input.mimetype || getImageMimeType(input.originalname || fallbackFilename)
+    };
   }
 
   if (input.path) {
-    return (await fs.promises.readFile(input.path)).toString("base64");
+    return {
+      buffer: await fs.promises.readFile(input.path),
+      filename: input.originalname || path.basename(input.path) || fallbackFilename,
+      mimeType: input.mimetype || getImageMimeType(input.path)
+    };
   }
 
   if (typeof input === "string" && /^https?:\/\//i.test(input)) {
@@ -166,7 +203,15 @@ async function readImageInputAsBase64(input) {
     }
 
     const imageBuffer = Buffer.from(await remoteResponse.arrayBuffer());
-    return imageBuffer.toString("base64");
+    const contentType = remoteResponse.headers.get("content-type") || "";
+
+    return {
+      buffer: imageBuffer,
+      filename: path.basename(new URL(input).pathname) || fallbackFilename,
+      mimeType: contentType.startsWith("image/")
+        ? contentType.split(";")[0]
+        : getImageMimeType(input)
+    };
   }
 
   if (typeof input === "string") {
@@ -176,10 +221,48 @@ async function readImageInputAsBase64(input) {
       throw new Error("Stored reference image path is not available.");
     }
 
-    return (await fs.promises.readFile(absolutePath)).toString("base64");
+    return {
+      buffer: await fs.promises.readFile(absolutePath),
+      filename: path.basename(absolutePath) || fallbackFilename,
+      mimeType: getImageMimeType(absolutePath)
+    };
   }
 
   throw new Error("Unsupported image input.");
+}
+
+function appendImageUpload(formData, fieldName, image) {
+  formData.append(
+    fieldName,
+    new Blob([image.buffer], { type: image.mimeType }),
+    image.filename
+  );
+}
+
+function parseJsonResponse(text) {
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
+function normalizeSimilarityScore(value) {
+  const score = Number(value);
+
+  if (!Number.isFinite(score)) {
+    return 0;
+  }
+
+  if (score > 1 && score <= 100) {
+    return score / 100;
+  }
+
+  return Math.max(0, Math.min(score, 1));
 }
 
 function getBestCompreFaceMatch(payload) {
@@ -187,7 +270,7 @@ function getBestCompreFaceMatch(payload) {
     .flatMap((entry) => entry?.face_matches || [])
     .map((match) => ({
       ...match,
-      similarity: Number(match?.similarity)
+      similarity: normalizeSimilarityScore(match?.similarity)
     }))
     .filter((match) => Number.isFinite(match.similarity))
     .sort((left, right) => right.similarity - left.similarity)[0] || null;
@@ -199,8 +282,8 @@ async function verifyAgainstCompreFace(sourceFile, referencePath) {
 
   try {
     const [sourceImage, targetImage] = await Promise.all([
-      readImageInputAsBase64(sourceFile),
-      readImageInputAsBase64(referencePath)
+      readImageInputAsUpload(sourceFile, "shift-selfie.jpg"),
+      readImageInputAsUpload(referencePath, "identity-reference.jpg")
     ]);
     const endpointUrl = new URL(`${comprefaceBaseUrl}/api/v1/verification/verify`);
     endpointUrl.searchParams.set("limit", "1");
@@ -208,20 +291,20 @@ async function verifyAgainstCompreFace(sourceFile, referencePath) {
     endpointUrl.searchParams.set("det_prob_threshold", comprefaceDetectionThreshold);
     endpointUrl.searchParams.set("status", "false");
 
+    const formData = new FormData();
+    appendImageUpload(formData, "source_image", sourceImage);
+    appendImageUpload(formData, "target_image", targetImage);
+
     const verificationResponse = await fetch(endpointUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "x-api-key": comprefaceApiKey
       },
-      body: JSON.stringify({
-        source_image: sourceImage,
-        target_image: targetImage
-      }),
+      body: formData,
       signal: controller.signal
     });
     const responseText = await verificationResponse.text();
-    const responsePayload = responseText ? JSON.parse(responseText) : {};
+    const responsePayload = parseJsonResponse(responseText);
 
     if (!verificationResponse.ok) {
       throw new Error(
@@ -236,6 +319,11 @@ async function verifyAgainstCompreFace(sourceFile, referencePath) {
     return {
       similarity: bestMatch?.similarity ?? 0,
       matched: Boolean(bestMatch && bestMatch.similarity >= comprefaceThreshold),
+      needsReview: Boolean(
+        bestMatch &&
+          bestMatch.similarity >= comprefaceReviewThreshold &&
+          bestMatch.similarity < comprefaceThreshold
+      ),
       faceDetected: Boolean(responsePayload?.result?.length),
       rawResult: responsePayload
     };
@@ -306,7 +394,18 @@ function buildCompreFaceReview({ fallback, result, referenceLabel }) {
       score: similarityScore,
       identityStatus: "matched",
       identityScore: similarityScore,
-      identityNotes: `CompreFace matched the live selfie with the ${referenceLabel} at ${similarityPercent}% similarity.`
+      identityNotes: `Automatic face verification matched the live selfie with the ${referenceLabel}. Similarity: ${similarityPercent}%. Required threshold: ${Math.round(comprefaceThreshold * 100)}%.`
+    };
+  }
+
+  if (result.needsReview) {
+    return {
+      ...fallback,
+      verified: false,
+      score: similarityScore,
+      identityStatus: "possible_match",
+      identityScore: similarityScore,
+      identityNotes: `Automatic face verification returned a review-band result against the ${referenceLabel}. Similarity: ${similarityPercent}%. Required threshold: ${Math.round(comprefaceThreshold * 100)}%. Admin review is recommended.`
     };
   }
 
@@ -333,8 +432,11 @@ export async function verifySelfieCapture(file, options = {}) {
   if (!isCompreFaceConfigured()) {
     return {
       ...fallback,
+      verified: false,
+      identityStatus: "match_not_configured",
+      identityScore: 0,
       identityNotes:
-        "Reference image exists and the proof came from the live camera flow. Configure CompreFace to enable automatic face matching."
+        "Automatic face matching is not configured. Add COMPREFACE_BASE_URL and COMPREFACE_API_KEY in .env, then restart the backend."
     };
   }
 
@@ -368,8 +470,10 @@ export async function verifySelfieCapture(file, options = {}) {
 
   return {
     ...fallback,
-    identityStatus: "reference_review",
-    identityNotes: `CompreFace verification is unavailable, so this selfie remains ready for manual review. ${sanitizeFailureMessage(lastError?.message)}`
+    verified: false,
+    identityStatus: "match_unavailable",
+    identityScore: 0,
+    identityNotes: `Automatic face matching is unavailable. Confirm CompreFace is running, the verification API key is correct, and the reference images are reachable. ${sanitizeFailureMessage(lastError?.message)}`
   };
 }
 
@@ -384,6 +488,18 @@ export function shouldRunAutomaticFaceMatch(options = {}) {
 
 export function buildPendingFaceMatchReview(file, options = {}) {
   const fallback = scoreSelfieCapture(file, options);
+  const hasReference = Boolean(getReferenceCandidates(options).length);
+
+  if (fallback.captureSource === "camera" && hasReference && !isCompreFaceConfigured()) {
+    return {
+      ...fallback,
+      verified: false,
+      identityStatus: "match_not_configured",
+      identityScore: 0,
+      identityNotes:
+        "Automatic face matching is not configured. Add COMPREFACE_BASE_URL and COMPREFACE_API_KEY in .env, then restart the backend."
+    };
+  }
 
   if (shouldRunAutomaticFaceMatch({ ...options, file })) {
     return {
@@ -411,8 +527,10 @@ export function verifySelfieCaptureInBackground({ file, options = {}, onComplete
       const fallback = scoreSelfieCapture(file, options);
       await onComplete?.({
         ...fallback,
-        identityStatus: "reference_review",
-        identityNotes: `Automatic face matching could not complete. Manual review is required. ${sanitizeFailureMessage(error?.message)}`
+        verified: false,
+        identityStatus: "match_unavailable",
+        identityScore: 0,
+        identityNotes: `Automatic face matching could not complete. Confirm CompreFace is running and retry. ${sanitizeFailureMessage(error?.message)}`
       });
     }
   }, 0);
@@ -440,8 +558,10 @@ export async function resolveSelfieCaptureWithQuickMatch({
 
     return {
       ...fallback,
-      identityStatus: "reference_review",
-      identityNotes: `Automatic face matching could not complete. Manual review is required. ${sanitizeFailureMessage(error?.message)}`
+      verified: false,
+      identityStatus: "match_unavailable",
+      identityScore: 0,
+      identityNotes: `Automatic face matching could not complete. Confirm CompreFace is running and retry. ${sanitizeFailureMessage(error?.message)}`
     };
   });
 

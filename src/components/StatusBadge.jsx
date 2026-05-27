@@ -22,12 +22,18 @@ export default function StatusBadge({ status }) {
     "processing",
     "identity processing"
   ]);
+  const warningStatuses = new Set([
+    "review recommended",
+    "review-band match",
+    "matcher not configured",
+    "matcher unavailable"
+  ]);
   const classes =
     successStatuses.has(normalized)
       ? "status-badge status-badge--success"
       : dangerStatuses.has(normalized)
         ? "status-badge status-badge--danger"
-        : processingStatuses.has(normalized)
+        : processingStatuses.has(normalized) || warningStatuses.has(normalized)
           ? "status-badge status-badge--warning"
           : "status-badge status-badge--warning";
 

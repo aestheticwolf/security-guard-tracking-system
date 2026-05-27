@@ -5,20 +5,39 @@ const identityLabels = {
   reference_review: "Reference review ready",
   upload_review: "Uploaded image review",
   identity_processing: "Face match processing",
+  match_not_configured: "Matcher not configured",
+  match_unavailable: "Matcher unavailable",
   matched: "Identity matched",
+  possible_match: "Review-band match",
   mismatch: "Identity mismatch",
   face_not_detected: "Face not detected"
 };
-const automaticIdentityStatuses = new Set(["matched", "mismatch", "face_not_detected"]);
+const automaticIdentityStatuses = new Set(["matched", "possible_match", "mismatch", "face_not_detected"]);
 const positiveIdentityStatuses = new Set(["matched"]);
 const negativeIdentityStatuses = new Set(["mismatch", "face_not_detected"]);
+const setupIdentityStatuses = new Set(["match_not_configured", "match_unavailable"]);
+const nonPassingIdentityStatuses = new Set([
+  "no_reference",
+  "reference_review",
+  "upload_review",
+  "identity_processing",
+  "match_not_configured",
+  "match_unavailable",
+  "possible_match",
+  "mismatch",
+  "face_not_detected"
+]);
 
 export function isSelfieVerificationPassed(selfie) {
   if (!selfie) {
     return false;
   }
 
-  if (["mismatch", "face_not_detected"].includes(selfie.identityStatus)) {
+  if (selfie.identityStatus === "matched") {
+    return true;
+  }
+
+  if (nonPassingIdentityStatuses.has(selfie.identityStatus)) {
     return false;
   }
 
@@ -82,6 +101,14 @@ export function formatSelfieIdentityScore(selfie) {
     return "Manual review";
   }
 
+  if (selfie?.identityStatus === "match_not_configured") {
+    return "Matcher not configured";
+  }
+
+  if (selfie?.identityStatus === "match_unavailable") {
+    return "Matcher unavailable";
+  }
+
   const score = getSelfieIdentityScorePercent(selfie);
 
   return score === null ? "Not available" : `${score}% match`;
@@ -100,6 +127,10 @@ export function getSelfieIdentityDecision(selfie) {
     return "Identity mismatch requires review";
   }
 
+  if (selfie.identityStatus === "possible_match") {
+    return "Review recommended";
+  }
+
   if (selfie.identityStatus === "face_not_detected") {
     return "Face not detected";
   }
@@ -114,6 +145,14 @@ export function getSelfieIdentityDecision(selfie) {
 
   if (selfie.identityStatus === "no_reference") {
     return "No registered reference";
+  }
+
+  if (selfie.identityStatus === "match_not_configured") {
+    return "Matcher not configured";
+  }
+
+  if (selfie.identityStatus === "match_unavailable") {
+    return "Matcher unavailable";
   }
 
   return "Manual review required";
@@ -134,6 +173,10 @@ export function getSelfieIdentityTone(selfie) {
 
   if (selfie.identityStatus === "identity_processing") {
     return "processing";
+  }
+
+  if (selfie.identityStatus === "possible_match" || setupIdentityStatuses.has(selfie.identityStatus)) {
+    return "warning";
   }
 
   return "warning";

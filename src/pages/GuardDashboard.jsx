@@ -165,7 +165,7 @@ function getSelfieProofValue(selfie) {
     return "Matching";
   }
 
-  if (["matched", "mismatch", "face_not_detected"].includes(selfie.identityStatus)) {
+  if (["matched", "possible_match", "mismatch", "face_not_detected"].includes(selfie.identityStatus)) {
     return formatSelfieIdentityScore(selfie);
   }
 

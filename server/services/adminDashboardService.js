@@ -20,9 +20,24 @@ import { sanitizeUser } from "./auth.js";
 import { getAttendanceMinutesForDay, getDateKey, sortByNewest } from "./coreService.js";
 
 const selfieVerificationThreshold = 0.75;
+const nonPassingIdentityStatuses = new Set([
+  "no_reference",
+  "reference_review",
+  "upload_review",
+  "identity_processing",
+  "match_not_configured",
+  "match_unavailable",
+  "possible_match",
+  "mismatch",
+  "face_not_detected"
+]);
 
 function isVerifiedSelfie(selfie) {
-  if (["mismatch", "face_not_detected"].includes(selfie?.identityStatus)) {
+  if (selfie?.identityStatus === "matched") {
+    return true;
+  }
+
+  if (nonPassingIdentityStatuses.has(selfie?.identityStatus)) {
     return false;
   }
 
