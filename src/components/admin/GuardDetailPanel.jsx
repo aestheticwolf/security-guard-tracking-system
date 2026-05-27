@@ -99,6 +99,181 @@ function getLocationTimestamp(location) {
   return location?.capturedAt || location?.trackedAt || null;
 }
 
+function SelfieHistoryCard({ selfie, index, guardName }) {
+  const selfieUrl = buildSelfieImageUrl(selfie);
+  const identityScorePercent = getSelfieIdentityScorePercent(selfie);
+  const verified = isSelfieVerificationPassed(selfie);
+
+  return (
+    <article className="overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/45">
+      {selfieUrl ? (
+        <SelfieImageFrame
+          src={selfieUrl}
+          alt={`${guardName} selfie capture from ${formatDateTime(selfie.capturedAt)}`}
+          className="h-44 w-full sm:h-52"
+        />
+      ) : (
+        <div className="flex h-44 items-center justify-center bg-gradient-to-br from-gold-400/10 to-jade-400/10 px-6 text-center text-sm text-slate-400 sm:h-52">
+          Selfie image is not available.
+        </div>
+      )}
+      <div className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+              Capture {index + 1}
+            </p>
+            <p className="mt-1 text-sm font-medium text-white">
+              {selfie?.capturedAt ? formatDateTime(selfie.capturedAt) : "Time not recorded"}
+            </p>
+          </div>
+          <StatusBadge status={verified ? "Verified" : "Review"} />
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Match score</p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {formatSelfieIdentityScore(selfie)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Proof source</p>
+            <p className="mt-1 text-sm text-white">{getSelfieCaptureLabel(selfie)}</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Identity review</p>
+            <p className="text-xs font-semibold text-slate-300">
+              {identityScorePercent === null ? "No score" : `${identityScorePercent}%`}
+            </p>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/50">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-gold-400 to-jade-300"
+              style={{ width: `${identityScorePercent ?? 0}%` }}
+            />
+          </div>
+          <p className="mt-2 text-sm text-slate-300">{getSelfieIdentityDecision(selfie)}</p>
+          <p className="mt-1 text-xs text-slate-400">{getSelfieIdentityLabel(selfie)}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ShiftSelfieSlot({ title, selfie, timestamp, guardName, emptyCopy }) {
+  const selfieUrl = buildSelfieImageUrl(selfie);
+  const verified = isSelfieVerificationPassed(selfie);
+
+  return (
+    <div className="overflow-hidden rounded-[20px] border border-white/10 bg-white/5">
+      {selfieUrl ? (
+        <SelfieImageFrame
+          src={selfieUrl}
+          alt={`${guardName} ${title.toLowerCase()} selfie from ${formatDateTime(selfie.capturedAt || timestamp)}`}
+          className="h-40 w-full sm:h-48"
+        />
+      ) : (
+        <div className="flex h-40 items-center justify-center bg-slate-950/45 px-5 text-center text-sm text-slate-400 sm:h-48">
+          {emptyCopy}
+        </div>
+      )}
+      <div className="space-y-2 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{title}</p>
+            <p className="mt-1 text-sm text-white">
+              {timestamp ? formatDateTime(timestamp) : "Time not recorded"}
+            </p>
+          </div>
+          {selfie && <StatusBadge status={verified ? "Verified" : "Review"} />}
+        </div>
+        {selfie && (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Match score</p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {formatSelfieIdentityScore(selfie)}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">{getSelfieIdentityDecision(selfie)}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TodaySelfieEvidence({ guard, evidence = [] }) {
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-white">
+            <Camera className="h-4 w-4 text-jade-200" />
+            Today&apos;s check-in and check-out selfies
+          </div>
+          <p className="mt-2 text-sm text-slate-300">
+            Daily shift proof paired from saved attendance records.
+          </p>
+        </div>
+        <StatusBadge status={`${evidence.length} shift${evidence.length === 1 ? "" : "s"} today`} />
+      </div>
+
+      <div className="mt-4 space-y-4">
+        {evidence.length ? (
+          evidence.map((entry) => (
+            <article
+              key={entry.attendanceId}
+              className="rounded-[22px] border border-white/10 bg-white/5 p-3.5 sm:p-4"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">
+                    {entry.checkOutAt ? "Completed shift proof" : "Open shift proof"}
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                    {entry.locationLabel || guard.shiftLabel || "Field checkpoint"}
+                  </p>
+                </div>
+                <StatusBadge status={entry.checkOutAt ? "In and out" : "Check-in only"} />
+              </div>
+              {entry.note && (
+                <p className="mt-3 rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 text-sm text-slate-300">
+                  Shift note: {entry.note}
+                </p>
+              )}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <ShiftSelfieSlot
+                  title="Check-in selfie"
+                  selfie={entry.checkInSelfie}
+                  timestamp={entry.checkInAt}
+                  guardName={guard.fullName}
+                  emptyCopy="No check-in selfie image is linked to this shift."
+                />
+                <ShiftSelfieSlot
+                  title="Check-out selfie"
+                  selfie={entry.checkOutSelfie}
+                  timestamp={entry.checkOutAt}
+                  guardName={guard.fullName}
+                  emptyCopy={
+                    entry.checkOutAt
+                      ? "No check-out selfie image is linked to this shift."
+                      : "This shift has not been checked out yet."
+                  }
+                />
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-[20px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-sm text-slate-400">
+            No check-in or check-out selfies have been recorded today.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GuardDetailPanel({ guard }) {
   const [adminLocation, setAdminLocation] = useState(null);
   const [adminLocationError, setAdminLocationError] = useState("");
@@ -138,6 +313,12 @@ export default function GuardDetailPanel({ guard }) {
   }
 
   const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
+  const selfieHistory = guard.selfieHistory?.length
+    ? guard.selfieHistory
+    : latestSelfie
+      ? [latestSelfie]
+      : [];
+  const todaySelfieEvidence = guard.todaySelfieEvidence || [];
   const latestSelfieUrl = buildSelfieImageUrl(latestSelfie);
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
   const selfieIdentityGuidance = getSelfieIdentityGuidance(latestSelfie);
@@ -451,6 +632,41 @@ export default function GuardDetailPanel({ guard }) {
                 />
                 <StatusBadge status={getSelfieIdentityDecision(latestSelfie)} />
               </div>
+            </div>
+          </div>
+
+          <TodaySelfieEvidence guard={guard} evidence={todaySelfieEvidence} />
+
+          <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <Camera className="h-4 w-4 text-gold-200" />
+                  Previous selfie history
+                </div>
+                <p className="mt-2 text-sm text-slate-300">
+                  Every saved shift selfie for this guard, newest first.
+                </p>
+              </div>
+              <StatusBadge status={`${selfieHistory.length} capture${selfieHistory.length === 1 ? "" : "s"}`} />
+            </div>
+            <div className="mt-4 max-h-[42rem] overflow-y-auto pr-1">
+              {selfieHistory.length ? (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {selfieHistory.map((selfie, index) => (
+                    <SelfieHistoryCard
+                      key={selfie.id || `${selfie.imagePath}-${selfie.capturedAt}`}
+                      selfie={selfie}
+                      index={index}
+                      guardName={guard.fullName}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[20px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-sm text-slate-400">
+                  No previous selfie captures are stored for this guard yet.
+                </div>
+              )}
             </div>
           </div>
         </div>

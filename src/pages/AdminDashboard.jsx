@@ -576,6 +576,7 @@ export default function AdminDashboard() {
   const [selectedGuardId, setSelectedGuardId] = useState("");
   const [guardPendingEdit, setGuardPendingEdit] = useState(null);
   const [guardPendingDelete, setGuardPendingDelete] = useState(null);
+  const [guardPendingStatusChange, setGuardPendingStatusChange] = useState(null);
   const [guardForm, setGuardForm] = useState(emptyGuardForm);
   const [guardEditForm, setGuardEditForm] = useState(emptyGuardForm);
   const [dutySiteForm, setDutySiteForm] = useState(emptyDutySiteForm);
@@ -823,14 +824,20 @@ export default function AdminDashboard() {
     }
   }
 
-  async function toggleGuardStatus(guard) {
+  async function handleConfirmGuardStatusChange() {
+    if (!guardPendingStatusChange) {
+      return;
+    }
+
     setBusy(true);
     setError("");
 
     try {
-      const nextStatus = guard.status === "active" ? "inactive" : "active";
-      await updateGuardAccess(guard.id, { status: nextStatus });
-      await reloadDashboard(`Guard status updated to ${nextStatus}.`);
+      const nextStatus = guardPendingStatusChange.status === "active" ? "inactive" : "active";
+      await updateGuardAccess(guardPendingStatusChange.id, { status: nextStatus });
+      const guardName = guardPendingStatusChange.fullName;
+      setGuardPendingStatusChange(null);
+      await reloadDashboard(`${guardName}'s access was ${nextStatus === "active" ? "reactivated" : "suspended"}.`);
     } catch (submitError) {
       const nextError = getDashboardErrorMessage(submitError);
       setError(nextError);
@@ -978,7 +985,7 @@ export default function AdminDashboard() {
               icon={Activity}
               label="Attendance"
               value={`${overview?.metrics?.attendanceRate ?? 0}%`}
-              detail="Today’s check-in coverage"
+              detail={`${overview?.metrics?.checkedInGuardsToday ?? 0}/${overview?.metrics?.totalGuards ?? 0} guards checked in today`}
               tone="slate"
             />
             <StatCard
@@ -992,7 +999,7 @@ export default function AdminDashboard() {
               icon={Building2}
               label="Duty Sites"
               value={overview?.metrics?.activeDutySites ?? 0}
-              detail={`${overview?.metrics?.assignedToDutySites ?? 0} guards assigned`}
+              detail={`${overview?.metrics?.assignedToDutySites ?? 0}/${overview?.metrics?.totalGuards ?? 0} guards assigned`}
               tone="jade"
             />
             <StatCard
@@ -1031,7 +1038,9 @@ export default function AdminDashboard() {
 
                   <div className="mt-4 grid grid-cols-3 gap-2.5">
                     <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-3">
-                      <p className="text-xs uppercase tracking-[0.18em] app-copy-soft">Assigned</p>
+                      <p className="text-xs uppercase tracking-[0.18em] app-copy-soft">
+                        {site.isUnassigned ? "Guards" : "Assigned"}
+                      </p>
                       <p className="mt-2 text-2xl font-semibold app-copy-primary">
                         {site.assignedCount}
                       </p>
@@ -1574,7 +1583,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => toggleGuardStatus(guard)}
+                      onClick={() => setGuardPendingStatusChange(guard)}
                       disabled={busy}
                       className={`app-outline-button rounded-2xl px-3 py-2.5 text-sm font-medium ${
                         busy ? "app-button-disabled" : ""
@@ -1799,6 +1808,98 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {guardPendingStatusChange && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+              className="glass-panel w-full max-w-xl rounded-[24px] border p-5 shadow-[0_28px_80px_rgba(2,6,23,0.45)] sm:rounded-[28px] sm:p-6"
+            >
+              <div className="flex items-start gap-4">
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                    guardPendingStatusChange.status === "active"
+                      ? "app-danger-icon-shell"
+                      : "border border-jade-300/30 bg-jade-300/10 text-jade-200"
+                  }`}
+                >
+                  {guardPendingStatusChange.status === "active" ? (
+                    <AlertTriangle className="h-5 w-5" />
+                  ) : (
+                    <ShieldCheck className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display text-2xl font-semibold app-copy-primary">
+                    {guardPendingStatusChange.status === "active"
+                      ? "Suspend guard access?"
+                      : "Reactivate guard access?"}
+                  </h3>
+                  <p className="mt-2 text-sm app-copy-muted">
+                    {guardPendingStatusChange.status === "active" ? (
+                      <>
+                        You are about to suspend{" "}
+                        <span className="font-semibold app-copy-primary">
+                          {guardPendingStatusChange.fullName}
+                        </span>
+                        . The guard will no longer be treated as an active field user until access is reactivated.
+                      </>
+                    ) : (
+                      <>
+                        You are about to reactivate{" "}
+                        <span className="font-semibold app-copy-primary">
+                          {guardPendingStatusChange.fullName}
+                        </span>
+                        . The guard will regain active roster access for this organization.
+                      </>
+                    )}
+                  </p>
+                  {guardPendingStatusChange.status === "active" && (
+                    <p className="app-danger-copy mt-3 text-sm font-medium">
+                      Confirm this only when the guard should be removed from active operations.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setGuardPendingStatusChange(null)}
+                  disabled={busy}
+                  className={`app-outline-button rounded-2xl px-4 py-3 text-sm font-medium ${
+                    busy ? "app-button-disabled" : ""
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmGuardStatusChange}
+                  disabled={busy}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold ${
+                    guardPendingStatusChange.status === "active"
+                      ? "app-danger-button"
+                      : "app-primary-button"
+                  } ${busy ? "app-button-disabled" : ""}`}
+                >
+                  {guardPendingStatusChange.status === "active" ? (
+                    <AlertTriangle className="h-4 w-4" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                  {busy
+                    ? "Updating access..."
+                    : guardPendingStatusChange.status === "active"
+                      ? "Suspend guard access"
+                      : "Reactivate guard access"}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

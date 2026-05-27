@@ -39,10 +39,6 @@ function EmptyState({ children, className = "" }) {
   );
 }
 
-function getLatestSelfie(owner) {
-  return owner?.selfieHistory?.[0] || owner?.lastSelfie || null;
-}
-
 function getAttendanceDurationMinutes(entry) {
   if (!entry?.checkInAt) {
     return 0;
@@ -58,7 +54,7 @@ function getAttendanceDurationMinutes(entry) {
   return Math.round((checkOutTime - checkInTime) / (1000 * 60));
 }
 
-export default function GuardHistoryPanel({ guard, guards = [] }) {
+export default function GuardHistoryPanel({ guard }) {
   if (!guard) {
     return (
       <EmptyState>
@@ -70,10 +66,11 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
   const locations = guard.locationHistory?.length ? guard.locationHistory : guard.recentLocations || [];
   const attendance = guard.attendanceHistory?.length ? guard.attendanceHistory : guard.recentAttendance || [];
   const activities = guard.activityHistory?.length ? guard.activityHistory : guard.recentActivities || [];
-  const selfieCards = (guards.length ? guards : [guard]).map((owner) => ({
-    owner,
-    selfie: getLatestSelfie(owner)
-  }));
+  const selfieHistory = guard.selfieHistory?.length
+    ? guard.selfieHistory
+    : guard.lastSelfie
+      ? [guard.lastSelfie]
+      : [];
 
   return (
     <div className="space-y-4">
@@ -146,21 +143,24 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
               Selfie proof history
             </div>
             <span className="text-xs uppercase tracking-[0.2em] app-copy-soft">
-              {selfieCards.filter(({ selfie }) => selfie).length}/{selfieCards.length} captured
+              {selfieHistory.length} capture{selfieHistory.length === 1 ? "" : "s"}
             </span>
           </div>
-          {selfieCards.length ? (
+          {selfieHistory.length ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              {selfieCards.map(({ owner, selfie }) => {
+              {selfieHistory.map((selfie, index) => {
                 const selfieUrl = buildSelfieImageUrl(selfie);
                 const identityScorePercent = getSelfieIdentityScorePercent(selfie);
 
                 return (
-                  <div key={owner.id} className="app-surface-soft overflow-hidden rounded-[20px]">
+                  <div
+                    key={selfie.id || `${selfie.imagePath}-${selfie.capturedAt}`}
+                    className="app-surface-soft overflow-hidden rounded-[20px]"
+                  >
                     {selfieUrl ? (
                       <SelfieImageFrame
                         src={selfieUrl}
-                        alt={`${owner.fullName} latest selfie from ${formatDateTime(selfie.capturedAt)}`}
+                        alt={`${guard.fullName} selfie capture from ${formatDateTime(selfie.capturedAt)}`}
                         className="h-28 w-full sm:h-32"
                       />
                     ) : (
@@ -173,10 +173,10 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium app-copy-primary">
-                            {owner.fullName}
+                            Capture {index + 1}
                           </p>
                           <p className="mt-1 text-xs app-copy-muted">
-                            {owner.employeeCode || "No code"}
+                            {guard.employeeCode || "No code"}
                           </p>
                         </div>
                         <StatusBadge
@@ -195,7 +195,7 @@ export default function GuardHistoryPanel({ guard, guards = [] }) {
                           : "Awaiting first capture"}
                       </p>
                       <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs app-copy-muted">
-                        <p>{getGuardIdentityEnrollmentLabel(owner)}</p>
+                        <p>{getGuardIdentityEnrollmentLabel(guard)}</p>
                         <p className="mt-1">{getSelfieIdentityLabel(selfie)}</p>
                         <p className="mt-1 font-semibold app-copy-primary">
                           {formatSelfieIdentityScore(selfie)}

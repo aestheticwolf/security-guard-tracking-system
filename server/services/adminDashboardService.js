@@ -65,6 +65,59 @@ function getMinutesSince(value) {
   return Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / (1000 * 60)));
 }
 
+function isSameDateKey(value, dateKey) {
+  return Boolean(value && String(value).startsWith(dateKey));
+}
+
+function getTimestampMs(value) {
+  const timestamp = new Date(value || "").getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function findClosestSelfie(selfies, targetTime) {
+  const targetTimestamp = getTimestampMs(targetTime);
+
+  if (!selfies.length || targetTimestamp === null) {
+    return null;
+  }
+
+  return [...selfies].sort((left, right) => {
+    const leftDistance = Math.abs((getTimestampMs(left.capturedAt) ?? 0) - targetTimestamp);
+    const rightDistance = Math.abs((getTimestampMs(right.capturedAt) ?? 0) - targetTimestamp);
+    return leftDistance - rightDistance;
+  })[0] || null;
+}
+
+function buildTodaySelfieEvidence(attendanceHistory, selfieHistory, dateKey) {
+  return attendanceHistory
+    .filter((entry) => isSameDateKey(entry.checkInAt, dateKey) || isSameDateKey(entry.checkOutAt, dateKey))
+    .map((entry) => {
+      const linkedSelfies = selfieHistory
+        .filter((selfie) => selfie.attendanceId === entry.id)
+        .sort((left, right) => (getTimestampMs(left.capturedAt) ?? 0) - (getTimestampMs(right.capturedAt) ?? 0));
+      const checkInSelfie = findClosestSelfie(linkedSelfies, entry.checkInAt) || linkedSelfies[0] || null;
+      const checkInSelfieId = checkInSelfie?.id || `${checkInSelfie?.imagePath || ""}-${checkInSelfie?.capturedAt || ""}`;
+      const checkoutCandidates = linkedSelfies.filter((selfie) => {
+        const selfieId = selfie.id || `${selfie.imagePath || ""}-${selfie.capturedAt || ""}`;
+        return selfieId !== checkInSelfieId;
+      });
+      const checkOutSelfie = entry.checkOutAt
+        ? findClosestSelfie(checkoutCandidates, entry.checkOutAt) || checkoutCandidates[checkoutCandidates.length - 1] || null
+        : null;
+
+      return {
+        attendanceId: entry.id,
+        checkInAt: entry.checkInAt,
+        checkOutAt: entry.checkOutAt,
+        status: entry.status,
+        locationLabel: entry.locationLabel,
+        note: entry.note,
+        checkInSelfie,
+        checkOutSelfie
+      };
+    });
+}
+
 function formatLocationCoordinates(location) {
   if (
     location?.latitude === undefined ||
@@ -176,6 +229,7 @@ function buildDutySiteCoverage(dutySites, guards) {
       latitude: null,
       longitude: null,
       status: "unassigned",
+      isUnassigned: true,
       assignedCount: unassignedGuards.length,
       onDutyCount: unassignedGuards.filter((guard) => guard.shiftState === "On Duty").length,
       trackedCount: unassignedGuards.filter((guard) => guard.latestLocation).length,
@@ -261,7 +315,8 @@ export async function buildGuardRoster(organizationId = null, dutySitesOverride 
         activityHistory: activityHistory.slice(0, 10),
         attendanceHistory: attendanceHistory.slice(0, 8),
         locationHistory: locationHistory.slice(0, 16),
-        selfieHistory: selfieHistory.slice(0, 8),
+        selfieHistory,
+        todaySelfieEvidence: buildTodaySelfieEvidence(attendanceHistory, selfieHistory, dateKey),
         lastSelfie,
         activityCountToday,
         locationPingsToday,
@@ -377,12 +432,19 @@ export async function buildAdminOverview(organizationId = null) {
   const incidents = scopedActivities.filter(
     (entry) => entry.type === "incident" || entry.type === "alert"
   );
+  const checkedInGuardIdsToday = new Set(scopedAttendance.map((entry) => entry.userId));
+  const checkedInGuardsToday = checkedInGuardIdsToday.size;
+  const attendanceRate = guards.length
+    ? Math.min(100, Math.round((checkedInGuardsToday / guards.length) * 100))
+    : 0;
 
   return {
     metrics: {
       totalGuards: guards.length,
       onDuty: guards.filter((guard) => guard.shiftState === "On Duty").length,
-      attendanceRate: guards.length ? Math.round((scopedAttendance.length / guards.length) * 100) : 0,
+      attendanceRate,
+      checkedInGuardsToday,
+      attendanceRecordsToday: scopedAttendance.length,
       incidentCount: incidents.length,
       trackedGuards: guards.filter((guard) => guard.latestLocation).length,
       activeDutySites: dutySites.filter((site) => site.status === "active").length,

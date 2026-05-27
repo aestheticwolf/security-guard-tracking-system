@@ -47,6 +47,25 @@ const comprefaceTimeoutMs = readDurationMs(process.env.COMPREFACE_TIMEOUT_MS, 8_
 const comprefaceInlineTimeoutMs = readDurationMs(process.env.COMPREFACE_INLINE_TIMEOUT_MS, 2_500);
 const comprefaceDetectionThreshold = process.env.COMPREFACE_DET_PROB_THRESHOLD || "0.8";
 
+function isHostedRuntime() {
+  return Boolean(
+    process.env.RENDER ||
+      process.env.RENDER_SERVICE_ID ||
+      process.env.VERCEL ||
+      process.env.CF_PAGES ||
+      process.env.NODE_ENV === "production"
+  );
+}
+
+function isLocalhostUrl(value) {
+  try {
+    const parsedUrl = new URL(value);
+    return ["localhost", "127.0.0.1", "::1"].includes(parsedUrl.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function readDurationMs(value, fallback) {
   const duration = Number(value);
   return Number.isFinite(duration) && duration >= 0 ? duration : fallback;
@@ -102,7 +121,15 @@ function buildIdentityReview({ hasReference, captureSource, qualityScore }) {
 }
 
 function isCompreFaceConfigured() {
-  return Boolean(comprefaceBaseUrl && comprefaceApiKey);
+  if (!comprefaceBaseUrl || !comprefaceApiKey) {
+    return false;
+  }
+
+  if (isHostedRuntime() && isLocalhostUrl(comprefaceBaseUrl)) {
+    return process.env.COMPREFACE_ALLOW_LOCALHOST === "true";
+  }
+
+  return true;
 }
 
 function getImageMimeType(filename = "", fallback = "image/jpeg") {
