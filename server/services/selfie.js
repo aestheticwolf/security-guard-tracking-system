@@ -244,6 +244,10 @@ function parseJsonResponse(text) {
   }
 }
 
+function isFaceNotFoundMessage(value) {
+  return /no face|face.*not found|no.*faces/i.test(String(value || ""));
+}
+
 function normalizeSimilarityScore(value) {
   const score = Number(value);
 
@@ -300,10 +304,24 @@ async function verifyAgainstCompreFace(sourceFile, referencePath) {
     const responsePayload = parseJsonResponse(responseText);
 
     if (!verificationResponse.ok) {
-      throw new Error(
+      const responseMessage =
         responsePayload?.message ||
-          responsePayload?.error ||
-          `CompreFace returned ${verificationResponse.status}.`
+        responsePayload?.error ||
+        responsePayload?.detail ||
+        responseText;
+
+      if (isFaceNotFoundMessage(responseMessage)) {
+        return {
+          similarity: 0,
+          matched: false,
+          needsReview: false,
+          faceDetected: false,
+          rawResult: responsePayload
+        };
+      }
+
+      throw new Error(
+        responseMessage || `CompreFace returned ${verificationResponse.status}.`
       );
     }
 

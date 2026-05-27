@@ -5,8 +5,8 @@ const identityLabels = {
   reference_review: "Reference review ready",
   upload_review: "Uploaded image review",
   identity_processing: "Face match processing",
-  match_not_configured: "Manual identity review",
-  match_unavailable: "Manual identity review",
+  match_not_configured: "Face scoring not enabled",
+  match_unavailable: "Face scoring unavailable",
   matched: "Identity matched",
   possible_match: "Review-band match",
   mismatch: "Identity mismatch",
@@ -102,11 +102,11 @@ export function formatSelfieIdentityScore(selfie) {
   }
 
   if (selfie?.identityStatus === "match_not_configured") {
-    return "Manual review";
+    return "Not enabled";
   }
 
   if (selfie?.identityStatus === "match_unavailable") {
-    return "Manual review";
+    return "Unavailable";
   }
 
   const score = getSelfieIdentityScorePercent(selfie);
@@ -148,11 +148,11 @@ export function getSelfieIdentityDecision(selfie) {
   }
 
   if (selfie.identityStatus === "match_not_configured") {
-    return "Manual review required";
+    return "Scoring not enabled";
   }
 
   if (selfie.identityStatus === "match_unavailable") {
-    return "Manual review required";
+    return "Scoring unavailable";
   }
 
   return "Manual review required";
@@ -196,9 +196,10 @@ export function getSelfieIdentityGuidance(selfie) {
       return "The live selfie does not confidently match the enrolled reference. Review both images before approving the shift proof.";
     case "face_not_detected":
       return "The selfie is not clear enough for reliable verification. Ask the guard to retake a front-facing selfie.";
-    case "match_not_configured":
     case "match_unavailable":
-      return "Automatic matching did not complete for this capture. Review the enrolled reference and shift selfie manually.";
+      return "Face-match scoring did not return a result. Review manually and check production matcher connectivity.";
+    case "match_not_configured":
+      return "Face-match scoring is not enabled on this deployment. Manual review is required until the production matcher is connected.";
     case "upload_review":
       return "This proof came from an uploaded image. Prefer live camera capture for stronger identity assurance.";
     case "reference_review":
