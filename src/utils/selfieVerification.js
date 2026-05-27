@@ -5,11 +5,16 @@ const identityLabels = {
   reference_review: "Reference review ready",
   upload_review: "Uploaded image review",
   matched: "Identity matched",
-  mismatch: "Identity mismatch"
+  mismatch: "Identity mismatch",
+  face_not_detected: "Face not detected"
 };
 
 export function isSelfieVerificationPassed(selfie) {
   if (!selfie) {
+    return false;
+  }
+
+  if (["mismatch", "face_not_detected"].includes(selfie.identityStatus)) {
     return false;
   }
 

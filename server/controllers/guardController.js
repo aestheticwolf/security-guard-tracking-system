@@ -8,7 +8,7 @@ import { createLocation, findLatestLocationByUserId } from "../models/locationMo
 import { createSelfie } from "../models/selfieModel.js";
 import { touchUser } from "../models/userModel.js";
 import { reverseGeocodeLocation } from "../services/geocoding.js";
-import { scoreSelfieCapture, storeSelfieFile } from "../services/selfie.js";
+import { storeSelfieFile, verifySelfieCapture } from "../services/selfie.js";
 import { buildGuardOverview } from "../services/guardDashboardService.js";
 import {
   createHttpError,
@@ -149,7 +149,7 @@ export async function checkIn(request, response) {
   const shiftNote = note ? String(note).trim() : "";
   const attendanceId = createId();
   const timestamp = now();
-  const selfieCheck = scoreSelfieCapture(request.file, {
+  const selfieCheck = await verifySelfieCapture(request.file, {
     captureSource,
     identityPhotoPath: request.user.identityPhotoPath,
     identitySelfiePath: request.user.identitySelfiePath
@@ -247,7 +247,7 @@ export async function checkOut(request, response) {
     captureSource
   } = request.body ?? {};
   const parsedCoordinates = parseLocationCoordinates(latitude, longitude);
-  const selfieCheck = scoreSelfieCapture(request.file, {
+  const selfieCheck = await verifySelfieCapture(request.file, {
     captureSource,
     identityPhotoPath: request.user.identityPhotoPath,
     identitySelfiePath: request.user.identitySelfiePath

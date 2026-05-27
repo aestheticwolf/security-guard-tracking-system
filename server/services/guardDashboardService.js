@@ -12,6 +12,10 @@ import { getAttendanceMinutesForDay, getDateKey, sortByNewest } from "./coreServ
 const selfieVerificationThreshold = 0.75;
 
 function isVerifiedSelfie(selfie) {
+  if (["mismatch", "face_not_detected"].includes(selfie?.identityStatus)) {
+    return false;
+  }
+
   return Boolean(selfie?.verified || Number(selfie?.verificationScore) >= selfieVerificationThreshold);
 }
 
