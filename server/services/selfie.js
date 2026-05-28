@@ -322,7 +322,8 @@ async function verifyAgainstCompreFace(sourceFile, referencePath) {
     const verificationResponse = await fetch(endpointUrl, {
       method: "POST",
       headers: {
-        "x-api-key": comprefaceApiKey
+        "x-api-key": comprefaceApiKey,
+        "ngrok-skip-browser-warning": "true"
       },
       body: formData,
       signal: controller.signal

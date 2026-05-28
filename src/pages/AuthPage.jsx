@@ -296,7 +296,9 @@ export default function AuthPage() {
   function getFriendlyAuthError(rawMessage) {
     const message = rawMessage?.trim();
     if (!message) return "Unable to sign in right now. Please try again.";
-    if (/network error/i.test(message)) return "Cannot reach the local backend. Please restart the app server and try again.";
+    if (/network error/i.test(message)) {
+      return "Cannot reach the security backend. Check the API deployment and try again.";
+    }
     if (/bcrypt/i.test(message)) return "Authentication service was updated. Please restart the app server and sign in again.";
     return message;
   }
