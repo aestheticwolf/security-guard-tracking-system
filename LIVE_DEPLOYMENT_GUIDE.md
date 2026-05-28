@@ -1,8 +1,17 @@
 # Live Deployment Guide
 
-This guide explains exactly how Sentinel Grid was made live using Cloudflare Pages for the frontend and Cloudflare Tunnel for the local backend. It also documents the recommended free upgrade path: Cloudflare Pages + Render + MongoDB Atlas + Cloudinary.
+This guide documents the current Sentinel Grid live setup with Cloudflare Pages, Render, MongoDB Atlas, Cloudinary, and optional CompreFace face matching through a public URL or ngrok tunnel.
 
-## Current Live Links
+## Current Architecture
+
+```text
+React/Vite frontend -> Cloudflare Pages
+Express backend -> Render Web Service
+Database -> MongoDB Atlas
+Selfie images -> Cloudinary
+Optional face matching -> CompreFace
+Temporary CompreFace public access -> ngrok tunnel to local Docker
+```
 
 Frontend:
 
@@ -10,193 +19,16 @@ Frontend:
 https://security-guard-tracking-system.pages.dev
 ```
 
-Backend tunnel:
+Backend:
 
 ```text
-https://annually-antarctica-ties-cells.trycloudflare.com
+https://sentinel-grid-api.onrender.com/api
 ```
 
 Backend health check:
 
 ```text
-https://annually-antarctica-ties-cells.trycloudflare.com/api/health
-```
-
-GitHub repository:
-
-```text
-https://github.com/aestheticwolf/security-guard-tracking-system
-```
-
-## Hosting Architecture
-
-The current testing deployment is live with this setup:
-
-```text
-React/Vite frontend -> Cloudflare Pages
-Express API backend -> Local PC
-Public backend access -> Cloudflare Tunnel
-Database -> Local SQLite file
-Selfie uploads -> Local server/uploads/selfies folder
-```
-
-This is a no-card deployment approach. It keeps SQLite and uploaded selfies on the local machine while still giving the frontend a public HTTPS URL.
-
-## Recommended Free Permanent Setup
-
-For a smoother live demo without changing tunnel URLs, use this:
-
-```text
-React/Vite frontend -> Cloudflare Pages
-Express API backend -> Render Free Web Service
-Database -> MongoDB Atlas Free M0
-Selfie uploads -> Cloudinary Free
-```
-
-This project now supports that setup through environment variables. If `MONGODB_URI` is present, the backend uses MongoDB instead of SQLite. If Cloudinary credentials are present, selfie images upload to Cloudinary instead of `server/uploads/selfies`.
-
-Render backend variables:
-
-```env
-PORT=5000
-JWT_SECRET=change-this-to-a-long-secure-secret
-MONGODB_URI=mongodb+srv://<user>:<password>@<cluster-url>/sentinel_grid
-MONGODB_DB_NAME=sentinel_grid
-CLOUDINARY_CLOUD_NAME=<cloud-name>
-CLOUDINARY_API_KEY=<api-key>
-CLOUDINARY_API_SECRET=<api-secret>
-CLOUDINARY_FOLDER=sentinel-grid/selfies
-GEOCODER_USER_AGENT=SentinelGrid/1.0
-```
-
-Cloudflare Pages frontend variable:
-
-```env
-VITE_API_URL=https://your-render-backend.onrender.com/api
-```
-
-## Important Rule
-
-The live frontend depends on the local backend. These two commands must stay running on the local machine:
-
-```powershell
-npm start
-```
-
-```powershell
-cloudflared tunnel --url http://127.0.0.1:5000
-```
-
-If either command stops, the live frontend may open, but login, dashboard data, selfie upload, and location sync will stop working.
-
-## Step 1: Push Code To GitHub
-
-The project was pushed to:
-
-```text
-https://github.com/aestheticwolf/security-guard-tracking-system
-```
-
-Typical update flow:
-
-```powershell
-git add .
-git commit -m "update project"
-git push
-```
-
-Cloudflare Pages automatically rebuilds the frontend after a push to `main`.
-
-## Step 2: Configure Local Environment
-
-The local `.env` file should contain:
-
-```env
-PORT=5000
-JWT_SECRET=change-this-to-a-long-secure-secret
-DB_FILE=./server/database/security.db
-VITE_API_URL=https://annually-antarctica-ties-cells.trycloudflare.com/api
-GEOCODER_USER_AGENT=SentinelGrid/1.0
-```
-
-For normal local-only testing without tunnel, use:
-
-```env
-VITE_API_URL=http://localhost:5000/api
-```
-
-For live Cloudflare Pages testing, use the tunnel URL:
-
-```env
-VITE_API_URL=https://annually-antarctica-ties-cells.trycloudflare.com/api
-```
-
-## Step 3: Keep The Database Safe
-
-The active database is:
-
-```text
-A:\0\infipre\security\server\database\security.db
-```
-
-The older default temp database was:
-
-```text
-C:\Users\richa\AppData\Local\Temp\SentinelGrid\security.db
-```
-
-If old data appears missing, copy the old temp database into the active project database:
-
-```powershell
-Copy-Item "$env:TEMP\SentinelGrid\security.db" "A:\0\infipre\security\server\database\security.db" -Force
-```
-
-Before replacing the active database, make a backup:
-
-```powershell
-Copy-Item "A:\0\infipre\security\server\database\security.db" "A:\0\infipre\security\server\database\security-backup.db"
-```
-
-Do not run this unless you intentionally want to reset seeded data:
-
-```powershell
-npm run db:reset
-```
-
-## Step 4: Install Dependencies And Initialize Database
-
-Run:
-
-```powershell
-npm install
-```
-
-Then:
-
-```powershell
-npm run db:init
-```
-
-This creates or updates the SQLite schema while keeping existing data intact.
-
-## Step 5: Start Backend
-
-Open a terminal and run:
-
-```powershell
-npm start
-```
-
-Expected output:
-
-```text
-Sentinel Grid API listening on http://localhost:5000
-```
-
-Local backend health check:
-
-```text
-http://localhost:5000/api/health
+https://sentinel-grid-api.onrender.com/api/health
 ```
 
 Expected response:
@@ -205,246 +37,298 @@ Expected response:
 {"status":"ok","service":"Sentinel Grid API"}
 ```
 
-## Step 6: Install Cloudflare Tunnel
+## Important Deployment Rule
 
-Install `cloudflared`:
+The frontend and backend are deployed separately.
 
-```powershell
-winget install --id Cloudflare.cloudflared -e
+Cloudflare Pages needs only:
+
+```env
+VITE_API_URL=https://sentinel-grid-api.onrender.com/api
+NODE_VERSION=22
 ```
 
-If the short command does not work immediately, refresh the current terminal path:
+Render needs backend secrets, database values, Cloudinary values, and optional CompreFace values.
 
-```powershell
-$env:Path += ";C:\Program Files (x86)\cloudflared"
+Do not put backend secrets in Cloudflare Pages.
+
+## Render Backend Environment
+
+Required:
+
+```env
+JWT_SECRET=long-production-secret
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster-url>/sentinel_grid
+MONGODB_DB_NAME=sentinel_grid
+GEOCODER_USER_AGENT=SentinelGrid/1.0
 ```
 
-Check version:
+Recommended for permanent selfies:
 
-```powershell
-cloudflared --version
+```env
+CLOUDINARY_CLOUD_NAME=<cloud-name>
+CLOUDINARY_API_KEY=<api-key>
+CLOUDINARY_API_SECRET=<api-secret>
+CLOUDINARY_FOLDER=sentinel-grid/selfies
 ```
 
-If needed, use the full path:
+Optional CompreFace:
 
-```powershell
-& "C:\Program Files (x86)\cloudflared\cloudflared.exe" --version
+```env
+COMPREFACE_BASE_URL=https://your-public-compreface-url
+COMPREFACE_API_KEY=your-verification-service-api-key
+COMPREFACE_VERIFY_THRESHOLD=0.78
+COMPREFACE_REVIEW_THRESHOLD=0.65
+COMPREFACE_TIMEOUT_MS=8000
+COMPREFACE_INLINE_TIMEOUT_MS=2500
+COMPREFACE_DET_PROB_THRESHOLD=0.8
 ```
 
-## Step 7: Start Backend Tunnel
+Render should not use:
 
-Open another terminal and run:
-
-```powershell
-cloudflared tunnel --url http://127.0.0.1:5000
+```env
+COMPREFACE_BASE_URL=http://localhost:8000
 ```
 
-If the short command fails, use:
+On Render, `localhost` means the Render container, not your laptop.
 
-```powershell
-& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:5000
+## Cloudflare Pages Environment
+
+Production variables:
+
+```env
+NODE_VERSION=22
+VITE_API_URL=https://sentinel-grid-api.onrender.com/api
 ```
 
-Cloudflare prints a public URL like:
+Build settings:
 
 ```text
-https://annually-antarctica-ties-cells.trycloudflare.com
+Framework preset: React (Vite)
+Build command: npm run build
+Build output directory: dist
+Production branch: main
 ```
 
-Test it:
+After changing `VITE_API_URL`, redeploy Cloudflare Pages.
 
-```text
-https://annually-antarctica-ties-cells.trycloudflare.com/api/health
+## Local Development Environment
+
+Use `.env` for local only:
+
+```env
+PORT=5000
+JWT_SECRET=change-this-to-a-long-secure-secret
+DB_FILE=./server/database/security.db
+VITE_API_URL=http://localhost:5000/api
+GEOCODER_USER_AGENT=SentinelGrid/1.0
+
+COMPREFACE_BASE_URL=http://localhost:8000
+COMPREFACE_API_KEY=your-local-verification-service-key
+COMPREFACE_VERIFY_THRESHOLD=0.78
+COMPREFACE_REVIEW_THRESHOLD=0.65
+COMPREFACE_TIMEOUT_MS=8000
+COMPREFACE_INLINE_TIMEOUT_MS=2500
+COMPREFACE_DET_PROB_THRESHOLD=0.8
 ```
 
-## Step 8: Run Frontend Locally For Testing
-
-Open a third terminal and run:
+Start locally:
 
 ```powershell
-npm run client
+npm run dev
 ```
 
 Open:
 
 ```text
-http://localhost:5173/auth
+http://localhost:5173
 ```
 
-Test:
+## CompreFace Local Docker Setup
 
-- Admin login
-- Guard login
-- Selfie upload
-- Location sync
-- Admin dashboard
-- Guard history
+CompreFace runs locally through Docker Desktop at:
 
-## Step 9: Build Frontend
+```text
+http://localhost:8000
+```
 
-Before deploying, verify the production build:
+Inside CompreFace:
+
+1. Create or open the `Sentinel Grid` application.
+2. Create a service.
+3. Choose `Verification`.
+4. Name it `Shift Selfie Verification`.
+5. Copy the service API key.
+
+Use the `Verify` service key, not a recognition service key.
+
+## Expose Local CompreFace With ngrok
+
+Install ngrok and add the authtoken:
+
+```powershell
+ngrok config add-authtoken <your-ngrok-token>
+```
+
+Start the tunnel:
+
+```powershell
+ngrok http 8000
+```
+
+ngrok prints:
+
+```text
+Forwarding https://example.ngrok-free.dev -> http://localhost:8000
+```
+
+Use the HTTPS URL in Render:
+
+```env
+COMPREFACE_BASE_URL=https://example.ngrok-free.dev
+```
+
+Keep these running while testing live face match:
+
+- Docker Desktop
+- CompreFace containers
+- ngrok terminal
+
+If ngrok restarts, the free URL may change. Update Render and redeploy.
+
+## Render Deploy Flow
+
+After changing Render variables:
+
+1. Click `Save, rebuild, and deploy`.
+2. Wait until deploy is live.
+3. Open:
+
+```text
+https://sentinel-grid-api.onrender.com/api/health
+```
+
+4. Capture a new selfie in the live app.
+5. Check admin selected-guard detail for face score.
+
+Old selfie records may still show old statuses. Test with a new capture after deploy.
+
+## Git Update Flow
+
+Before pushing:
 
 ```powershell
 npm run build
 ```
 
-The output folder is:
+Commit:
 
-```text
-dist
+```powershell
+git add .
+git commit -m "update project"
+git push
 ```
 
-## Step 10: Deploy Frontend To Cloudflare Pages
+Cloudflare Pages and Render can auto-deploy from `main`.
 
-In Cloudflare:
+## Face Match Troubleshooting
+
+`Scoring not enabled`
+
+- `COMPREFACE_BASE_URL` is missing in Render.
+- `COMPREFACE_API_KEY` is missing in Render.
+- Render is using `http://localhost:8000`.
+- The record was captured before CompreFace was configured.
+
+`Scoring unavailable`
+
+- Render attempted CompreFace but did not get a usable result.
+- Open Render logs and search:
 
 ```text
-Workers & Pages -> Create application -> Pages -> Connect to Git
+CompreFace verification failed
 ```
 
-Select:
+Common causes:
+
+- Wrong API key.
+- API key is not from a `Verify` service.
+- Docker CompreFace is stopped.
+- ngrok terminal is stopped.
+- ngrok URL changed.
+- Cloudinary/reference image is not reachable from Render.
+- CompreFace returned HTML instead of JSON.
+
+`401` in Render logs:
 
 ```text
-aestheticwolf/security-guard-tracking-system
+Wrong COMPREFACE_API_KEY
 ```
 
-Use these settings:
+`404` in Render logs:
 
 ```text
-Project name: security-guard-tracking-system
-Production branch: main
-Framework preset: React (Vite)
-Build command: npm run build
-Build output directory: dist
-Root directory: leave empty
+Wrong COMPREFACE_BASE_URL or service endpoint
 ```
 
-Add environment variables:
+`fetch failed` in Render logs:
+
+```text
+ngrok stopped, Docker stopped, or URL changed
+```
+
+## Backend Login Troubleshooting
+
+Live login fails:
+
+1. Open the backend health check:
+
+```text
+https://sentinel-grid-api.onrender.com/api/health
+```
+
+2. Confirm Cloudflare Pages variable:
 
 ```env
-VITE_API_URL=https://annually-antarctica-ties-cells.trycloudflare.com/api
-NODE_VERSION=22
+VITE_API_URL=https://sentinel-grid-api.onrender.com/api
 ```
 
-Then click:
+3. Confirm Render deploy finished.
+4. Retry after Render free instance wakes up.
 
-```text
-Save and Deploy
-```
+## Data Storage
 
-## Step 11: Live Frontend Test
-
-Open:
-
-```text
-https://security-guard-tracking-system.pages.dev/auth
-```
-
-Test the demo accounts:
-
-```text
-admin@sentinel.local
-Admin@123
-```
-
-```text
-guard@sentinel.local
-Guard@123
-```
-
-## Step 12: Daily Run Checklist
-
-Every time you want the live site to work, run these:
-
-Terminal 1:
-
-```powershell
-npm start
-```
-
-Terminal 2:
-
-```powershell
-cloudflared tunnel --url http://127.0.0.1:5000
-```
-
-Optional local frontend terminal:
-
-```powershell
-npm run client
-```
-
-## Step 13: If The Tunnel URL Changes
-
-Quick tunnels can change after restart. If Cloudflare gives a new URL:
-
-1. Copy the new URL.
-2. Go to Cloudflare Pages.
-3. Open the project settings.
-4. Update:
-
-```env
-VITE_API_URL=https://NEW-TUNNEL-URL.trycloudflare.com/api
-```
-
-5. Redeploy the frontend.
-
-## Step 14: Data Storage
-
-SQLite data:
+Local:
 
 ```text
 server/database/security.db
-```
-
-Selfie images:
-
-```text
 server/uploads/selfies
 ```
 
-These are local runtime files. They are not hosted inside Cloudflare Pages.
+Live:
 
-## Step 15: Common Problems
-
-Backend not reachable:
-
-- Check `npm start` is running.
-- Check `http://localhost:5000/api/health`.
-- Check tunnel is running.
-- Check tunnel health URL.
-
-Login fails on live frontend:
-
-- Check Cloudflare Pages `VITE_API_URL`.
-- Confirm the tunnel URL did not change.
-- Redeploy after changing environment variables.
-
-Data appears missing:
-
-- Check `.env` `DB_FILE`.
-- Open the active SQLite file.
-- Restore from the old temp database only if needed.
-
-Cloudflared command not recognized:
-
-```powershell
-$env:Path += ";C:\Program Files (x86)\cloudflared"
+```text
+MongoDB Atlas collections
+Cloudinary images
 ```
 
-Or run:
+Runtime data should not be committed to Git.
 
-```powershell
-& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:5000
+## Current Limitations
+
+- ngrok free URLs can change.
+- ngrok requires the laptop, Docker, and terminal to stay running.
+- Render free services can sleep and wake slowly.
+- Browser GPS does not continue reliably after the tab closes.
+- CompreFace through ngrok is for testing, not production.
+
+## Production Recommendation
+
+For real production face verification:
+
+```text
+Host CompreFace on a VPS with Docker Compose
+Use a stable domain such as https://faces.yourdomain.com
+Set Render COMPREFACE_BASE_URL to that domain
+Rotate the CompreFace API key after public setup
 ```
-
-## Production Upgrade Path
-
-This setup is excellent for demos and no-card hosting. For real production, move to:
-
-- Hosted backend server or VPS
-- PostgreSQL/MySQL instead of local SQLite
-- Cloud object storage for selfies
-- Stable Cloudflare named tunnel or real backend domain
-- Automated backups
-- Production logging and monitoring
