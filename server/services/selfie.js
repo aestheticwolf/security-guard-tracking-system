@@ -275,6 +275,21 @@ function isFaceNotFoundMessage(value) {
   return /no face|face.*not found|no.*faces/i.test(String(value || ""));
 }
 
+function getCompreFaceLogContext(referenceLabel) {
+  let matcherHost = "not configured";
+
+  try {
+    matcherHost = new URL(comprefaceBaseUrl).host;
+  } catch {
+    matcherHost = comprefaceBaseUrl || "not configured";
+  }
+
+  return {
+    matcherHost,
+    referenceLabel
+  };
+}
+
 function normalizeSimilarityScore(value) {
   const score = Number(value);
 
@@ -497,7 +512,11 @@ export async function verifySelfieCapture(file, options = {}) {
       if (!bestReview || Number(review.identityScore) > Number(bestReview.identityScore)) {
         bestReview = review;
       }
-    } catch {
+    } catch (error) {
+      console.warn("CompreFace verification failed.", {
+        ...getCompreFaceLogContext(reference.label),
+        message: error?.message || "Unknown matcher error"
+      });
       // Try the next enrolled reference before falling back to manual review.
     }
   }
