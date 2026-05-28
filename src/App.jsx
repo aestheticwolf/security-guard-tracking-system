@@ -6,11 +6,14 @@ import AuthPage from "./pages/AuthPage";
 import GuardDashboard from "./pages/GuardDashboard";
 import LandingPage from "./pages/LandingPage";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import { isNativeApp } from "./utils/nativeApp";
 
 export default function App() {
+  const nativeApp = isNativeApp();
+
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={nativeApp ? <Navigate to="/auth" replace /> : <LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route
         path="/dashboard"

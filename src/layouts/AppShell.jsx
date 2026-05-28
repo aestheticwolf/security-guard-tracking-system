@@ -32,6 +32,16 @@ export default function AppShell({
   const mobileQuickLinksRef = useRef(null);
   const nativeApp = isNativeApp();
 
+  function confirmSignOut() {
+    const confirmed = window.confirm("Are you sure you want to sign out? You will need to sign in again to continue.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    logout();
+  }
+
   const navigation =
     user?.role === "super_admin"
       ? [
@@ -174,7 +184,7 @@ export default function AppShell({
 
           <button
             type="button"
-            onClick={() => logout()}
+            onClick={confirmSignOut}
             className="app-outline-button mt-4 flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium"
           >
             <LogOut className="h-4 w-4" />
@@ -351,7 +361,7 @@ export default function AppShell({
                   </button>
                   <button
                     type="button"
-                    onClick={() => logout()}
+                    onClick={confirmSignOut}
                     className="app-outline-button flex h-10 w-10 items-center justify-center rounded-[18px]"
                     aria-label="Sign out"
                   >

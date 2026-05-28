@@ -16,6 +16,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { heroReveal } from "../animations/transitions";
 import FormField from "../components/FormField";
 import { useAuth } from "../context/AuthContext";
+import { isNativeApp } from "../utils/nativeApp";
 
 // ── Floating particle component ───────────────────────────────────────────────
 function Particle({ delay, duration, x, y, size, opacity }) {
@@ -246,6 +247,28 @@ function AuthRouteVisual() {
   );
 }
 
+function DemoCredentials({ className = "", spacingClass = "mt-8" }) {
+  return (
+    <motion.div
+      className={`auth-credentials-card ${spacingClass} rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[26px] sm:p-5 ${className}`}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+    >
+      <div className="flex items-center gap-3">
+        <ShieldCheck className="h-5 w-5 text-jade-200" />
+        <p className="font-semibold text-white">Demo credentials</p>
+        <span className="ml-auto text-xs text-slate-500">Click any card to copy</span>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <CredentialCard title="Super Admin" email="super@sentinel.local" password="Super@123" accent="jade" />
+        <CredentialCard title="Admin" email="admin@sentinel.local" password="Admin@123" accent="gold" />
+        <CredentialCard title="Guard" email="guard@sentinel.local" password="Guard@123" accent="jade" />
+      </div>
+    </motion.div>
+  );
+}
+
 function getDashboardPathForRole(role) {
   if (role === "super_admin") return "/super-admin";
   if (role === "admin") return "/admin";
@@ -257,6 +280,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, user } = useAuth();
+  const nativeApp = isNativeApp();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -349,7 +373,7 @@ export default function AuthPage() {
 
   return (
     <div
-      className="auth-scene mesh-background relative isolate min-h-screen overflow-hidden px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-6 lg:py-6"
+      className={`auth-scene mesh-background relative isolate min-h-screen overflow-hidden px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-6 lg:py-6 ${nativeApp ? "auth-scene--native" : ""}`}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
@@ -374,14 +398,21 @@ export default function AuthPage() {
       {particles.map((p, i) => <Particle key={i} {...p} />)}
 
       {/* Main grid */}
-      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1440px] gap-4 sm:gap-5 lg:min-h-[calc(100vh-3rem)] lg:grid-cols-[1.1fr_0.9fr]">
+      <div
+        className={
+          nativeApp
+            ? "relative z-10 mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-xl flex-col gap-4 sm:gap-5"
+            : "relative z-10 mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1440px] gap-4 sm:gap-5 lg:min-h-[calc(100vh-3rem)] lg:grid-cols-[1.1fr_0.9fr]"
+        }
+      >
 
         {/* ── LEFT: Story card ──────────────────────────────────────────── */}
-        <motion.section
-          {...heroReveal}
-          style={{ rotateX: cardRotateX, rotateY: cardRotateY, transformPerspective: 1200 }}
-          className="auth-card auth-story-card glass-panel order-2 flex flex-col justify-between rounded-[24px] border border-white/10 p-5 shadow-glow sm:rounded-[32px] sm:p-8 lg:order-1"
-        >
+        {!nativeApp && (
+          <motion.section
+            {...heroReveal}
+            style={{ rotateX: cardRotateX, rotateY: cardRotateY, transformPerspective: 1200 }}
+            className="auth-card auth-story-card glass-panel order-2 flex flex-col justify-between rounded-[24px] border border-white/10 p-5 shadow-glow sm:rounded-[32px] sm:p-8 lg:order-1"
+          >
           <div>
             {/* Logo */}
             <Link to="/" className="inline-flex items-center gap-3 group">
@@ -465,30 +496,19 @@ export default function AuthPage() {
           </div>
 
           {/* Demo credentials */}
-          <motion.div
-            className="auth-credentials-card mt-8 rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[26px] sm:p-5"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="h-5 w-5 text-jade-200" />
-              <p className="font-semibold text-white">Demo credentials</p>
-              <span className="ml-auto text-xs text-slate-500">Click any card to copy</span>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <CredentialCard title="Super Admin" email="super@sentinel.local" password="Super@123" accent="jade" />
-              <CredentialCard title="Admin" email="admin@sentinel.local" password="Admin@123" accent="gold" />
-              <CredentialCard title="Guard" email="guard@sentinel.local" password="Guard@123" accent="jade" />
-            </div>
-          </motion.div>
-        </motion.section>
+            <DemoCredentials />
+          </motion.section>
+        )}
 
         {/* ── RIGHT: Login card ─────────────────────────────────────────── */}
         <motion.section
           {...heroReveal}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="auth-card auth-login-card glass-panel order-1 flex items-start rounded-[24px] border border-white/10 p-5 pb-6 shadow-glow sm:min-h-[calc(100vh-2.5rem)] sm:rounded-[32px] sm:p-8 lg:order-2 lg:min-h-0 lg:items-center"
+          className={`auth-card auth-login-card glass-panel order-1 flex items-start rounded-[24px] border border-white/10 p-5 pb-6 shadow-glow sm:rounded-[32px] sm:p-8 ${
+            nativeApp
+              ? "min-h-0"
+              : "sm:min-h-[calc(100vh-2.5rem)] lg:order-2 lg:min-h-0 lg:items-center"
+          }`}
         >
           <div className="auth-login-inner mx-auto mt-3 w-full max-w-md sm:mt-10 lg:mt-0">
 
@@ -645,6 +665,10 @@ export default function AuthPage() {
             </motion.p>
           </div>
         </motion.section>
+
+        {nativeApp && (
+          <DemoCredentials className="glass-panel shadow-glow" spacingClass="mt-0" />
+        )}
       </div>
     </div>
   );
