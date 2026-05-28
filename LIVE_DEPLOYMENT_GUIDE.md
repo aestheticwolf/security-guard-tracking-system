@@ -321,6 +321,7 @@ Runtime data should not be committed to Git.
 - Render free services can sleep and wake slowly.
 - Browser GPS does not continue reliably after the tab closes.
 - CompreFace through ngrok is for testing, not production.
+- Android debug APK builds require local Android SDK plus JDK 21.
 
 ## Production Recommendation
 
@@ -331,4 +332,29 @@ Host CompreFace on a VPS with Docker Compose
 Use a stable domain such as https://faces.yourdomain.com
 Set Render COMPREFACE_BASE_URL to that domain
 Rotate the CompreFace API key after public setup
+```
+
+## Android APK Deployment Note
+
+The APK is generated from the Cloudflare/Render-ready frontend build.
+
+Required before building:
+
+```env
+VITE_API_URL=https://sentinel-grid-api.onrender.com/api
+```
+
+Build commands:
+
+```powershell
+npm run android:sync
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:debug
+```
+
+Debug APK:
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
 ```

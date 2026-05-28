@@ -883,6 +883,82 @@ npm run dev
 
 ## 16. Production Notes
 
+## 16. Android APK Setup
+
+The Android app is built with Capacitor from the same React/Vite codebase.
+
+APK behavior:
+
+- Admin APK uses a focused mobile console with overview, live map, selected guard detail, latest selfie verification with score, add guard, duty site management, and field guard directory.
+- Guard APK uses the same guard shift flow as web/mobile: start shift, end shift, live selfie, GPS sync, camera mode switching, and duty notes.
+- Browser/web dashboard remains unchanged.
+
+Required local tools:
+
+- Android Studio or Android SDK command-line tools
+- Android SDK path available in `android/local.properties`
+- JDK 21
+
+Local SDK pointer example:
+
+```properties
+sdk.dir=C:/Users/richa/AppData/Local/Android/Sdk
+```
+
+`android/local.properties` is local-only and ignored by Git.
+
+Production APK API URL:
+
+```env
+VITE_API_URL=https://sentinel-grid-api.onrender.com/api
+```
+
+This is stored in `.env.production` so the APK calls Render instead of `localhost`.
+
+Sync Android after frontend changes:
+
+```powershell
+npm run android:sync
+```
+
+Build debug APK:
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:debug
+```
+
+Generated APK:
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Open Android project:
+
+```powershell
+npm run android:open
+```
+
+Android permissions configured:
+
+- Internet
+- Camera
+- Fine location
+- Coarse location
+- Optional front camera
+- Optional GPS
+
+For production release:
+
+- Use a signed release build, not `app-debug.apk`.
+- Keep Render, Cloudinary, MongoDB Atlas, and CompreFace configured before testing the APK.
+- If CompreFace uses ngrok, face scoring works only while Docker, CompreFace, and ngrok are running.
+- For stable production face scoring, host CompreFace on a VPS or public HTTPS service.
+
+## 17. Production Notes
+
 For real production:
 
 - Do not rely on ngrok free tunnel.
@@ -899,7 +975,7 @@ https://faces.yourdomain.com
 - Keep `.env` out of Git.
 - Keep Cloudinary and MongoDB credentials only in Render.
 
-## 17. Secret Safety Checklist
+## 18. Secret Safety Checklist
 
 If a secret was shown in a screenshot, terminal, video, or shared chat, rotate it:
 
@@ -916,7 +992,7 @@ After rotating:
 3. Redeploy Render.
 4. Test the app.
 
-## 18. Quick Command Reference
+## 19. Quick Command Reference
 
 ```powershell
 # Install app dependencies
@@ -930,6 +1006,14 @@ npm run dev
 
 # Build frontend
 npm run build
+
+# Sync Android native project
+npm run android:sync
+
+# Build Android debug APK with JDK 21
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:debug
 
 # Start production backend locally
 npm start
@@ -956,7 +1040,7 @@ git commit -m "update setup documentation"
 git push origin main
 ```
 
-## 19. Minimum Live Working Setup
+## 20. Minimum Live Working Setup
 
 Cloudflare Pages:
 

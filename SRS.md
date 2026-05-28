@@ -946,7 +946,32 @@ Otherwise it uses SQLite.
 - Do not commit uploaded selfies.
 - Do not commit local SQLite database files.
 
-## 13. Document Control
+## 13. Android APK Requirements
+
+The Android APK shall be built with Capacitor from the same React/Vite codebase.
+
+Admin APK requirements:
+
+- The admin Android view shall show a focused mobile console instead of the full desktop dashboard.
+- The admin Android view shall include overview metrics, live map, selected guard detail, latest selfie verification, add guard, duty site management, and field guard directory.
+- The admin Android view shall show identity match score and review status when face scoring is available.
+- The admin Android view shall keep long audit sections collapsed or hidden unless needed.
+
+Guard APK requirements:
+
+- The guard Android view shall support start-shift and end-shift selfie capture.
+- The guard Android view shall support GPS sync and live route status.
+- The guard Android view shall support front camera selfie and back camera context capture.
+- The guard Android view shall not show admin-only identity match score.
+
+Android platform requirements:
+
+- The APK shall use the live Render API URL for production builds.
+- The APK shall request camera and location permissions.
+- The APK shall remain usable on common Android phone screen sizes.
+- The debug APK shall be generated through `npm run android:apk:debug`.
+
+## 14. Document Control
 
 Document:
 
@@ -965,5 +990,5 @@ COMPLETE_SETUP_RUNBOOK.md
 Status:
 
 ```text
-Updated for current Cloudflare Pages frontend, Render backend, MongoDB Atlas, Cloudinary, Duty Sites, live camera selfie proof, admin-only face scoring, and optional CompreFace deployment.
+Updated for current Cloudflare Pages frontend, Render backend, MongoDB Atlas, Cloudinary, Duty Sites, live camera selfie proof, admin-only face scoring, optional CompreFace deployment, and Capacitor Android APK support.
 ```

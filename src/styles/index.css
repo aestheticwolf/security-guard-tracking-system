@@ -1408,6 +1408,42 @@ select {
   }
 }
 
+/* ── Native Android shell ─────────────────────────────────────────────────── */
+
+html.is-native-app,
+body.is-native-app {
+  min-height: 100%;
+  overscroll-behavior-y: none;
+}
+
+.native-app-shell {
+  padding-top: max(env(safe-area-inset-top), 0px);
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+@media (max-width: 768px) {
+  html.is-native-app body {
+    background: var(--body-bg);
+  }
+
+  .native-app-shell .glass-panel {
+    border-radius: 1.35rem;
+  }
+
+  .native-app-shell main {
+    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+
+  .native-app-shell .app-banner {
+    font-size: 0.82rem;
+    line-height: 1.35rem;
+  }
+
+  .native-app-shell video {
+    max-height: 68vh;
+  }
+}
+
 /* ── Keyframes ────────────────────────────────────────────────────────────── */
 
 @keyframes security-map-pulse {

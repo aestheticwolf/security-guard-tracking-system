@@ -55,6 +55,7 @@ import {
   isVirtualCameraDevice,
   normalizeCameraSelection
 } from "../utils/cameraCapture";
+import { isNativeApp } from "../utils/nativeApp";
 
 const adminRefreshIntervalMs = 5_000;
 const adminSignalRefreshDebounceMs = 800;
@@ -131,6 +132,15 @@ const adminSectionLinks = [
   { id: "admin-feed", label: "Ops Feed", icon: Activity },
   { id: "admin-create-guard", label: "Add Guard", icon: UserPlus },
   { id: "admin-roster", label: "Roster", icon: Users }
+];
+
+const androidAdminSectionLinks = [
+  { id: "admin-overview", label: "Home", icon: LayoutDashboard },
+  { id: "admin-map", label: "Map", icon: MapPinned },
+  { id: "admin-guard-detail", label: "Guard", icon: ShieldCheck },
+  { id: "admin-create-guard", label: "Add", icon: UserPlus },
+  { id: "admin-duty-site-management", label: "Sites", icon: Building2 },
+  { id: "admin-roster", label: "Directory", icon: Users }
 ];
 
 function buildDutySiteOptions(dutySites) {
@@ -562,6 +572,7 @@ function IdentityImagePicker({
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const nativeApp = isNativeApp();
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -912,11 +923,21 @@ export default function AdminDashboard() {
   const visibleLiveFeed = showAllLiveFeed
     ? liveFeedItems
     : liveFeedItems.slice(0, initialLiveFeedVisibleCount);
+  const activeVisibleLiveFeed = nativeApp
+    ? liveFeedItems.slice(0, 3)
+    : visibleLiveFeed;
   const hasMoreRoster = filteredGuards.length > initialRosterVisibleCount;
   const hiddenRosterCount = Math.max(filteredGuards.length - initialRosterVisibleCount, 0);
   const visibleRosterGuards = showAllRoster
     ? filteredGuards
     : filteredGuards.slice(0, initialRosterVisibleCount);
+  const activeAdminSectionLinks = nativeApp
+    ? androidAdminSectionLinks
+    : adminSectionLinks;
+  const adminShellTitle = nativeApp ? "Admin Field Console" : "Admin Mission Control";
+  const adminShellSubtitle = nativeApp
+    ? "Focused Android view for guard details, live map, selfie verification, duty sites, and roster actions."
+    : "Monitor live guard operations, manage the roster, inspect attendance, and keep the field team coordinated from one premium dashboard.";
 
   useEffect(() => {
     if (!filteredGuards.length) {
@@ -938,8 +959,8 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <AppShell
-        title="Admin Mission Control"
-        subtitle="Monitor live guard operations, manage the roster, inspect attendance, and keep the field team coordinated from one premium dashboard."
+        title={adminShellTitle}
+        subtitle={adminShellSubtitle}
       >
         <DashboardSkeleton />
       </AppShell>
@@ -948,10 +969,10 @@ export default function AdminDashboard() {
 
   return (
     <AppShell
-      title="Admin Mission Control"
-      subtitle="Monitor live guard operations, manage the roster, inspect attendance, and keep the field team coordinated from one premium dashboard."
-      mobileQuickLinks={adminSectionLinks}
-      sectionLinks={adminSectionLinks}
+      title={adminShellTitle}
+      subtitle={adminShellSubtitle}
+      mobileQuickLinks={activeAdminSectionLinks}
+      sectionLinks={activeAdminSectionLinks}
     >
       <div className="space-y-5">
         {(error || message) && (
@@ -1010,18 +1031,19 @@ export default function AdminDashboard() {
           </section>
         </MobileCollapseSection>
 
-        <MobileCollapseSection
-          id="admin-duty-sites"
-          title="Duty Site Coverage"
-          subtitle="See how many guards are assigned to each duty site and how many are currently tracked there."
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {siteCoverage.length ? (
-              siteCoverage.map((site) => (
-                <article
-                  key={site.id}
-                  className="rounded-[24px] border border-white/10 bg-white/5 p-4"
-                >
+        {!nativeApp && (
+          <MobileCollapseSection
+            id="admin-duty-sites"
+            title="Duty Site Coverage"
+            subtitle="See how many guards are assigned to each duty site and how many are currently tracked there."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {siteCoverage.length ? (
+                siteCoverage.map((site) => (
+                  <article
+                    key={site.id}
+                    className="rounded-[24px] border border-white/10 bg-white/5 p-4"
+                  >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-display text-xl font-semibold app-copy-primary">
@@ -1078,15 +1100,16 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   )}
-                </article>
-              ))
-            ) : (
-              <p className="text-sm app-copy-muted">
-                No duty sites yet. Create Panjim, Margao, or any client location from Duty Site Management.
-              </p>
-            )}
-          </div>
-        </MobileCollapseSection>
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm app-copy-muted">
+                  No duty sites yet. Create Panjim, Margao, or any client location from Duty Site Management.
+                </p>
+              )}
+            </div>
+          </MobileCollapseSection>
+        )}
 
         <div className="grid gap-5">
           <Panel
@@ -1094,7 +1117,7 @@ export default function AdminDashboard() {
             title="Operations Live Map"
             subtitle="Each marker reflects the latest saved guard location from selfie-linked attendance, automatic route pings, and field updates."
             collapsibleOnMobile
-            defaultCollapsed
+            defaultCollapsed={!nativeApp}
           >
             <GuardPositionMap
               guards={filteredGuards}
@@ -1108,7 +1131,7 @@ export default function AdminDashboard() {
             title="Selected Guard Detail"
             subtitle="A single operational view of the guard's latest selfie, shift state, live coordinates, and recent field activity."
             collapsibleOnMobile
-            defaultCollapsed
+            defaultCollapsed={!nativeApp}
           >
             <GuardDetailPanel guard={selectedGuard} />
           </Panel>
@@ -1117,13 +1140,17 @@ export default function AdminDashboard() {
         <div className="grid items-start gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <Panel
             id="admin-feed"
-            title="Live Operations Feed"
-            subtitle="A unified stream of attendance, activity, and location updates from across the team."
+            title={nativeApp ? "Recent Activity" : "Live Operations Feed"}
+            subtitle={
+              nativeApp
+                ? "Latest attendance, selfie, and location notes for quick mobile review."
+                : "A unified stream of attendance, activity, and location updates from across the team."
+            }
             collapsibleOnMobile
           >
             <div className="space-y-4">
               {liveFeedItems.length ? (
-                visibleLiveFeed.map((event) => (
+                activeVisibleLiveFeed.map((event) => (
                   <motion.div
                     key={`${event.type}-${event.id}-${event.occurredAt}`}
                     layout
@@ -1147,7 +1174,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-slate-400">No live events are currently available.</p>
               )}
 
-              {hasMoreLiveFeed && (
+              {!nativeApp && hasMoreLiveFeed && (
                 <div className="flex justify-center pt-1">
                   <button
                     type="button"
@@ -1170,7 +1197,7 @@ export default function AdminDashboard() {
             subtitle="Create and maintain organization locations such as Panjim Office, Margao Office, warehouses, gates, or client posts."
             className="self-start"
             collapsibleOnMobile
-            defaultCollapsed
+            defaultCollapsed={!nativeApp}
           >
             <form onSubmit={handleCreateDutySite} className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -1330,7 +1357,7 @@ export default function AdminDashboard() {
             subtitle="Create a new field account with a shift assignment and a login password."
             className="self-start"
             collapsibleOnMobile
-            defaultCollapsed
+            defaultCollapsed={!nativeApp}
           >
             <form onSubmit={handleCreateGuard} className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -1441,7 +1468,7 @@ export default function AdminDashboard() {
           subtitle="Search the directory, inspect latest movement, and manage guard access."
           className="mx-auto w-full xl:max-w-[72rem]"
           collapsibleOnMobile
-          defaultCollapsed
+          defaultCollapsed={!nativeApp}
           action={
             <input
               value={search}
@@ -1624,43 +1651,45 @@ export default function AdminDashboard() {
           )}
         </Panel>
 
-        <Panel
-          title="Today’s Attendance Snapshot"
-          subtitle="A quick operational list of who checked in, from where, and when they started."
-          collapsibleOnMobile
-          defaultCollapsed
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {overview?.attendance?.length ? (
-              overview.attendance.map((entry) => (
-                <div key={entry.id} className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:rounded-[24px]">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-medium text-white">{entry.userName}</p>
-                      <p className="mt-2 text-sm text-slate-300">
-                        {entry.locationLabel || "Field checkpoint"}
-                      </p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                        {formatDateTime(entry.checkInAt)}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-300">
-                        Hours completed: {formatDurationMinutes(getAttendanceDurationMinutes(entry))}
-                      </p>
-                      {entry.note && (
-                        <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
-                          Shift note: {entry.note}
+        {!nativeApp && (
+          <Panel
+            title="Today’s Attendance Snapshot"
+            subtitle="A quick operational list of who checked in, from where, and when they started."
+            collapsibleOnMobile
+            defaultCollapsed
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {overview?.attendance?.length ? (
+                overview.attendance.map((entry) => (
+                  <div key={entry.id} className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:rounded-[24px]">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-medium text-white">{entry.userName}</p>
+                        <p className="mt-2 text-sm text-slate-300">
+                          {entry.locationLabel || "Field checkpoint"}
                         </p>
-                      )}
+                        <p className="mt-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                          {formatDateTime(entry.checkInAt)}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-300">
+                          Hours completed: {formatDurationMinutes(getAttendanceDurationMinutes(entry))}
+                        </p>
+                        {entry.note && (
+                          <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
+                            Shift note: {entry.note}
+                          </p>
+                        )}
+                      </div>
+                      <StatusBadge status={entry.checkOutAt ? "Completed" : "On Duty"} />
                     </div>
-                    <StatusBadge status={entry.checkOutAt ? "Completed" : "On Duty"} />
                   </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-400">No attendance records have been logged today.</p>
-            )}
-          </div>
-        </Panel>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400">No attendance records have been logged today.</p>
+              )}
+            </div>
+          </Panel>
+        )}
 
         {guardPendingEdit && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 py-6 backdrop-blur-sm">

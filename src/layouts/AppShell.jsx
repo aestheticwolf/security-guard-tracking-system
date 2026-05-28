@@ -16,6 +16,7 @@ import { pageShift } from "../animations/transitions";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { initials } from "../utils/format";
+import { isNativeApp } from "../utils/nativeApp";
 
 export default function AppShell({
   title,
@@ -29,6 +30,7 @@ export default function AppShell({
   const navigate = useNavigate();
   const [mobileQuickLinksCollapsed, setMobileQuickLinksCollapsed] = useState(true);
   const mobileQuickLinksRef = useRef(null);
+  const nativeApp = isNativeApp();
 
   const navigation =
     user?.role === "super_admin"
@@ -96,7 +98,7 @@ export default function AppShell({
   }, [mobileQuickLinksCollapsed]);
 
   return (
-    <div className="mesh-background min-h-screen app-copy-primary">
+    <div className={`mesh-background min-h-screen app-copy-primary ${nativeApp ? "native-app-shell" : ""}`}>
       <div className="flex min-h-screen w-full gap-3 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 xl:px-8 2xl:px-10">
         <aside className="app-sidebar hidden w-72 shrink-0 flex-col overflow-y-auto rounded-[32px] p-5 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)]">
           <div className="flex items-center gap-3">

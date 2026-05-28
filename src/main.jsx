@@ -6,7 +6,10 @@ import App from "./App";
 import ToastViewport from "./components/feedback/ToastViewport";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { applyNativeAppClasses } from "./utils/nativeApp";
 import "./styles/index.css";
+
+applyNativeAppClasses();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

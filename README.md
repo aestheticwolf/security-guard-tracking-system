@@ -50,6 +50,7 @@ LIVE_DEPLOYMENT_GUIDE.md
 - Admin-side registered reference photo/enrollment selfie for guards.
 - Optional automatic face verification through CompreFace.
 - Admin-only face match score and selfie audit history.
+- Android APK shell through Capacitor with a focused admin mobile console and guard shift flow.
 - Mobile responsive guard and admin dashboards.
 - Light/dark theme support.
 
@@ -77,6 +78,12 @@ Backend:
 - MongoDB Atlas live mode
 - Cloudinary live image storage
 - Optional CompreFace face verification
+
+Mobile app:
+
+- Capacitor
+- Android SDK
+- JDK 21 for local APK builds
 
 ## Local Setup
 
@@ -292,6 +299,26 @@ Production build:
 
 ```bash
 npm run build
+```
+
+Sync the Android project after frontend changes:
+
+```bash
+npm run android:sync
+```
+
+Build a local debug APK:
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:debug
+```
+
+Debug APK output:
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Start backend without watch mode:
