@@ -2,6 +2,7 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   Clock3,
+  History,
   LayoutDashboard,
   MapPinned,
   ShieldCheck
@@ -67,6 +68,13 @@ const queuedSyncRetryIntervalMs = 20_000;
 const manualSyncFreshTimeoutMs = 25_000;
 const strictGpsMaxAgeMs = 2 * 60_000;
 const storedLocationFallbackWindowMs = 2 * 60_000;
+
+const guardSectionLinks = [
+  { id: "guard-overview", label: "Overview", icon: LayoutDashboard },
+  { id: "guard-attendance", label: "Shift", icon: Camera },
+  { id: "guard-map", label: "Route", icon: MapPinned },
+  { id: "guard-history-page", label: "History", icon: History }
+];
 
 function mergeLocationIntoRecentLocations(recentLocations = [], nextLocation) {
   if (!nextLocation) {
@@ -456,6 +464,30 @@ export default function GuardDashboard() {
   const cameraAvailabilityNote = hasOnlyVirtualCameras(cameraDevices)
     ? "Only virtual cameras are visible to this browser. To use the laptop webcam directly, enable the MSI camera/privacy setting or disable virtual camera apps, then reopen capture."
     : "";
+  const recentAttendanceTimeline = (
+    <div className="mt-4 space-y-4">
+      {overview?.recentAttendance?.length ? (
+        overview.recentAttendance.map((entry) => (
+          <div key={entry.id} className="flex gap-3">
+            <div className="mt-1 h-3 w-3 rounded-full bg-gradient-to-r from-gold-400 to-jade-400" />
+            <div>
+              <p className="font-medium text-white">
+                {entry.checkOutAt ? "Completed shift" : "Active shift"}
+              </p>
+              <p className="text-sm text-slate-300">
+                {entry.locationLabel || "Field checkpoint"}
+              </p>
+              <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
+                {formatDateTime(entry.checkInAt)}
+              </p>
+            </div>
+          </div>
+        ))
+      ) : (
+        <p className="text-sm text-slate-400">No attendance records have been logged today.</p>
+      )}
+    </div>
+  );
 
   async function readFreshLocationWithFallback(statusLabel, { allowFallback = false } = {}) {
     try {
@@ -1028,11 +1060,8 @@ export default function GuardDashboard() {
     <AppShell
       title="Guard Command Hub"
       subtitle="Track attendance, verify duty presence with a selfie, and keep your live map route synced automatically during each shift."
-      mobileQuickLinks={[
-        { id: "guard-overview", label: "Overview", icon: LayoutDashboard },
-        { id: "guard-attendance", label: "Check-In", icon: Camera },
-        { id: "guard-map", label: "Live Map", icon: MapPinned }
-      ]}
+      mobileQuickLinks={guardSectionLinks}
+      sectionLinks={guardSectionLinks}
     >
       <div className="space-y-5">
         {(error || message) && (
@@ -1332,30 +1361,9 @@ export default function GuardDashboard() {
                   </div>
                 </div>
 
-                <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
+                <div id="guard-history" className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
                   <p className="text-sm font-medium text-white">Recent attendance timeline</p>
-                  <div className="mt-4 space-y-4">
-                    {overview?.recentAttendance?.length ? (
-                      overview.recentAttendance.map((entry) => (
-                        <div key={entry.id} className="flex gap-3">
-                          <div className="mt-1 h-3 w-3 rounded-full bg-gradient-to-r from-gold-400 to-jade-400" />
-                          <div>
-                            <p className="font-medium text-white">
-                              {entry.checkOutAt ? "Completed shift" : "Active shift"}
-                            </p>
-                            <p className="text-sm text-slate-300">
-                              {entry.locationLabel || "Field checkpoint"}
-                            </p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-                              {formatDateTime(entry.checkInAt)}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-400">No attendance records have been logged today.</p>
-                    )}
-                  </div>
+                  {recentAttendanceTimeline}
                 </div>
               </div>
             </div>
@@ -1367,7 +1375,7 @@ export default function GuardDashboard() {
               title="Live Route Map"
               subtitle="Your device updates this map automatically while the dashboard is open and location permission is enabled."
               collapsibleOnMobile
-              defaultCollapsed
+              defaultCollapsed={false}
             >
               <div className="space-y-4">
                 <LiveRouteMap
@@ -1444,6 +1452,14 @@ export default function GuardDashboard() {
                   </p>
                 )}
               </div>
+            </Panel>
+
+            <Panel
+              id="guard-history-page"
+              title="Shift History"
+              subtitle="Recent check-in and check-out records for this guard session."
+            >
+              {recentAttendanceTimeline}
             </Panel>
 
           </div>

@@ -64,8 +64,8 @@ const subscriptionPlanOptions = [
 
 const superAdminLinks = [
   { id: "platform-overview", label: "Overview", icon: Landmark },
-  { id: "new-organization", label: "Add Org", icon: Building2 },
   { id: "organizations", label: "Organizations", icon: Users },
+  { id: "new-organization", label: "Add Org", icon: Building2 },
   { id: "organization-admins", label: "Admins", icon: UserPlus }
 ];
 

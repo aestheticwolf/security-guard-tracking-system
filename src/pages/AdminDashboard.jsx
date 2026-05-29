@@ -126,21 +126,9 @@ function getAttendanceDurationMinutes(entry) {
 
 const adminSectionLinks = [
   { id: "admin-overview", label: "Overview", icon: LayoutDashboard },
-  { id: "admin-duty-sites", label: "Duty Sites", icon: Building2 },
   { id: "admin-map", label: "Live Map", icon: MapPinned },
-  { id: "admin-guard-detail", label: "Guard Detail", icon: ShieldCheck },
-  { id: "admin-feed", label: "Ops Feed", icon: Activity },
-  { id: "admin-create-guard", label: "Add Guard", icon: UserPlus },
-  { id: "admin-roster", label: "Roster", icon: Users }
-];
-
-const androidAdminSectionLinks = [
-  { id: "admin-overview", label: "Home", icon: LayoutDashboard },
-  { id: "admin-map", label: "Map", icon: MapPinned },
-  { id: "admin-guard-detail", label: "Guard", icon: ShieldCheck },
-  { id: "admin-create-guard", label: "Add", icon: UserPlus },
-  { id: "admin-duty-site-management", label: "Sites", icon: Building2 },
-  { id: "admin-roster", label: "Directory", icon: Users }
+  { id: "admin-guard-detail", label: "Guards", icon: ShieldCheck },
+  { id: "admin-create-guard", label: "Add & Sites", icon: UserPlus }
 ];
 
 function buildDutySiteOptions(dutySites) {
@@ -931,9 +919,6 @@ export default function AdminDashboard() {
   const visibleRosterGuards = showAllRoster
     ? filteredGuards
     : filteredGuards.slice(0, initialRosterVisibleCount);
-  const activeAdminSectionLinks = nativeApp
-    ? androidAdminSectionLinks
-    : adminSectionLinks;
   const adminShellTitle = nativeApp ? "Admin Field Console" : "Admin Mission Control";
   const adminShellSubtitle = nativeApp
     ? "Focused Android view for guard details, live map, selfie verification, duty sites, and roster actions."
@@ -971,8 +956,8 @@ export default function AdminDashboard() {
     <AppShell
       title={adminShellTitle}
       subtitle={adminShellSubtitle}
-      mobileQuickLinks={activeAdminSectionLinks}
-      sectionLinks={activeAdminSectionLinks}
+      mobileQuickLinks={adminSectionLinks}
+      sectionLinks={adminSectionLinks}
     >
       <div className="space-y-5">
         {(error || message) && (

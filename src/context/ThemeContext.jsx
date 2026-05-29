@@ -5,7 +5,7 @@ const ThemeContext = createContext(null);
 
 function getInitialTheme() {
   if (typeof window === "undefined") {
-    return "dark";
+    return "light";
   }
 
   const storedTheme = window.localStorage.getItem(STORAGE_KEY);
@@ -14,11 +14,7 @@ function getInitialTheme() {
     return storedTheme;
   }
 
-  if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
-    return "light";
-  }
-
-  return "dark";
+  return "light";
 }
 
 export function ThemeProvider({ children }) {

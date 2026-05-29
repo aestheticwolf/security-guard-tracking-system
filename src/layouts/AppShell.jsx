@@ -1,22 +1,124 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   Building2,
+  Camera,
   ChevronLeft,
   ChevronRight,
   History,
+  LayoutDashboard,
   LogOut,
+  MapPinned,
   MoonStar,
+  Settings,
   ShieldCheck,
   SunMedium,
+  UserPlus,
   Users
 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { pageShift } from "../animations/transitions";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { initials } from "../utils/format";
 import { isNativeApp } from "../utils/nativeApp";
+
+function getRoleLabel(role) {
+  if (role === "super_admin") {
+    return "Owner session";
+  }
+
+  if (role === "admin") {
+    return "Admin session";
+  }
+
+  return "Guard session";
+}
+
+function getNativeTabs(role) {
+  if (role === "super_admin") {
+    return [
+      { id: "home", label: "Home", icon: LayoutDashboard, to: "/super-admin", target: "platform-overview" },
+      { id: "orgs", label: "Orgs", icon: Building2, to: "/super-admin", target: "organizations" },
+      { id: "add", label: "Add", icon: Activity, to: "/super-admin", target: "new-organization" },
+      { id: "admins", label: "Admins", icon: ShieldCheck, to: "/super-admin", target: "organization-admins" },
+      { id: "account", label: "Account", icon: Users, account: true }
+    ];
+  }
+
+  if (role === "admin") {
+    return [
+      { id: "home", label: "Home", icon: LayoutDashboard, to: "/admin", target: "admin-overview" },
+      { id: "map", label: "Map", icon: MapPinned, to: "/admin", target: "admin-map" },
+      { id: "guards", label: "Guards", icon: ShieldCheck, to: "/admin", target: "admin-guard-detail" },
+      { id: "add", label: "Add", icon: UserPlus, to: "/admin", target: "admin-create-guard" },
+      { id: "account", label: "Account", icon: Users, account: true }
+    ];
+  }
+
+  return [
+    { id: "home", label: "Home", icon: LayoutDashboard, to: "/dashboard", target: "guard-overview" },
+    { id: "shift", label: "Shift", icon: Camera, to: "/dashboard", target: "guard-attendance" },
+    { id: "route", label: "Route", icon: MapPinned, to: "/dashboard", target: "guard-map" },
+    { id: "history", label: "History", icon: History, to: "/dashboard", target: "guard-history-page" },
+    { id: "account", label: "Account", icon: Users, account: true }
+  ];
+}
+
+function getScreenForTarget(role, target) {
+  if (!target || target.startsWith?.("/")) {
+    return "";
+  }
+
+  if (role === "super_admin") {
+    const superAdminScreens = {
+      "platform-overview": "home",
+      organizations: "orgs",
+      "new-organization": "add",
+      "organization-admins": "admins"
+    };
+
+    return superAdminScreens[target] || "";
+  }
+
+  if (role === "admin") {
+    const adminScreens = {
+      "admin-overview": "home",
+      "admin-duty-sites": "home",
+      "admin-feed": "home",
+      "admin-map": "map",
+      "admin-guard-detail": "guards",
+      "admin-roster": "guards",
+      "admin-create-guard": "add",
+      "admin-duty-site-management": "add"
+    };
+
+    return adminScreens[target] || "";
+  }
+
+  const guardScreens = {
+    "guard-overview": "home",
+    "guard-attendance": "shift",
+    "guard-map": "route",
+    "guard-history": "history",
+    "guard-history-page": "history"
+  };
+
+  return guardScreens[target] || "";
+}
+
+function getFirstContentTabId(role) {
+  return getNativeTabs(role).find((tab) => !tab.account)?.id || "home";
+}
+
+function notifyNativeLayoutReady() {
+  [0, 160, 320].forEach((delay) => {
+    window.setTimeout(() => {
+      window.dispatchEvent(new Event("sentinel:layout-ready"));
+    }, delay);
+  });
+}
 
 export default function AppShell({
   title,
@@ -28,9 +130,16 @@ export default function AppShell({
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileQuickLinksCollapsed, setMobileQuickLinksCollapsed] = useState(true);
+  const [nativeAccountOpen, setNativeAccountOpen] = useState(false);
+  const [nativeActiveTab, setNativeActiveTab] = useState("home");
   const mobileQuickLinksRef = useRef(null);
+  const lastNativeContentTabRef = useRef("home");
+  const pendingNativeTargetRef = useRef(null);
   const nativeApp = isNativeApp();
+  const nativeTabs = getNativeTabs(user?.role);
+  const hasAppTabs = nativeTabs.length > 0;
 
   function confirmSignOut() {
     const confirmed = window.confirm("Are you sure you want to sign out? You will need to sign in again to continue.");
@@ -56,6 +165,28 @@ export default function AppShell({
           { to: "/dashboard", label: "Shift Hub", icon: ShieldCheck }
         ];
 
+  function activateScreenForTarget(target, { scrollToTop = true } = {}) {
+    const nextScreen = getScreenForTarget(user?.role, target);
+
+    if (!nextScreen) {
+      return false;
+    }
+
+    setNativeAccountOpen(false);
+    lastNativeContentTabRef.current = nextScreen;
+    setNativeActiveTab(nextScreen);
+    setMobileQuickLinksCollapsed(true);
+
+    if (scrollToTop) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        notifyNativeLayoutReady();
+      });
+    }
+
+    return true;
+  }
+
   function jumpToSection(target) {
     if (!target) {
       return;
@@ -64,6 +195,10 @@ export default function AppShell({
     if (target.startsWith("/")) {
       navigate(target);
       setMobileQuickLinksCollapsed(true);
+      return;
+    }
+
+    if (activateScreenForTarget(target)) {
       return;
     }
 
@@ -80,6 +215,72 @@ export default function AppShell({
 
     setMobileQuickLinksCollapsed(true);
   }
+
+  function goToNativeTab(tab) {
+    if (tab.account) {
+      setNativeAccountOpen((current) => !current);
+      return;
+    }
+
+    setNativeAccountOpen(false);
+    lastNativeContentTabRef.current = tab.id;
+    setNativeActiveTab(tab.id);
+
+    if (tab.to && location.pathname !== tab.to) {
+      pendingNativeTargetRef.current = tab.target || "__native_top__";
+      navigate(tab.to);
+      setMobileQuickLinksCollapsed(true);
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    notifyNativeLayoutReady();
+  }
+
+  function jumpToNativeAction(target) {
+    setNativeAccountOpen(false);
+    setNativeActiveTab(lastNativeContentTabRef.current);
+
+    if (!target) {
+      return;
+    }
+
+    if (target.startsWith("/")) {
+      navigate(target);
+      return;
+    }
+
+    if (activateScreenForTarget(target)) {
+      return;
+    }
+
+    jumpToSection(target);
+  }
+
+  useEffect(() => {
+    if (!pendingNativeTargetRef.current) {
+      return undefined;
+    }
+
+    const target = pendingNativeTargetRef.current;
+    pendingNativeTargetRef.current = null;
+
+    const timer = window.setTimeout(() => {
+      if (target === "__native_top__") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        notifyNativeLayoutReady();
+        return;
+      }
+
+      if (activateScreenForTarget(target)) {
+        return;
+      }
+
+      jumpToSection(target);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (mobileQuickLinksCollapsed) {
@@ -107,8 +308,26 @@ export default function AppShell({
     };
   }, [mobileQuickLinksCollapsed]);
 
+  useEffect(() => {
+    const nextTabs = getNativeTabs(user?.role).filter((tab) => !tab.account);
+
+    if (nextTabs.some((tab) => tab.id === nativeActiveTab)) {
+      return;
+    }
+
+    const nextTabId = getFirstContentTabId(user?.role);
+    lastNativeContentTabRef.current = nextTabId;
+    setNativeActiveTab(nextTabId);
+  }, [nativeActiveTab, user?.role]);
+
   return (
-    <div className={`mesh-background min-h-screen app-copy-primary ${nativeApp ? "native-app-shell" : ""}`}>
+    <div
+      className={`mesh-background min-h-screen app-screen-shell app-copy-primary ${nativeApp ? "native-app-shell" : ""}`}
+      data-app-role={user?.role}
+      data-app-screen={nativeActiveTab}
+      data-native-role={nativeApp ? user?.role : undefined}
+      data-native-tab={nativeApp ? nativeActiveTab : undefined}
+    >
       <div className="flex min-h-screen w-full gap-3 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 xl:px-8 2xl:px-10">
         <aside className="app-sidebar hidden w-72 shrink-0 flex-col overflow-y-auto rounded-[32px] p-5 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)]">
           <div className="flex items-center gap-3">
@@ -157,20 +376,28 @@ export default function AppShell({
           {sectionLinks.length > 0 && (
             <div className="mt-6 border-t border-white/10 pt-5">
               <p className="px-4 text-xs uppercase tracking-[0.28em] app-copy-soft">
-                Sections
+                Pages
               </p>
               <div className="mt-3 space-y-2">
-                {sectionLinks.map(({ id, label, icon: Icon, to }) => (
-                  <button
-                    key={to || id}
-                    type="button"
-                    onClick={() => jumpToSection(to || id)}
-                    className="app-nav-link flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium"
-                  >
-                    {Icon ? <Icon className="h-4 w-4" /> : null}
-                    {label}
-                  </button>
-                ))}
+                {sectionLinks.map(({ id, label, icon: Icon, to }) => {
+                  const target = to || id;
+                  const screen = getScreenForTarget(user?.role, target);
+                  const active = screen && nativeActiveTab === screen;
+
+                  return (
+                    <button
+                      key={target}
+                      type="button"
+                      onClick={() => jumpToSection(target)}
+                      className={`app-nav-link flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium ${
+                        active ? "app-nav-link-active" : ""
+                      }`}
+                    >
+                      {Icon ? <Icon className="h-4 w-4" /> : null}
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -209,7 +436,8 @@ export default function AppShell({
                   </p>
                 )}
               </div>
-              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              {!nativeApp && (
+              <div className="app-header-actions flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                 <button
                   type="button"
                   onClick={toggleTheme}
@@ -233,6 +461,7 @@ export default function AppShell({
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </div>
 
@@ -242,7 +471,7 @@ export default function AppShell({
             </motion.main>
           </AnimatePresence>
 
-          {mobileQuickLinks.length > 0 && (
+          {!nativeApp && !hasAppTabs && mobileQuickLinks.length > 0 && (
             <div className="fixed bottom-24 right-3 z-20 lg:hidden">
               <div
                 ref={mobileQuickLinksRef}
@@ -308,7 +537,172 @@ export default function AppShell({
             </div>
           )}
 
-          <div className="fixed inset-x-3 bottom-3 z-20 lg:hidden">
+          {nativeAccountOpen && (
+            <div
+              className="native-account-backdrop fixed inset-0 z-30 lg:hidden"
+              onClick={() => {
+                setNativeAccountOpen(false);
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="native-account-sheet app-sidebar"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">Account</p>
+                    <p className="mt-1 font-display text-xl font-semibold app-copy-primary">
+                      {user?.fullName}
+                    </p>
+                    <p className="mt-0.5 text-sm app-copy-muted">{getRoleLabel(user?.role)}</p>
+                  </div>
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-gold-400 to-jade-400 text-sm font-semibold text-slate-950">
+                    {initials(user?.fullName)}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="native-account-action"
+                  >
+                    {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+                    {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  </button>
+
+                  {user?.role === "admin" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("admin-duty-site-management")}
+                        className="native-account-action"
+                      >
+                        <Building2 className="h-4 w-4" />
+                        Duty Site Management
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("admin-roster")}
+                        className="native-account-action"
+                      >
+                        <Users className="h-4 w-4" />
+                        Field Guard Directory
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("/admin/history")}
+                        className="native-account-action"
+                      >
+                        <History className="h-4 w-4" />
+                        Guard History
+                      </button>
+                    </>
+                  )}
+
+                  {user?.role === "super_admin" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("organizations")}
+                        className="native-account-action"
+                      >
+                        <Building2 className="h-4 w-4" />
+                        Organizations
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("new-organization")}
+                        className="native-account-action"
+                      >
+                        <Activity className="h-4 w-4" />
+                        Add Organization
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("organization-admins")}
+                        className="native-account-action"
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Organization Admins
+                      </button>
+                    </>
+                  )}
+
+                  {user?.role === "guard" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("guard-attendance")}
+                        className="native-account-action"
+                      >
+                        <Camera className="h-4 w-4" />
+                        Shift Verification
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToNativeAction("guard-map")}
+                        className="native-account-action"
+                      >
+                        <MapPinned className="h-4 w-4" />
+                        Live Route
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNativeAccountOpen(false);
+                    }}
+                    className="native-account-action"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Close settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmSignOut}
+                    className="native-account-action native-account-action-danger"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {hasAppTabs && (
+            <div className="native-bottom-shell fixed inset-x-3 bottom-3 z-40 lg:hidden">
+              <nav className="native-bottom-tabs" aria-label="Mobile app navigation">
+                {nativeTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const active = tab.account ? nativeAccountOpen : nativeActiveTab === tab.id;
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => goToNativeTab(tab)}
+                      className={`native-bottom-tab ${active ? "native-bottom-tab--active" : ""}`}
+                      aria-label={tab.label}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          )}
+
+          {!nativeApp && !hasAppTabs && (
+            <div className="fixed inset-x-3 bottom-3 z-20 lg:hidden">
             <div className="space-y-2.5">
               <div
                 className="app-sidebar flex items-center justify-between gap-2 rounded-[22px] p-2.5"
@@ -323,11 +717,7 @@ export default function AppShell({
                       {user?.fullName}
                     </p>
                     <p className="max-w-[6.75rem] truncate text-[11px] app-copy-muted">
-                      {user?.role === "super_admin"
-                        ? "Owner session"
-                        : user?.role === "admin"
-                          ? "Admin session"
-                          : "Guard session"}
+                      {getRoleLabel(user?.role)}
                     </p>
                   </div>
                 </div>
@@ -370,7 +760,8 @@ export default function AppShell({
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1408,6 +1408,61 @@ select {
   }
 }
 
+/* ── Focused dashboard screens ───────────────────────────────────────────── */
+
+.app-screen-shell[data-app-role="super_admin"] #platform-overview,
+.app-screen-shell[data-app-role="super_admin"] #organizations,
+.app-screen-shell[data-app-role="super_admin"] #new-organization,
+.app-screen-shell[data-app-role="super_admin"] #organization-admins,
+.app-screen-shell[data-app-role="admin"] #admin-overview,
+.app-screen-shell[data-app-role="admin"] #admin-duty-sites,
+.app-screen-shell[data-app-role="admin"] #admin-map,
+.app-screen-shell[data-app-role="admin"] #admin-guard-detail,
+.app-screen-shell[data-app-role="admin"] #admin-feed,
+.app-screen-shell[data-app-role="admin"] #admin-duty-site-management,
+.app-screen-shell[data-app-role="admin"] #admin-create-guard,
+.app-screen-shell[data-app-role="admin"] #admin-roster,
+.app-screen-shell[data-app-role="guard"] #guard-overview,
+.app-screen-shell[data-app-role="guard"] #guard-attendance,
+.app-screen-shell[data-app-role="guard"] #guard-map,
+.app-screen-shell[data-app-role="guard"] #guard-history-page {
+  display: none;
+}
+
+.app-screen-shell[data-app-role="super_admin"][data-app-screen="home"] #platform-overview,
+.app-screen-shell[data-app-role="super_admin"][data-app-screen="orgs"] #organizations,
+.app-screen-shell[data-app-role="super_admin"][data-app-screen="add"] #new-organization,
+.app-screen-shell[data-app-role="super_admin"][data-app-screen="admins"] #organization-admins,
+.app-screen-shell[data-app-role="admin"][data-app-screen="home"] #admin-overview,
+.app-screen-shell[data-app-role="admin"][data-app-screen="home"] #admin-duty-sites,
+.app-screen-shell[data-app-role="admin"][data-app-screen="home"] #admin-feed,
+.app-screen-shell[data-app-role="admin"][data-app-screen="map"] #admin-map,
+.app-screen-shell[data-app-role="admin"][data-app-screen="guards"] #admin-guard-detail,
+.app-screen-shell[data-app-role="admin"][data-app-screen="guards"] #admin-roster,
+.app-screen-shell[data-app-role="admin"][data-app-screen="add"] #admin-duty-site-management,
+.app-screen-shell[data-app-role="admin"][data-app-screen="add"] #admin-create-guard,
+.app-screen-shell[data-app-role="guard"][data-app-screen="home"] #guard-overview,
+.app-screen-shell[data-app-role="guard"][data-app-screen="shift"] #guard-attendance,
+.app-screen-shell[data-app-role="guard"][data-app-screen="route"] #guard-map,
+.app-screen-shell[data-app-role="guard"][data-app-screen="history"] #guard-history-page {
+  display: block;
+}
+
+.app-screen-shell[data-app-role="guard"][data-app-screen="shift"] #guard-history {
+  display: none;
+}
+
+.app-screen-shell[data-app-role="admin"][data-app-screen="map"] #admin-map,
+.app-screen-shell[data-app-role="guard"][data-app-screen="route"] #guard-map {
+  min-height: min(46rem, calc(100vh - 12rem));
+}
+
+@media (max-width: 1023px) {
+  .app-screen-shell .app-header-actions {
+    display: none !important;
+  }
+}
+
 /* ── Native Android shell ─────────────────────────────────────────────────── */
 
 html.is-native-app,
@@ -1421,7 +1476,7 @@ body.is-native-app {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   html.is-native-app body {
     background: var(--body-bg);
   }
@@ -1441,6 +1496,164 @@ body.is-native-app {
 
   .native-app-shell video {
     max-height: 68vh;
+  }
+
+  .native-app-shell[data-native-role="admin"] #admin-overview,
+  .native-app-shell[data-native-role="admin"] #admin-map,
+  .native-app-shell[data-native-role="admin"] #admin-guard-detail,
+  .native-app-shell[data-native-role="admin"] #admin-feed,
+  .native-app-shell[data-native-role="admin"] #admin-duty-site-management,
+  .native-app-shell[data-native-role="admin"] #admin-create-guard,
+  .native-app-shell[data-native-role="admin"] #admin-roster,
+  .native-app-shell[data-native-role="guard"] #guard-overview,
+  .native-app-shell[data-native-role="guard"] #guard-attendance,
+  .native-app-shell[data-native-role="guard"] #guard-map,
+  .native-app-shell[data-native-role="guard"] #guard-history-page {
+    display: none;
+  }
+
+  .native-app-shell[data-native-role="admin"][data-native-tab="home"] #admin-overview,
+  .native-app-shell[data-native-role="admin"][data-native-tab="home"] #admin-feed,
+  .native-app-shell[data-native-role="admin"][data-native-tab="map"] #admin-map,
+  .native-app-shell[data-native-role="admin"][data-native-tab="guards"] #admin-guard-detail,
+  .native-app-shell[data-native-role="admin"][data-native-tab="guards"] #admin-roster,
+  .native-app-shell[data-native-role="admin"][data-native-tab="add"] #admin-duty-site-management,
+  .native-app-shell[data-native-role="admin"][data-native-tab="add"] #admin-create-guard,
+  .native-app-shell[data-native-role="guard"][data-native-tab="home"] #guard-overview,
+  .native-app-shell[data-native-role="guard"][data-native-tab="shift"] #guard-attendance,
+  .native-app-shell[data-native-role="guard"][data-native-tab="route"] #guard-map,
+  .native-app-shell[data-native-role="guard"][data-native-tab="history"] #guard-history-page {
+    display: block;
+  }
+
+  .native-app-shell[data-native-role="guard"][data-native-tab="shift"] #guard-history {
+    display: none;
+  }
+
+  .native-app-shell[data-native-role="admin"][data-native-tab="map"] #admin-map,
+  .native-app-shell[data-native-role="guard"][data-native-tab="route"] #guard-map {
+    min-height: calc(100vh - 12rem);
+  }
+
+  .native-app-shell[data-native-role="admin"][data-native-tab="guards"] #admin-roster,
+  .native-app-shell[data-native-role="admin"][data-native-tab="add"] #admin-create-guard,
+  .native-app-shell[data-native-role="guard"][data-native-tab="shift"] #guard-attendance,
+  .native-app-shell[data-native-role="guard"][data-native-tab="history"] #guard-history-page {
+    margin-top: 0;
+  }
+
+  .native-bottom-shell {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    pointer-events: none;
+  }
+
+  .native-bottom-tabs {
+    pointer-events: auto;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.25rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 1.55rem;
+    background: rgba(8, 13, 27, 0.92);
+    padding: 0.35rem;
+    box-shadow: 0 18px 44px rgba(2, 6, 23, 0.42);
+    backdrop-filter: blur(20px);
+  }
+
+  .native-bottom-tab {
+    display: flex;
+    min-width: 0;
+    min-height: 4rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    border: 0;
+    border-radius: 1.18rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1;
+    text-align: center;
+    transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+    flex-direction: column;
+  }
+
+  .native-bottom-tab:active {
+    transform: translateY(1px) scale(0.98);
+  }
+
+  .native-bottom-tab--active {
+    background: linear-gradient(135deg, #f3bc52, #38c89b);
+    color: #0f1b2d;
+    box-shadow: 0 12px 26px rgba(56, 200, 155, 0.22);
+  }
+
+  .native-account-backdrop {
+    background: rgba(2, 6, 23, 0.34);
+    backdrop-filter: blur(6px);
+  }
+
+  .native-account-sheet {
+    position: fixed;
+    right: 0.75rem;
+    bottom: calc(6.4rem + env(safe-area-inset-bottom));
+    left: 0.75rem;
+    max-height: min(72vh, 32rem);
+    overflow-y: auto;
+    border-radius: 1.7rem;
+    padding: 1rem;
+    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.42);
+  }
+
+  .native-account-action {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 0.65rem;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0.78rem 0.9rem;
+    color: var(--app-text);
+    font-size: 0.86rem;
+    font-weight: 800;
+    text-align: left;
+  }
+
+  .native-account-action-danger {
+    border-color: rgba(244, 63, 94, 0.28);
+    background: rgba(244, 63, 94, 0.1);
+    color: #fecdd3;
+  }
+
+  :root[data-theme="light"] .native-bottom-tabs {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+  }
+
+  :root[data-theme="light"] .native-bottom-tab {
+    color: #64748b;
+  }
+
+  :root[data-theme="light"] .native-bottom-tab--active {
+    color: #0f1b2d;
+  }
+
+  :root[data-theme="light"] .native-account-backdrop {
+    background: rgba(15, 23, 42, 0.16);
+  }
+
+  :root[data-theme="light"] .native-account-action {
+    background: rgba(15, 23, 42, 0.045);
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+
+  :root[data-theme="light"] .native-account-action-danger {
+    border-color: rgba(225, 29, 72, 0.25);
+    background: rgba(225, 29, 72, 0.08);
+    color: #9f1239;
   }
 }
 
