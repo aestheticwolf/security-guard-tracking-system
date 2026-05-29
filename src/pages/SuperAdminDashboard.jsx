@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useState } from "react";
 import {
   Building2,
+  Camera,
   CreditCard,
   KeyRound,
   Landmark,
@@ -21,9 +22,11 @@ import {
   createOrganizationWorkspace,
   getSuperAdminOverview,
   resetOrganizationAdminPassword,
+  updateOrganizationAdminProfile,
   updateOrganizationWorkspace
 } from "../services/superAdminService";
-import { formatDateTime } from "../utils/format";
+import { buildAssetUrl } from "../services/apiClient";
+import { formatDateTime, initials } from "../utils/format";
 
 const emptyOrganizationForm = {
   name: "",
@@ -34,7 +37,9 @@ const emptyOrganizationForm = {
   guardLimit: "50",
   adminFullName: "",
   adminEmail: "",
-  adminPassword: ""
+  adminPassword: "",
+  adminPhoto: null,
+  organizationLogo: null
 };
 
 const emptyAdminForm = {
@@ -42,7 +47,8 @@ const emptyAdminForm = {
   fullName: "",
   email: "",
   password: "",
-  phone: ""
+  phone: "",
+  adminPhoto: null
 };
 
 const emptyEditOrganizationForm = {
@@ -53,7 +59,8 @@ const emptyEditOrganizationForm = {
   status: "active",
   plan: "starter",
   guardLimit: "50",
-  subscriptionStatus: "active"
+  subscriptionStatus: "active",
+  organizationLogo: null
 };
 
 const subscriptionPlanOptions = [
@@ -92,6 +99,98 @@ function SubscriptionPlanSelect({ value, onChange }) {
   );
 }
 
+function AdminAvatar({ admin, className = "h-12 w-12 rounded-2xl text-sm" }) {
+  const avatarUrl = buildAssetUrl(admin?.avatarUrl);
+
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br from-gold-400 to-jade-400 font-semibold text-slate-950 ${className}`}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={`${admin?.fullName || "Admin"} profile`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initials(admin?.fullName)
+      )}
+    </div>
+  );
+}
+
+function OrganizationLogo({ organization }) {
+  const logoUrl = buildAssetUrl(organization?.logoUrl);
+
+  return (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/20">
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt={`${organization?.name || "Company"} logo`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <Building2 className="h-6 w-6 app-copy-soft" />
+      )}
+    </div>
+  );
+}
+
+function AdminPhotoInput({
+  label,
+  file,
+  existingPath = "",
+  helperText = "Optional profile photo for the organization admin account.",
+  buttonLabel = "Choose profile photo",
+  onChange
+}) {
+  const [previewUrl, setPreviewUrl] = useState("");
+  const existingUrl = buildAssetUrl(existingPath);
+  const displayUrl = previewUrl || existingUrl;
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl("");
+      return undefined;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextPreviewUrl);
+    return () => URL.revokeObjectURL(nextPreviewUrl);
+  }, [file]);
+
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-white/5 p-3 sm:col-span-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/20">
+          {displayUrl ? (
+            <img src={displayUrl} alt={label} className="h-full w-full object-cover" />
+          ) : (
+            <Camera className="h-6 w-6 app-copy-soft" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold app-copy-primary">{label}</p>
+          <p className="mt-1 text-xs leading-5 app-copy-muted">
+            {file?.name || helperText}
+          </p>
+          <label className="app-outline-button mt-3 inline-flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2 text-xs font-medium">
+            <Camera className="h-3.5 w-3.5" />
+            {buttonLabel}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) => onChange(event.target.files?.[0] || null)}
+            />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SuperAdminDashboard() {
   const [overview, setOverview] = useState(null);
   const [organizationForm, setOrganizationForm] = useState(emptyOrganizationForm);
@@ -100,6 +199,7 @@ export default function SuperAdminDashboard() {
   const [editOrganizationForm, setEditOrganizationForm] = useState(emptyEditOrganizationForm);
   const [revealedAdminPasswords, setRevealedAdminPasswords] = useState({});
   const [resettingAdminId, setResettingAdminId] = useState("");
+  const [updatingAdminPhotoId, setUpdatingAdminPhotoId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -141,7 +241,8 @@ export default function SuperAdminDashboard() {
       status: organization.status || "active",
       plan: organization.subscription?.plan || "starter",
       guardLimit: String(organization.subscription?.guardLimit ?? 50),
-      subscriptionStatus: organization.subscription?.status || "active"
+      subscriptionStatus: organization.subscription?.status || "active",
+      organizationLogo: null
     });
     setError("");
     setMessage("");
@@ -182,7 +283,9 @@ export default function SuperAdminDashboard() {
                 email: organizationForm.adminEmail,
                 password: organizationForm.adminPassword
               }
-            : null
+            : null,
+        adminPhoto: organizationForm.adminPhoto,
+        organizationLogo: organizationForm.organizationLogo
       });
       setOrganizationForm(emptyOrganizationForm);
       await refreshOverview();
@@ -232,6 +335,7 @@ export default function SuperAdminDashboard() {
         contactEmail: editOrganizationForm.contactEmail,
         phone: editOrganizationForm.phone,
         status: editOrganizationForm.status,
+        organizationLogo: editOrganizationForm.organizationLogo,
         subscription: {
           ...(organization.subscription || {}),
           plan: editOrganizationForm.plan,
@@ -270,6 +374,30 @@ export default function SuperAdminDashboard() {
       toast.error(submitError.message);
     } finally {
       setResettingAdminId("");
+    }
+  }
+
+  async function handleUpdateAdminPhoto(organization, admin, file) {
+    if (!file) {
+      return;
+    }
+
+    setUpdatingAdminPhotoId(admin.id);
+    setError("");
+    setMessage("");
+
+    try {
+      await updateOrganizationAdminProfile(organization.id, admin.id, {
+        adminPhoto: file
+      });
+      await refreshOverview();
+      setMessage(`Profile photo updated for ${admin.fullName}.`);
+      toast.success("Admin profile photo updated.");
+    } catch (submitError) {
+      setError(submitError.message);
+      toast.error(submitError.message);
+    } finally {
+      setUpdatingAdminPhotoId("");
     }
   }
 
@@ -395,6 +523,13 @@ export default function SuperAdminDashboard() {
                 onChange={(value) => updateOrganizationForm("phone", value)}
                 placeholder="+91 90000 00000"
               />
+              <AdminPhotoInput
+                label="Company logo"
+                file={organizationForm.organizationLogo}
+                onChange={(file) => updateOrganizationForm("organizationLogo", file)}
+                helperText="Optional. Used as the company workspace image in super-admin views."
+                buttonLabel="Choose company logo"
+              />
               <SubscriptionPlanSelect
                 value={organizationForm.plan}
                 onChange={(value) => updateOrganizationForm("plan", value)}
@@ -425,6 +560,12 @@ export default function SuperAdminDashboard() {
                 value={organizationForm.adminPassword}
                 onChange={(value) => updateOrganizationForm("adminPassword", value)}
                 placeholder="Temporary password"
+              />
+              <AdminPhotoInput
+                label="First admin profile photo"
+                file={organizationForm.adminPhoto}
+                onChange={(file) => updateOrganizationForm("adminPhoto", file)}
+                helperText="Optional. This photo appears in the admin account avatar after the first login."
               />
               <button
                 type="submit"
@@ -483,6 +624,12 @@ export default function SuperAdminDashboard() {
                 onChange={(value) => updateAdminForm("phone", value)}
                 placeholder="+91 90000 00000"
               />
+              <AdminPhotoInput
+                label="Admin profile photo"
+                file={adminForm.adminPhoto}
+                onChange={(file) => updateAdminForm("adminPhoto", file)}
+                helperText="Optional. Used for the admin's profile circle across web and Android."
+              />
               <button
                 type="submit"
                 disabled={busy}
@@ -507,16 +654,19 @@ export default function SuperAdminDashboard() {
                   className="rounded-[24px] border border-white/10 bg-white/5 p-4"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="mb-1 text-xs uppercase tracking-[0.24em] app-copy-soft">
-                        Company workspace
-                      </p>
-                      <p className="font-display text-2xl font-semibold app-copy-primary">
-                        {organization.name}
-                      </p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.24em] app-copy-soft">
-                        {organization.code}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <OrganizationLogo organization={organization} />
+                      <div className="min-w-0">
+                        <p className="mb-1 text-xs uppercase tracking-[0.24em] app-copy-soft">
+                          Company workspace
+                        </p>
+                        <p className="truncate font-display text-2xl font-semibold app-copy-primary">
+                          {organization.name}
+                        </p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.24em] app-copy-soft">
+                          {organization.code}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={organization.status} />
@@ -596,6 +746,14 @@ export default function SuperAdminDashboard() {
                         value={editOrganizationForm.phone}
                         onChange={(value) => updateEditOrganizationForm("phone", value)}
                       />
+                      <AdminPhotoInput
+                        label="Company logo"
+                        file={editOrganizationForm.organizationLogo}
+                        existingPath={organization.logoUrl}
+                        onChange={(file) => updateEditOrganizationForm("organizationLogo", file)}
+                        helperText="Replace only when the company workspace branding changes."
+                        buttonLabel="Choose company logo"
+                      />
                       <SubscriptionPlanSelect
                         value={editOrganizationForm.plan}
                         onChange={(value) => updateEditOrganizationForm("plan", value)}
@@ -661,22 +819,50 @@ export default function SuperAdminDashboard() {
                             className="rounded-2xl border border-white/10 bg-white/5 p-3"
                           >
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
-                                <p className="text-sm font-semibold app-copy-primary">{admin.fullName}</p>
-                                <p className="mt-1 text-xs app-copy-muted">{admin.email}</p>
-                                <p className="mt-1 text-xs app-copy-soft">
-                                  Password: reset to generate a temporary password.
-                                </p>
+                              <div className="flex min-w-0 items-start gap-3">
+                                <AdminAvatar admin={admin} />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold app-copy-primary">{admin.fullName}</p>
+                                  <p className="mt-1 truncate text-xs app-copy-muted">{admin.email}</p>
+                                  <p className="mt-1 text-xs app-copy-soft">
+                                    Password: reset to generate a temporary password.
+                                  </p>
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                disabled={resettingAdminId === admin.id}
-                                onClick={() => handleResetAdminPassword(organization, admin)}
-                                className="app-outline-button inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                <KeyRound className="h-3.5 w-3.5" />
-                                {resettingAdminId === admin.id ? "Resetting..." : "Reset Password"}
-                              </button>
+                              <div className="flex flex-col gap-2 sm:items-end">
+                                <label
+                                  className={`app-outline-button inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-medium ${
+                                    updatingAdminPhotoId === admin.id ? "app-button-disabled" : ""
+                                  }`}
+                                >
+                                  <Camera className="h-3.5 w-3.5" />
+                                  {updatingAdminPhotoId === admin.id
+                                    ? "Uploading..."
+                                    : admin.avatarUrl
+                                      ? "Replace Photo"
+                                      : "Add Photo"}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={updatingAdminPhotoId === admin.id}
+                                    className="sr-only"
+                                    onChange={(event) => {
+                                      const file = event.target.files?.[0];
+                                      event.target.value = "";
+                                      handleUpdateAdminPhoto(organization, admin, file);
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  disabled={resettingAdminId === admin.id}
+                                  onClick={() => handleResetAdminPassword(organization, admin)}
+                                  className="app-outline-button inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                  <KeyRound className="h-3.5 w-3.5" />
+                                  {resettingAdminId === admin.id ? "Resetting..." : "Reset Password"}
+                                </button>
+                              </div>
                             </div>
                             {revealedAdminPasswords[admin.id] && (
                               <div className="mt-3 rounded-2xl border border-jade-300/20 bg-jade-300/10 p-3">

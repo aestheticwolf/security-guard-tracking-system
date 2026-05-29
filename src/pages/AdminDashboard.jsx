@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   Trash2,
   UserPlus,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import toast from "react-hot-toast";
 import GuardDetailPanel from "../components/admin/GuardDetailPanel";
@@ -252,7 +253,7 @@ function getGuardLocationSummary(guard) {
   };
 }
 
-function GuardQuickSelectCard({ guard, selected, onSelectGuard, onEditGuard, busy }) {
+function GuardQuickSelectCard({ guard, selected, onSelectGuard, onOpenDetails, onEditGuard, busy }) {
   const locationSummary = getGuardLocationSummary(guard);
 
   return (
@@ -302,7 +303,7 @@ function GuardQuickSelectCard({ guard, selected, onSelectGuard, onEditGuard, bus
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={() => onSelectGuard(guard)}
+          onClick={() => onOpenDetails(guard)}
           className="app-primary-button flex-1 rounded-2xl px-3 py-2 text-xs font-semibold"
         >
           View details
@@ -328,6 +329,7 @@ function GuardLookupPanel({
   search,
   onSearchChange,
   onSelectGuard,
+  onOpenDetails,
   onEditGuard,
   busy
 }) {
@@ -389,6 +391,7 @@ function GuardLookupPanel({
               guard={guard}
               selected={guard.id === selectedGuard?.id}
               onSelectGuard={onSelectGuard}
+              onOpenDetails={onOpenDetails}
               onEditGuard={onEditGuard}
               busy={busy}
             />
@@ -766,6 +769,7 @@ export default function AdminDashboard() {
   const [showAllRoster, setShowAllRoster] = useState(false);
   const deferredSearch = useDeferredValue(search);
   const [selectedGuardId, setSelectedGuardId] = useState("");
+  const [guardDetailModal, setGuardDetailModal] = useState(null);
   const [guardPendingEdit, setGuardPendingEdit] = useState(null);
   const [guardPendingDelete, setGuardPendingDelete] = useState(null);
   const [guardPendingStatusChange, setGuardPendingStatusChange] = useState(null);
@@ -1097,6 +1101,11 @@ export default function AdminDashboard() {
     filteredGuards[0] ||
     null;
 
+  const detailModalGuard =
+    guardDetailModal
+      ? filteredGuards.find((guard) => guard.id === guardDetailModal.id) || guardDetailModal
+      : null;
+
   const liveFeedItems = overview?.liveFeed || [];
   const hasMoreLiveFeed = liveFeedItems.length > initialLiveFeedVisibleCount;
   const hiddenLiveFeedCount = Math.max(
@@ -1319,6 +1328,10 @@ export default function AdminDashboard() {
               search={search}
               onSearchChange={setSearch}
               onSelectGuard={(guard) => setSelectedGuardId(guard.id)}
+              onOpenDetails={(guard) => {
+                setSelectedGuardId(guard.id);
+                setGuardDetailModal(guard);
+              }}
               onEditGuard={openEditGuard}
               busy={busy}
             />
@@ -1853,6 +1866,76 @@ export default function AdminDashboard() {
             </div>
           </Panel>
         )}
+
+        <AnimatePresence>
+          {detailModalGuard && (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setGuardDetailModal(null)}
+            >
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="guard-detail-modal-title"
+                initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 24, scale: 0.98 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="glass-panel max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-t-[30px] border p-4 shadow-[0_28px_90px_rgba(2,6,23,0.45)] sm:rounded-[30px] sm:p-5"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <GuardAvatar guard={detailModalGuard} className="h-14 w-14 rounded-[20px] text-sm" />
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-[0.22em] app-copy-soft">Guard profile</p>
+                      <h3
+                        id="guard-detail-modal-title"
+                        className="truncate font-display text-2xl font-semibold app-copy-primary"
+                      >
+                        {detailModalGuard.fullName}
+                      </h3>
+                      <p className="truncate text-sm app-copy-muted">
+                        {detailModalGuard.email || detailModalGuard.employeeCode || "Field guard"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={detailModalGuard.status} />
+                    <StatusBadge status={detailModalGuard.shiftState} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGuardDetailModal(null);
+                        openEditGuard(detailModalGuard);
+                      }}
+                      disabled={busy}
+                      className={`app-outline-button rounded-2xl px-3 py-2 text-xs font-semibold ${
+                        busy ? "app-button-disabled" : ""
+                      }`}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGuardDetailModal(null)}
+                      className="app-outline-button flex h-10 w-10 items-center justify-center rounded-2xl"
+                      aria-label="Close guard details"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <GuardDetailPanel guard={detailModalGuard} />
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {guardPendingEdit && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 py-6 backdrop-blur-sm">

@@ -32,6 +32,15 @@ export function AuthProvider({ children }) {
     startTransition(() => setUser(nextUser));
   }
 
+  function updateSessionUser(nextUser) {
+    if (!token || !nextUser) {
+      return;
+    }
+
+    setStoredSession({ token, user: nextUser });
+    startTransition(() => setUser(nextUser));
+  }
+
   async function login(credentials) {
     const response = await loginUser(credentials);
     persistSession(response.token, response.user);
@@ -100,7 +109,8 @@ export function AuthProvider({ children }) {
         user,
         authReady,
         login,
-        logout
+        logout,
+        updateSessionUser
       }}
     >
       {children}

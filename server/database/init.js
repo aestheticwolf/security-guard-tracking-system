@@ -26,6 +26,7 @@ async function createSchema(database) {
       code TEXT NOT NULL UNIQUE,
       contact_email TEXT DEFAULT '',
       phone TEXT DEFAULT '',
+      logo_url TEXT,
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -342,6 +343,7 @@ async function runMigrations(database) {
   await repairLegacyUserForeignKeys(database);
   await ensureColumn(database, "locations", "zone_detail", "TEXT");
   await ensureColumn(database, "locations", "duty_label", "TEXT");
+  await ensureColumn(database, "organizations", "logo_url", "TEXT");
   await ensureColumn(database, "users", "organization_id", "TEXT");
   await ensureColumn(database, "users", "duty_site_id", "TEXT");
   await ensureColumn(database, "users", "identity_photo_path", "TEXT");

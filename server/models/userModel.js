@@ -207,6 +207,10 @@ export async function updateGuardDetails(id, guard, timestamp) {
       nextValues.identitySelfiePath = guard.identitySelfiePath;
     }
 
+    if (guard.avatarUrl) {
+      nextValues.avatarUrl = guard.avatarUrl;
+    }
+
     if (guard.identityEnrolledAt) {
       nextValues.identityEnrolledAt = guard.identityEnrolledAt;
     }
@@ -234,6 +238,7 @@ export async function updateGuardDetails(id, guard, timestamp) {
          employee_code = ?,
          shift_label = ?,
          duty_site_id = ?,
+         avatar_url = COALESCE(?, avatar_url),
          identity_photo_path = COALESCE(?, identity_photo_path),
          identity_selfie_path = COALESCE(?, identity_selfie_path),
          identity_enrolled_at = COALESCE(?, identity_enrolled_at),
@@ -248,10 +253,54 @@ export async function updateGuardDetails(id, guard, timestamp) {
       guard.employeeCode,
       guard.shiftLabel,
       guard.dutySiteId || null,
+      guard.avatarUrl || null,
       guard.identityPhotoPath || null,
       guard.identitySelfiePath || null,
       guard.identityEnrolledAt || null,
       passwordVersionBump,
+      timestamp,
+      id
+    ]
+  );
+
+  return findUserById(id);
+}
+
+export async function updateOrganizationAdminProfile(id, admin, timestamp) {
+  if (isMongoEnabled()) {
+    const users = await getMongoCollection("users");
+    const nextValues = {
+      lastSeenAt: timestamp
+    };
+
+    if (admin.fullName !== undefined) {
+      nextValues.fullName = admin.fullName;
+    }
+
+    if (admin.phone !== undefined) {
+      nextValues.phone = admin.phone;
+    }
+
+    if (admin.avatarUrl !== undefined) {
+      nextValues.avatarUrl = admin.avatarUrl;
+    }
+
+    await users.updateOne({ id, role: "admin" }, { $set: nextValues });
+    return findUserById(id);
+  }
+
+  const database = await getDb();
+  await database.run(
+    `UPDATE users
+     SET full_name = COALESCE(?, full_name),
+         phone = COALESCE(?, phone),
+         avatar_url = COALESCE(?, avatar_url),
+         last_seen_at = ?
+     WHERE id = ? AND role = 'admin'`,
+    [
+      admin.fullName ?? null,
+      admin.phone ?? null,
+      admin.avatarUrl ?? null,
       timestamp,
       id
     ]

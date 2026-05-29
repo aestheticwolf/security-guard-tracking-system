@@ -77,7 +77,14 @@ function readScore(value, fallback) {
 }
 
 function isImage(file) {
-  return file.mimetype.startsWith("image/");
+  const mimeType = String(file?.mimetype || "").toLowerCase();
+  return mimeType.startsWith("image/") && mimeType !== "image/svg+xml";
+}
+
+function createImageUploadError() {
+  const error = new Error("Only photo image files are allowed.");
+  error.statusCode = 400;
+  return error;
 }
 
 function normalizeCaptureSource(value) {
@@ -392,7 +399,12 @@ export const selfieUpload = multer({
     fileSize: 5 * 1024 * 1024
   },
   fileFilter: (_request, file, callback) => {
-    callback(null, isImage(file));
+    if (!isImage(file)) {
+      callback(createImageUploadError());
+      return;
+    }
+
+    callback(null, true);
   }
 });
 

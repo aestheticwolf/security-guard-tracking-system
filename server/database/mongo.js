@@ -86,6 +86,7 @@ async function seedMongoDatabase(database) {
     code: defaultOrganizationCode,
     contactEmail: "operations@infipre.local",
     phone: "",
+    logoUrl: null,
     status: "active",
     createdAt: offsetMinutes(1500),
     updatedAt: offsetMinutes(1500)
@@ -298,6 +299,7 @@ async function ensureMongoPlatformRecords(database) {
         code: defaultOrganizationCode,
         contactEmail: "operations@infipre.local",
         phone: "",
+        logoUrl: null,
         status: "active",
         createdAt: timestamp,
         updatedAt: timestamp

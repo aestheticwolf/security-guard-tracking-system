@@ -322,6 +322,13 @@ export async function updateGuard(request, response) {
     ? await resolveDutySiteId(dutySiteId, organizationId)
     : user.dutySiteId ?? null;
   const identityEnrollment = await storeIdentityEnrollmentImages(request);
+  const nextAvatarUrl =
+    identityEnrollment.identityPhotoPath ||
+    user.identityPhotoPath ||
+    identityEnrollment.identitySelfiePath ||
+    user.identitySelfiePath ||
+    user.avatarUrl ||
+    null;
   const updatedGuard = await updateGuardDetails(
     request.params.id,
     {
@@ -332,6 +339,7 @@ export async function updateGuard(request, response) {
       employeeCode: employeeCode ? String(employeeCode).trim() : user.employeeCode,
       shiftLabel: shiftLabel ? String(shiftLabel).trim() : "Patrol Route",
       dutySiteId: assignedDutySiteId,
+      avatarUrl: nextAvatarUrl,
       identityPhotoPath: identityEnrollment.identityPhotoPath,
       identitySelfiePath: identityEnrollment.identitySelfiePath,
       identityEnrolledAt: identityEnrollment.hasIdentityEnrollment ? updatedAt : null

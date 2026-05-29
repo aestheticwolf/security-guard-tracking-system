@@ -11,6 +11,7 @@ const organizationSelect = `
   code,
   contact_email AS contactEmail,
   phone,
+  logo_url AS logoUrl,
   status,
   created_at AS createdAt,
   updated_at AS updatedAt
@@ -67,14 +68,15 @@ export async function createOrganization(organization) {
   const database = await getDb();
   await database.run(
     `INSERT INTO organizations (
-      id, name, code, contact_email, phone, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, name, code, contact_email, phone, logo_url, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       organization.id,
       organization.name,
       organization.code,
       organization.contactEmail,
       organization.phone,
+      organization.logoUrl ?? null,
       organization.status,
       organization.createdAt,
       organization.updatedAt
@@ -95,6 +97,7 @@ export async function updateOrganization(id, organization) {
           code: organization.code,
           contactEmail: organization.contactEmail,
           phone: organization.phone,
+          logoUrl: organization.logoUrl ?? null,
           status: organization.status,
           updatedAt: organization.updatedAt
         }
@@ -106,13 +109,14 @@ export async function updateOrganization(id, organization) {
   const database = await getDb();
   await database.run(
     `UPDATE organizations
-     SET name = ?, code = ?, contact_email = ?, phone = ?, status = ?, updated_at = ?
+     SET name = ?, code = ?, contact_email = ?, phone = ?, logo_url = ?, status = ?, updated_at = ?
      WHERE id = ?`,
     [
       organization.name,
       organization.code,
       organization.contactEmail,
       organization.phone,
+      organization.logoUrl ?? null,
       organization.status,
       organization.updatedAt,
       id
@@ -210,6 +214,7 @@ export async function listOrganizations() {
       o.code,
       o.contact_email AS contactEmail,
       o.phone,
+      o.logo_url AS logoUrl,
       o.status,
       o.created_at AS createdAt,
       o.updated_at AS updatedAt,
@@ -233,6 +238,7 @@ export async function listOrganizations() {
     code: row.code,
     contactEmail: row.contactEmail,
     phone: row.phone,
+    logoUrl: row.logoUrl,
     status: row.status,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

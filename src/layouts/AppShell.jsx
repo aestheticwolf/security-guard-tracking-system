@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertTriangle,
   Building2,
   Camera,
   ChevronLeft,
@@ -159,6 +160,7 @@ export default function AppShell({
   const [mobileQuickLinksCollapsed, setMobileQuickLinksCollapsed] = useState(true);
   const [nativeAccountOpen, setNativeAccountOpen] = useState(false);
   const [nativeActiveTab, setNativeActiveTab] = useState("home");
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const mobileQuickLinksRef = useRef(null);
   const lastNativeContentTabRef = useRef("home");
   const pendingNativeTargetRef = useRef(null);
@@ -167,12 +169,12 @@ export default function AppShell({
   const hasAppTabs = nativeTabs.length > 0;
 
   function confirmSignOut() {
-    const confirmed = window.confirm("Are you sure you want to sign out? You will need to sign in again to continue.");
+    setNativeAccountOpen(false);
+    setSignOutConfirmOpen(true);
+  }
 
-    if (!confirmed) {
-      return;
-    }
-
+  function handleConfirmedSignOut() {
+    setSignOutConfirmOpen(false);
     logout();
   }
 
@@ -781,6 +783,61 @@ export default function AppShell({
             </div>
             </div>
           )}
+
+          <AnimatePresence>
+            {signOutConfirmOpen && (
+              <motion.div
+                className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSignOutConfirmOpen(false)}
+              >
+                <motion.div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="sign-out-confirm-title"
+                  initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="w-full max-w-md rounded-[28px] border border-rose-300/25 bg-[var(--app-surface-strong)] p-5 shadow-[0_28px_90px_rgba(15,23,42,0.38)]"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="app-danger-icon-shell flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl">
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p id="sign-out-confirm-title" className="font-display text-xl font-semibold app-copy-primary">
+                        Sign out of this session?
+                      </p>
+                      <p className="mt-2 text-sm leading-6 app-copy-muted">
+                        You will need to sign in again before accessing guard, admin, or platform controls.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setSignOutConfirmOpen(false)}
+                      className="app-outline-button rounded-2xl px-4 py-3 text-sm font-medium"
+                    >
+                      Stay signed in
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmedSignOut}
+                      className="app-danger-button inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

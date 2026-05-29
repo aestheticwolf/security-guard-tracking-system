@@ -551,6 +551,11 @@ select {
     border-color: rgba(56, 200, 155, 0.28);
   }
 
+  .auth-cred-card--compact {
+    border-radius: 1rem;
+    padding: 0.72rem 0.78rem;
+  }
+
   .auth-cred-copied {
     font-size: 0.68rem;
     font-weight: 700;
@@ -1362,6 +1367,50 @@ select {
 
   .auth-login-card { min-height: auto; }
 
+  .auth-scene--native {
+    padding-top: max(env(safe-area-inset-top), 0.65rem);
+    padding-bottom: max(env(safe-area-inset-bottom), 0.85rem);
+  }
+
+  .auth-scene--native .auth-login-card {
+    border-radius: 1.55rem;
+    padding: 1rem;
+    padding-bottom: 1.1rem;
+  }
+
+  .auth-scene--native .auth-login-inner {
+    margin-top: 0;
+    max-width: none;
+  }
+
+  .auth-scene--native .auth-login-inner h2 {
+    font-size: clamp(1.65rem, 7.2vw, 2.15rem);
+    line-height: 1.05;
+  }
+
+  .auth-scene--native .auth-login-inner form {
+    margin-top: 1rem;
+  }
+
+  .auth-scene--native .auth-login-inner input {
+    min-height: 3.45rem;
+  }
+
+  .auth-scene--native .auth-primary-action {
+    min-height: 3.7rem;
+  }
+
+  .auth-credentials-card--compact {
+    border-radius: 1.35rem !important;
+    padding: 0.88rem !important;
+  }
+
+  .auth-credentials-card--compact .auth-role-badge {
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    padding: 0.18rem 0.42rem;
+  }
+
   .auth-card::before { animation-duration: 10s; }
 
   .auth-ticker { font-size: 0.68rem; }
@@ -1509,6 +1558,10 @@ body.is-native-app {
     max-height: 68vh;
   }
 
+  .native-app-shell[data-native-role="super_admin"] #platform-overview,
+  .native-app-shell[data-native-role="super_admin"] #organizations,
+  .native-app-shell[data-native-role="super_admin"] #new-organization,
+  .native-app-shell[data-native-role="super_admin"] #organization-admins,
   .native-app-shell[data-native-role="admin"] #admin-overview,
   .native-app-shell[data-native-role="admin"] #admin-map,
   .native-app-shell[data-native-role="admin"] #admin-guard-detail,
@@ -1523,6 +1576,10 @@ body.is-native-app {
     display: none;
   }
 
+  .native-app-shell[data-native-role="super_admin"][data-native-tab="home"] #platform-overview,
+  .native-app-shell[data-native-role="super_admin"][data-native-tab="orgs"] #organizations,
+  .native-app-shell[data-native-role="super_admin"][data-native-tab="add"] #new-organization,
+  .native-app-shell[data-native-role="super_admin"][data-native-tab="admins"] #organization-admins,
   .native-app-shell[data-native-role="admin"][data-native-tab="home"] #admin-overview,
   .native-app-shell[data-native-role="admin"][data-native-tab="home"] #admin-feed,
   .native-app-shell[data-native-role="admin"][data-native-tab="map"] #admin-map,

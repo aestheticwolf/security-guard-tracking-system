@@ -102,7 +102,7 @@ function LiveTicker() {
 }
 
 // ── Credential card ───────────────────────────────────────────────────────────
-function CredentialCard({ title, email, password, accent = "jade" }) {
+function CredentialCard({ title, email, password, accent = "jade", compact = false }) {
   const [copied, setCopied] = useState(false);
   function handleCopy() {
     navigator.clipboard?.writeText(`${email} / ${password}`).catch(() => {});
@@ -111,10 +111,10 @@ function CredentialCard({ title, email, password, accent = "jade" }) {
   }
   return (
     <motion.div
-      whileHover={{ y: -4, scale: 1.02 }}
+      whileHover={compact ? undefined : { y: -4, scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
-      className={`auth-cred-card auth-cred-card--${accent}`}
+      className={`auth-cred-card auth-cred-card--${accent} ${compact ? "auth-cred-card--compact" : ""}`}
       onClick={handleCopy}
       style={{ cursor: "pointer" }}
       title="Click to copy credentials"
@@ -144,7 +144,7 @@ function CredentialCard({ title, email, password, accent = "jade" }) {
           )}
         </AnimatePresence>
       </div>
-      <p className="mt-2.5 text-xs font-mono text-slate-300">{email}</p>
+      <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs font-mono text-slate-300`}>{email}</p>
       <p className="mt-1 text-xs font-mono text-slate-400">{password}</p>
     </motion.div>
   );
@@ -247,23 +247,25 @@ function AuthRouteVisual() {
   );
 }
 
-function DemoCredentials({ className = "", spacingClass = "mt-8" }) {
+function DemoCredentials({ className = "", spacingClass = "mt-8", compact = false }) {
   return (
     <motion.div
-      className={`auth-credentials-card ${spacingClass} rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[26px] sm:p-5 ${className}`}
+      className={`auth-credentials-card ${
+        compact ? "auth-credentials-card--compact" : ""
+      } ${spacingClass} rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[26px] sm:p-5 ${className}`}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
     >
       <div className="flex items-center gap-3">
-        <ShieldCheck className="h-5 w-5 text-jade-200" />
-        <p className="font-semibold text-white">Demo credentials</p>
-        <span className="ml-auto text-xs text-slate-500">Click any card to copy</span>
+        <ShieldCheck className={`${compact ? "h-4 w-4" : "h-5 w-5"} text-jade-200`} />
+        <p className={`${compact ? "text-sm" : ""} font-semibold text-white`}>Demo credentials</p>
+        <span className="ml-auto hidden text-xs text-slate-500 sm:inline">Click any card to copy</span>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <CredentialCard title="Super Admin" email="super@sentinel.local" password="Super@123" accent="jade" />
-        <CredentialCard title="Admin" email="admin@sentinel.local" password="Admin@123" accent="gold" />
-        <CredentialCard title="Guard" email="guard@sentinel.local" password="Guard@123" accent="jade" />
+      <div className={`${compact ? "mt-3 gap-2" : "mt-4 gap-3"} grid sm:grid-cols-3`}>
+        <CredentialCard title="Super Admin" email="super@sentinel.local" password="Super@123" accent="jade" compact={compact} />
+        <CredentialCard title="Admin" email="admin@sentinel.local" password="Admin@123" accent="gold" compact={compact} />
+        <CredentialCard title="Guard" email="guard@sentinel.local" password="Guard@123" accent="jade" compact={compact} />
       </div>
     </motion.div>
   );
@@ -667,7 +669,7 @@ export default function AuthPage() {
         </motion.section>
 
         {nativeApp && (
-          <DemoCredentials className="glass-panel shadow-glow" spacingClass="mt-0" />
+          <DemoCredentials compact className="glass-panel shadow-glow" spacingClass="mt-0" />
         )}
       </div>
     </div>

@@ -205,7 +205,7 @@ function publishGuardUpdateToAdmin(type, payload = {}) {
 }
 
 export default function GuardDashboard() {
-  const { user } = useAuth();
+  const { user, updateSessionUser } = useAuth();
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -253,6 +253,9 @@ export default function GuardDashboard() {
         }
 
         startTransition(() => setOverview(response));
+        if (response?.user?.id === user?.id) {
+          updateSessionUser(response.user);
+        }
         setError("");
       } catch (loadError) {
         if (isMounted) {

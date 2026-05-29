@@ -15,6 +15,7 @@ import {
   findUserById,
   findUserByEmail,
   listUsers,
+  updateOrganizationAdminProfile,
   updateUserPassword
 } from "../models/userModel.js";
 import {
@@ -24,6 +25,7 @@ import {
   now
 } from "../services/coreService.js";
 import { sanitizeUser } from "../services/auth.js";
+import { deleteStoredSelfies, storeSelfieFile } from "../services/selfie.js";
 
 function cleanText(value, fallback = "") {
   return String(value || fallback)
@@ -61,6 +63,28 @@ function normalizeSubscriptionPayload(payload = {}, organizationId, timestamp) {
 
 function generateTemporaryPassword() {
   return `Temp-${crypto.randomBytes(6).toString("base64url")}!`;
+}
+
+function parseJsonField(value, fallback = {}) {
+  if (!value) {
+    return fallback;
+  }
+
+  if (typeof value === "object") {
+    return value;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getUploadedFile(request, fieldName) {
+  const fileList = request.files?.[fieldName];
+  return Array.isArray(fileList) ? fileList[0] || null : null;
 }
 
 async function enrichOrganization(organization) {
@@ -106,10 +130,10 @@ export async function createOrganizationWorkspace(request, response) {
     name,
     code,
     contactEmail,
-    phone,
-    subscription = {},
-    admin = {}
+    phone
   } = request.body ?? {};
+  const subscription = parseJsonField(request.body?.subscription, {});
+  const admin = parseJsonField(request.body?.admin, {});
 
   if (!name) {
     throw createHttpError(400, "Organization name is required.");
@@ -123,12 +147,14 @@ export async function createOrganizationWorkspace(request, response) {
   }
 
   const timestamp = now();
+  const organizationLogoPath = await storeSelfieFile(getUploadedFile(request, "organizationLogo"));
   const organization = await createOrganization({
     id: createId(),
     name: cleanText(name),
     code: normalizedCode,
     contactEmail: cleanText(contactEmail),
     phone: cleanText(phone),
+    logoUrl: organizationLogoPath,
     status: "active",
     createdAt: timestamp,
     updatedAt: timestamp
@@ -139,7 +165,9 @@ export async function createOrganizationWorkspace(request, response) {
   );
 
   if (admin?.email || admin?.fullName || admin?.password) {
-    await createOrganizationAdminForOrganization(organization.id, admin);
+    await createOrganizationAdminForOrganization(organization.id, admin, {
+      avatarFile: getUploadedFile(request, "adminPhoto")
+    });
   }
 
   return response.status(201).json({
@@ -161,9 +189,9 @@ export async function updateOrganizationWorkspace(request, response) {
     code,
     contactEmail,
     phone,
-    status,
-    subscription = {}
+    status
   } = request.body ?? {};
+  const subscription = parseJsonField(request.body?.subscription, {});
   const normalizedCode = normalizeOrganizationCode(code, name || organization.name);
   const existingOrganization = await findOrganizationByCode(normalizedCode);
 
@@ -172,14 +200,23 @@ export async function updateOrganizationWorkspace(request, response) {
   }
 
   const timestamp = now();
+  const organizationLogoPath = await storeSelfieFile(getUploadedFile(request, "organizationLogo"));
+  const nextLogoUrl = organizationLogoPath || organization.logoUrl || null;
+
   await updateOrganization(organization.id, {
     name: cleanText(name, organization.name),
     code: normalizedCode,
     contactEmail: cleanText(contactEmail, organization.contactEmail),
     phone: cleanText(phone, organization.phone),
+    logoUrl: nextLogoUrl,
     status: ["active", "suspended"].includes(status) ? status : organization.status,
     updatedAt: timestamp
   });
+
+  if (organizationLogoPath && organization.logoUrl) {
+    await deleteStoredSelfies([organization.logoUrl]);
+  }
+
   await upsertOrganizationSubscription(
     normalizeSubscriptionPayload(
       {
@@ -198,7 +235,7 @@ export async function updateOrganizationWorkspace(request, response) {
   });
 }
 
-async function createOrganizationAdminForOrganization(organizationId, admin = {}) {
+async function createOrganizationAdminForOrganization(organizationId, admin = {}, options = {}) {
   const organization = await findOrganizationById(organizationId);
 
   if (!organization) {
@@ -222,6 +259,8 @@ async function createOrganizationAdminForOrganization(organizationId, admin = {}
     throw createHttpError(409, "A user with that admin email already exists.");
   }
 
+  const avatarUrl = await storeSelfieFile(options.avatarFile || null);
+
   return createUser({
     id: createId(),
     fullName: cleanText(fullName),
@@ -233,7 +272,7 @@ async function createOrganizationAdminForOrganization(organizationId, admin = {}
     employeeCode: `ADM-${Math.floor(100 + Math.random() * 900)}`,
     shiftLabel: "Organization Admin",
     status: "active",
-    avatarUrl: null,
+    avatarUrl,
     sessionVersion: 1,
     lastLoginAt: null,
     lastSeenAt: null,
@@ -242,11 +281,54 @@ async function createOrganizationAdminForOrganization(organizationId, admin = {}
 }
 
 export async function createOrganizationAdmin(request, response) {
-  const admin = await createOrganizationAdminForOrganization(request.params.id, request.body);
+  const adminPayload = parseJsonField(request.body?.admin, request.body ?? {});
+  const admin = await createOrganizationAdminForOrganization(request.params.id, adminPayload, {
+    avatarFile: getUploadedFile(request, "adminPhoto")
+  });
   const organization = (await listOrganizations()).find((entry) => entry.id === request.params.id);
 
   return response.status(201).json({
     admin: sanitizeUser(admin),
+    organization: await enrichOrganization(organization)
+  });
+}
+
+export async function updateOrganizationAdmin(request, response) {
+  const organization = await findOrganizationById(request.params.id);
+
+  if (!organization) {
+    throw createHttpError(404, "Organization not found.");
+  }
+
+  const admin = await findUserById(request.params.adminId);
+
+  if (
+    !admin ||
+    admin.role !== "admin" ||
+    admin.organizationId !== organization.id
+  ) {
+    throw createHttpError(404, "Organization admin not found.");
+  }
+
+  const avatarFile = getUploadedFile(request, "adminPhoto");
+
+  if (!avatarFile) {
+    throw createHttpError(400, "Admin profile photo is required.");
+  }
+
+  const avatarUrl = await storeSelfieFile(avatarFile);
+  const updatedAdmin = await updateOrganizationAdminProfile(
+    admin.id,
+    { avatarUrl },
+    now()
+  );
+
+  if (admin.avatarUrl && admin.avatarUrl !== avatarUrl) {
+    await deleteStoredSelfies([admin.avatarUrl]);
+  }
+
+  return response.json({
+    admin: sanitizeUser(updatedAdmin),
     organization: await enrichOrganization(organization)
   });
 }

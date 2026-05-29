@@ -38,7 +38,7 @@ async function readBatteryLevel() {
   }
 }
 
-function normalizePosition(position, battery) {
+function normalizePosition (position, battery) {
   return {
     latitude: position.coords.latitude,
     longitude: position.coords.longitude,
