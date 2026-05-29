@@ -111,6 +111,12 @@ function buildVersionedAssetUrl(pathname, versionSeed) {
   return `${assetUrl}${separator}v=${version}`;
 }
 
+function buildGuardProfileImageUrl(guard) {
+  const profilePath = guard?.identityPhotoPath || guard?.avatarUrl || guard?.identitySelfiePath;
+
+  return buildVersionedAssetUrl(profilePath, guard?.identityEnrolledAt || guard?.updatedAt || profilePath);
+}
+
 const operatorLocationRequestOptions = {
   forceFresh: false,
   timeout: 8_000,
@@ -388,7 +394,7 @@ function PreviousSelfieHistory({ guardName, selfieHistory = [] }) {
   );
 }
 
-export default function GuardDetailPanel({ guard }) {
+export default function GuardDetailPanel({ guard, compact = false }) {
   const [adminLocation, setAdminLocation] = useState(null);
   const [adminLocationError, setAdminLocationError] = useState("");
   const [adminLocationLoading, setAdminLocationLoading] = useState(false);
@@ -427,6 +433,7 @@ export default function GuardDetailPanel({ guard }) {
   }
 
   const latestSelfie = guard.selfieHistory?.[0] || guard.lastSelfie || null;
+  const guardProfileImageUrl = buildGuardProfileImageUrl(guard);
   const selfieHistory = guard.selfieHistory?.length
     ? guard.selfieHistory
     : latestSelfie
@@ -475,19 +482,42 @@ export default function GuardDetailPanel({ guard }) {
           adminLocation.fallbackUsed ? " using a recent device fix" : ""
         }`
       : "Click My Position on the map to compare your current distance.";
+  const visibleRecentActivities = compact
+    ? (guard.recentActivities || []).slice(0, 3)
+    : guard.recentActivities || [];
+  const hiddenRecentActivityCount = Math.max((guard.recentActivities || []).length - visibleRecentActivities.length, 0);
+  const visibleRecentAttendance = compact
+    ? (guard.recentAttendance || []).slice(0, 3)
+    : guard.recentAttendance || [];
+  const hiddenRecentAttendanceCount = Math.max((guard.recentAttendance || []).length - visibleRecentAttendance.length, 0);
 
   return (
     <div className="space-y-4 sm:space-y-5">
       <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4 sm:rounded-[26px] sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Selected guard</p>
-            <h3 className="mt-2 font-display text-2xl font-semibold text-white sm:text-3xl">{guard.fullName}</h3>
-            <p className="mt-2 text-sm text-slate-300">{guard.email}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <StatusBadge status={guard.status} />
-              <StatusBadge status={guard.shiftState} />
-              <StatusBadge status={hasGuardIdentityReference(guard) ? "Identity enrolled" : "No reference"} />
+          <div className="flex items-start gap-4">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[26px] bg-gradient-to-br from-gold-400 to-jade-400 text-2xl font-semibold text-slate-950 shadow-accent">
+              {guardProfileImageUrl ? (
+                <img
+                  src={guardProfileImageUrl}
+                  alt={`${guard.fullName} profile`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                initials(guard.fullName)
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Selected guard</p>
+              <h3 className="mt-2 truncate font-display text-2xl font-semibold text-white sm:text-3xl">
+                {guard.fullName}
+              </h3>
+              <p className="mt-2 truncate text-sm text-slate-300">{guard.email}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge status={guard.status} />
+                <StatusBadge status={guard.shiftState} />
+                <StatusBadge status={hasGuardIdentityReference(guard) ? "Identity enrolled" : "No reference"} />
+              </div>
             </div>
           </div>
 
@@ -515,12 +545,14 @@ export default function GuardDetailPanel({ guard }) {
                 {guard.lastSeenAt ? formatRelative(guard.lastSeenAt) : "No recent sync"}
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3.5 sm:p-4">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Hours today</p>
-              <p className="mt-2 text-sm text-white">
-                {formatDurationMinutes(guard.dutyMinutesToday ?? guard.onDutyMinutes ?? 0)}
-              </p>
-            </div>
+            {!compact && (
+              <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3.5 sm:p-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Hours today</p>
+                <p className="mt-2 text-sm text-white">
+                  {formatDurationMinutes(guard.dutyMinutesToday ?? guard.onDutyMinutes ?? 0)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -638,7 +670,9 @@ export default function GuardDetailPanel({ guard }) {
                     {getSelfieIdentityDecision(latestSelfie)}
                   </p>
                   <p className="mt-2 text-sm text-slate-300">
-                    Reviews the live shift selfie against the enrolled identity reference and highlights whether supervisor action is needed.
+                    {compact
+                      ? "Compares the latest live selfie with the enrolled reference."
+                      : "Reviews the live shift selfie against the enrolled identity reference and highlights whether supervisor action is needed."}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-right">
@@ -797,8 +831,8 @@ export default function GuardDetailPanel({ guard }) {
           <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:rounded-[24px]">
             <p className="text-sm font-medium text-white">Recent activity log</p>
             <div className="mt-4 space-y-4">
-              {guard.recentActivities?.length ? (
-                guard.recentActivities.map((entry) => (
+              {visibleRecentActivities.length ? (
+                visibleRecentActivities.map((entry) => (
                   <div key={entry.id} className="rounded-[20px] border border-white/10 bg-slate-950/45 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -817,14 +851,19 @@ export default function GuardDetailPanel({ guard }) {
               ) : (
                 <p className="text-sm text-slate-400">No guard activity has been logged yet.</p>
               )}
+              {hiddenRecentActivityCount > 0 && (
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  {hiddenRecentActivityCount} older event{hiddenRecentActivityCount === 1 ? "" : "s"} available in Guard History.
+                </p>
+              )}
             </div>
           </div>
 
           <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:rounded-[24px]">
             <p className="text-sm font-medium text-white">Recent attendance trail</p>
             <div className="mt-4 space-y-4">
-              {guard.recentAttendance?.length ? (
-                guard.recentAttendance.map((entry) => (
+              {visibleRecentAttendance.length ? (
+                visibleRecentAttendance.map((entry) => (
                   <div key={entry.id} className="flex items-start gap-3">
                     <span className="mt-1 h-3 w-3 rounded-full bg-gradient-to-r from-gold-400 to-jade-400" />
                     <div>
@@ -848,6 +887,11 @@ export default function GuardDetailPanel({ guard }) {
                 ))
               ) : (
                 <p className="text-sm text-slate-400">No attendance trail is available yet.</p>
+              )}
+              {hiddenRecentAttendanceCount > 0 && (
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  {hiddenRecentAttendanceCount} older attendance record{hiddenRecentAttendanceCount === 1 ? "" : "s"} available in Guard History.
+                </p>
               )}
             </div>
           </div>

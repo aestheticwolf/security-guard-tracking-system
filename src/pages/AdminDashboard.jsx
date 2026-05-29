@@ -40,7 +40,8 @@ import {
   formatDateTime,
   formatDurationMinutes,
   formatRelative,
-  getLocationDisplayLines
+  getLocationDisplayLines,
+  initials
 } from "../utils/format";
 import {
   buildCameraConstraints,
@@ -206,6 +207,200 @@ function buildVersionedAssetUrl(pathname, versionSeed) {
   const version = encodeURIComponent(versionSeed || pathname);
   const separator = assetUrl.includes("?") ? "&" : "?";
   return `${assetUrl}${separator}v=${version}`;
+}
+
+function getGuardProfileImageUrl(guard) {
+  const profilePath = guard?.identityPhotoPath || guard?.avatarUrl || guard?.identitySelfiePath;
+
+  return buildVersionedAssetUrl(profilePath, guard?.identityEnrolledAt || guard?.updatedAt || profilePath);
+}
+
+function GuardAvatar({ guard, className = "h-12 w-12 rounded-2xl" }) {
+  const avatarUrl = getGuardProfileImageUrl(guard);
+
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br from-gold-400 to-jade-400 font-semibold text-slate-950 ${className}`}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={`${guard?.fullName || "Guard"} profile`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initials(guard?.fullName)
+      )}
+    </div>
+  );
+}
+
+function getGuardLocationSummary(guard) {
+  const mapLocation = guard?.latestLocation || guard?.mapLocation || null;
+  const zoneLines = getLocationDisplayLines(mapLocation);
+
+  return {
+    mapLocation,
+    zoneTitle: zoneLines[0] || "No live location yet",
+    zoneDetail: zoneLines[1] || "",
+    coordinates: formatCoordinates(mapLocation),
+    freshness: guard?.latestLocation
+      ? `${guard.locationFreshnessMinutes ?? "N/A"} min ago`
+      : guard?.mapLocation
+        ? "Assigned site"
+        : "Awaiting sync"
+  };
+}
+
+function GuardQuickSelectCard({ guard, selected, onSelectGuard, onEditGuard, busy }) {
+  const locationSummary = getGuardLocationSummary(guard);
+
+  return (
+    <article
+      className={`rounded-[22px] border p-3.5 transition ${
+        selected
+          ? "border-jade-300/45 bg-jade-300/10 shadow-[0_18px_48px_rgba(45,212,191,0.14)]"
+          : "border-white/10 bg-white/5"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => onSelectGuard(guard)}
+        className="flex w-full items-start gap-3 text-left"
+      >
+        <GuardAvatar guard={guard} className="h-14 w-14 rounded-[20px] text-sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-semibold app-copy-primary">{guard.fullName}</p>
+              <p className="mt-0.5 truncate text-xs app-copy-muted">
+                {guard.employeeCode || "No employee code"}
+              </p>
+            </div>
+            <StatusBadge status={guard.shiftState} />
+          </div>
+          <p className="mt-2 truncate text-sm app-copy-primary">
+            {guard.dutySite?.name || guard.shiftLabel || "Unassigned duty"}
+          </p>
+          <p className="mt-1 line-clamp-2 text-xs app-copy-muted">
+            {locationSummary.zoneTitle}
+          </p>
+        </div>
+      </button>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+          <p className="uppercase tracking-[0.18em] app-copy-soft">Location</p>
+          <p className="mt-1 font-medium app-copy-primary">{locationSummary.freshness}</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+          <p className="uppercase tracking-[0.18em] app-copy-soft">Identity</p>
+          <p className="mt-1 font-medium app-copy-primary">
+            {guard.identityPhotoPath || guard.identitySelfiePath ? "Enrolled" : "Missing"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onSelectGuard(guard)}
+          className="app-primary-button flex-1 rounded-2xl px-3 py-2 text-xs font-semibold"
+        >
+          View details
+        </button>
+        <button
+          type="button"
+          onClick={() => onEditGuard(guard)}
+          disabled={busy}
+          className={`app-outline-button rounded-2xl px-3 py-2 text-xs font-medium ${
+            busy ? "app-button-disabled" : ""
+          }`}
+        >
+          Edit
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function GuardLookupPanel({
+  guards,
+  selectedGuard,
+  search,
+  onSearchChange,
+  onSelectGuard,
+  onEditGuard,
+  busy
+}) {
+  const visibleGuards = guards.slice(0, 4);
+
+  return (
+    <div className="mb-5 space-y-4">
+      <div className="rounded-[22px] border border-white/10 bg-white/5 p-3.5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search guard name, employee code, duty site, or location..."
+            className="app-input min-h-[3rem] flex-1 text-sm"
+          />
+          <div className="grid grid-cols-3 gap-2 text-center text-xs lg:w-[24rem]">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <p className="uppercase tracking-[0.16em] app-copy-soft">Results</p>
+              <p className="mt-1 text-lg font-semibold app-copy-primary">{guards.length}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <p className="uppercase tracking-[0.16em] app-copy-soft">On duty</p>
+              <p className="mt-1 text-lg font-semibold app-copy-primary">
+                {guards.filter((guard) => guard.shiftState === "On Duty").length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <p className="uppercase tracking-[0.16em] app-copy-soft">Tracked</p>
+              <p className="mt-1 text-lg font-semibold app-copy-primary">
+                {guards.filter((guard) => guard.latestLocation || guard.mapLocation).length}
+              </p>
+            </div>
+          </div>
+        </div>
+        {selectedGuard && (
+          <div className="mt-3 flex flex-col gap-3 rounded-[20px] border border-jade-300/20 bg-jade-300/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <GuardAvatar guard={selectedGuard} className="h-12 w-12 rounded-2xl text-sm" />
+              <div className="min-w-0">
+                <p className="truncate font-semibold app-copy-primary">{selectedGuard.fullName}</p>
+                <p className="truncate text-sm app-copy-muted">
+                  {selectedGuard.dutySite?.name || selectedGuard.shiftLabel || "Unassigned duty"}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge status={selectedGuard.status} />
+              <StatusBadge status={selectedGuard.shiftState} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {visibleGuards.length ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {visibleGuards.map((guard) => (
+            <GuardQuickSelectCard
+              key={guard.id}
+              guard={guard}
+              selected={guard.id === selectedGuard?.id}
+              onSelectGuard={onSelectGuard}
+              onEditGuard={onEditGuard}
+              busy={busy}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[22px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-sm app-copy-muted">
+          No guard matches this search. Try name, employee code, duty site, or area.
+        </div>
+      )}
+    </div>
+  );
 }
 
 function IdentityImagePicker({
@@ -1113,12 +1308,21 @@ export default function AdminDashboard() {
 
           <Panel
             id="admin-guard-detail"
-            title="Selected Guard Detail"
-            subtitle="A single operational view of the guard's latest selfie, shift state, live coordinates, and recent field activity."
+            title="Guard Lookup"
+            subtitle="Search, select, and review each guard's profile, location, duty site, and latest verification in one focused view."
             collapsibleOnMobile
             defaultCollapsed={!nativeApp}
           >
-            <GuardDetailPanel guard={selectedGuard} />
+            <GuardLookupPanel
+              guards={filteredGuards}
+              selectedGuard={selectedGuard}
+              search={search}
+              onSearchChange={setSearch}
+              onSelectGuard={(guard) => setSelectedGuardId(guard.id)}
+              onEditGuard={openEditGuard}
+              busy={busy}
+            />
+            <GuardDetailPanel guard={selectedGuard} compact />
           </Panel>
         </div>
 
@@ -1449,8 +1653,8 @@ export default function AdminDashboard() {
 
         <Panel
           id="admin-roster"
-          title="Field Guard Directory"
-          subtitle="Search the directory, inspect latest movement, and manage guard access."
+          title="Guard Directory"
+          subtitle="Compact roster with profile photo, access state, duty assignment, and last known position."
           className="mx-auto w-full xl:max-w-[72rem]"
           collapsibleOnMobile
           defaultCollapsed={!nativeApp}
@@ -1463,7 +1667,7 @@ export default function AdminDashboard() {
             />
           }
         >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {filteredGuards.length ? (
               visibleRosterGuards.map((guard) => {
                 const mapLocation = guard.latestLocation || guard.mapLocation || null;
@@ -1475,111 +1679,83 @@ export default function AdminDashboard() {
                 return (
                   <div
                     key={guard.id}
-                    className="rounded-[22px] border border-white/10 bg-slate-950/45 p-3.5 sm:p-4"
+                    className="rounded-[22px] border border-white/10 bg-white/5 p-3.5 sm:p-4"
                   >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-display text-[1.55rem] font-semibold text-white sm:text-[1.75rem]">
-                        {guard.fullName}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-300">{guard.email}</p>
+                  <div className="flex items-start gap-3">
+                    <GuardAvatar guard={guard} className="h-14 w-14 rounded-[20px] text-sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-display text-xl font-semibold app-copy-primary">
+                            {guard.fullName}
+                          </p>
+                          <p className="mt-1 truncate text-sm app-copy-muted">{guard.email}</p>
+                        </div>
+                        <StatusBadge status={guard.status} />
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <StatusBadge status={guard.shiftState} />
+                        <StatusBadge
+                          status={guard.identityPhotoPath || guard.identitySelfiePath ? "Photo enrolled" : "No photo"}
+                        />
+                      </div>
                     </div>
-                    <StatusBadge status={guard.status} />
                   </div>
 
-                  <div className="mt-4 space-y-2.5 text-sm text-slate-300">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Shift label</span>
-                      <span className="text-right text-white">{guard.shiftLabel || "Unassigned"}</span>
+                  <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+                      <p className="text-xs uppercase tracking-[0.18em] app-copy-soft">Duty site</p>
+                      <p className="mt-1 truncate font-medium app-copy-primary">
+                        {guard.dutySite?.name || guard.shiftLabel || "Unassigned"}
+                      </p>
+                      {guard.dutySite?.area && (
+                        <p className="mt-0.5 truncate text-xs app-copy-muted">{guard.dutySite.area}</p>
+                      )}
                     </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Assigned duty site</span>
-                      <span className="text-right text-white">
-                        {guard.dutySite?.name || "Unassigned"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Duty state</span>
-                      <span className="text-right text-white">{guard.shiftState}</span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Identity reference</span>
-                      <span className="text-right text-white">
-                        {guard.identityPhotoPath || guard.identitySelfiePath ? "Enrolled" : "Not enrolled"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Latest map zone</span>
-                      <span className="text-right text-white">
-                        {zoneLines[0] || "No map sync yet"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Latest duty label</span>
-                      <span className="text-right text-white">
-                        {mapLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Exact sync point</span>
-                      <span className="text-right text-white">
-                        {formatCoordinates(mapLocation)}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Last activity</span>
-                      <span className="text-right text-white">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+                      <p className="text-xs uppercase tracking-[0.18em] app-copy-soft">Last sync</p>
+                      <p className="mt-1 font-medium app-copy-primary">
+                        {hasLiveLocation ? `${guard.locationFreshnessMinutes ?? "N/A"} min ago` : "Awaiting GPS"}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs app-copy-muted">
                         {guard.latestActivity ? formatRelative(guard.latestActivity.createdAt) : "No activity"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <span>Location freshness</span>
-                      <span className="text-right text-white">
-                        {hasLiveLocation ? `${guard.locationFreshnessMinutes ?? "N/A"} min` : "Awaiting live sync"}
-                      </span>
+                      </p>
                     </div>
                   </div>
 
                   <div className="mt-4 rounded-[20px] border border-white/10 bg-white/5 p-3.5">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Latest zone</p>
-                    <p className="mt-2 text-sm text-white">
-                      {zoneTitle}
-                    </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                      Assigned duty site
-                    </p>
-                    <p className="mt-1 text-sm text-white">
-                      {guard.dutySite?.name || "Unassigned"}
-                      {guard.dutySite?.area ? ` • ${guard.dutySite.area}` : ""}
-                    </p>
-                    {zoneDetail ? (
-                      <p className="mt-2 text-xs text-slate-400">{zoneDetail}</p>
-                    ) : (
-                      !mapLocation && (
-                        <p className="mt-2 text-xs text-slate-400">
-                          GPS live zone detail will appear here after sync.
-                        </p>
-                      )
-                    )}
-                    <p className="mt-2 text-sm text-slate-300">
-                      {formatCoordinates(mapLocation)}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-300">
-                      Duty label: {mapLocation?.dutyLabel || guard.shiftLabel || "No duty label"}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">Latest position</p>
+                        <p className="mt-2 truncate text-sm font-medium app-copy-primary">{zoneTitle}</p>
+                        {zoneDetail && <p className="mt-1 line-clamp-2 text-xs app-copy-muted">{zoneDetail}</p>}
+                      </div>
+                      <MapPinned className="h-4 w-4 shrink-0 text-jade-400" />
+                    </div>
+                    <p className="mt-3 truncate text-sm app-copy-muted">{formatCoordinates(mapLocation)}</p>
+                    <p className="mt-1 truncate text-xs app-copy-soft">
                       {guard.latestLocation?.trackedAt
                         ? formatDateTime(guard.latestLocation.trackedAt)
                         : mapLocation
-                          ? "Showing assigned duty site until first live sync"
+                          ? "Assigned duty site fallback"
                           : "Awaiting first location sync"}
-                    </p>
-                    <p className="mt-3 text-sm text-slate-300">
-                      {guard.latestActivity?.title || "No recent activity title"}
                     </p>
                   </div>
 
-                  <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
+                  <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedGuardId(guard.id);
+                        document.getElementById("admin-guard-detail")?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start"
+                        });
+                      }}
+                      className="app-primary-button rounded-2xl px-3 py-2.5 text-sm font-semibold"
+                    >
+                      Details
+                    </button>
                     <button
                       type="button"
                       onClick={() => openEditGuard(guard)}
@@ -1591,6 +1767,8 @@ export default function AdminDashboard() {
                       <Pencil className="h-4 w-4" />
                       Edit guard
                     </button>
+                  </div>
+                  <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={() => setGuardPendingStatusChange(guard)}

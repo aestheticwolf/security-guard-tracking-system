@@ -65,7 +65,7 @@ const subscriptionPlanOptions = [
 const superAdminLinks = [
   { id: "platform-overview", label: "Overview", icon: Landmark },
   { id: "organizations", label: "Organizations", icon: Users },
-  { id: "new-organization", label: "Add Org", icon: Building2 },
+  { id: "new-organization", label: "Add Company", icon: Building2 },
   { id: "organization-admins", label: "Admins", icon: UserPlus }
 ];
 
@@ -322,7 +322,7 @@ export default function SuperAdminDashboard() {
   return (
     <AppShell
       title="Platform Control"
-      subtitle="Manage organizations, organization admins, and subscription limits from the Infipre owner workspace."
+      subtitle="Manage company workspaces, organization admins, and subscription limits from the Infipre owner workspace."
       mobileQuickLinks={superAdminLinks}
       sectionLinks={superAdminLinks}
     >
@@ -366,18 +366,18 @@ export default function SuperAdminDashboard() {
         <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
           <Panel
             id="new-organization"
-            title="Add Organization"
-            subtitle="Create a client workspace with an optional first organization admin."
+            title="Add Company Workspace"
+            subtitle="Create a client company workspace with an optional first organization admin."
           >
             <form onSubmit={handleCreateOrganization} className="grid gap-4 sm:grid-cols-2">
               <FormField
-                label="Organization name"
+                label="Company / organization name"
                 value={organizationForm.name}
                 onChange={(value) => updateOrganizationForm("name", value)}
                 placeholder="North Star Security"
               />
               <FormField
-                label="Organization code"
+                label="Workspace code"
                 value={organizationForm.code}
                 onChange={(value) => updateOrganizationForm("code", value)}
                 placeholder="NORTH-STAR"
@@ -496,8 +496,8 @@ export default function SuperAdminDashboard() {
 
         <Panel
           id="organizations"
-          title="Organizations"
-          subtitle="Client workspaces, administrators, subscription status, and guard capacity."
+          title="Company Workspaces"
+          subtitle="Client organizations, administrators, subscription status, and guard capacity."
         >
           <div className="grid gap-4 xl:grid-cols-2">
             {organizations.length ? (
@@ -508,6 +508,9 @@ export default function SuperAdminDashboard() {
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
+                      <p className="mb-1 text-xs uppercase tracking-[0.24em] app-copy-soft">
+                        Company workspace
+                      </p>
                       <p className="font-display text-2xl font-semibold app-copy-primary">
                         {organization.name}
                       </p>
@@ -573,12 +576,12 @@ export default function SuperAdminDashboard() {
                       className="mt-5 grid gap-4 rounded-[22px] border border-white/10 bg-white/5 p-4 sm:grid-cols-2"
                     >
                       <FormField
-                        label="Organization name"
+                        label="Company / organization name"
                         value={editOrganizationForm.name}
                         onChange={(value) => updateEditOrganizationForm("name", value)}
                       />
                       <FormField
-                        label="Organization code"
+                        label="Workspace code"
                         value={editOrganizationForm.code}
                         onChange={(value) => updateEditOrganizationForm("code", value)}
                       />

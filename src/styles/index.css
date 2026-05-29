@@ -1457,6 +1457,17 @@ select {
   min-height: min(46rem, calc(100vh - 12rem));
 }
 
+.app-screen-shell[data-app-role="super_admin"][data-app-screen="add"] #new-organization,
+.app-screen-shell[data-app-role="super_admin"][data-app-screen="admins"] #organization-admins,
+.app-screen-shell[data-app-role="admin"][data-app-screen="home"] #admin-feed,
+.app-screen-shell[data-app-role="admin"][data-app-screen="add"] #admin-feed + div {
+  grid-column: 1 / -1;
+}
+
+.app-screen-shell[data-app-role="admin"][data-app-screen="home"] #admin-feed + div {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   .app-screen-shell .app-header-actions {
     display: none !important;

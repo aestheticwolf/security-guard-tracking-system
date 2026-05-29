@@ -21,8 +21,33 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { pageShift } from "../animations/transitions";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { buildAssetUrl } from "../services/apiClient";
 import { initials } from "../utils/format";
 import { isNativeApp } from "../utils/nativeApp";
+
+function getUserAvatarUrl(user) {
+  return buildAssetUrl(user?.identityPhotoPath || user?.avatarUrl || user?.identitySelfiePath);
+}
+
+function UserAvatar({ user, className = "" }) {
+  const avatarUrl = getUserAvatarUrl(user);
+
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br from-gold-400 to-jade-400 font-semibold text-slate-950 ${className}`}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={`${user?.fullName || "User"} profile`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initials(user?.fullName)
+      )}
+    </div>
+  );
+}
 
 function getRoleLabel(role) {
   if (role === "super_admin") {
@@ -343,9 +368,7 @@ export default function AppShell({
           <div className="app-surface-soft mt-8 rounded-[26px] p-4">
             <p className="text-xs uppercase tracking-[0.28em] app-copy-soft">Session</p>
             <div className="mt-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-400 to-jade-400 font-semibold text-slate-950">
-                {initials(user?.fullName)}
-              </div>
+              <UserAvatar user={user} className="h-12 w-12 rounded-2xl" />
               <div>
                 <p className="font-medium app-copy-primary">{user?.fullName}</p>
                 <p className="text-sm app-copy-muted">{user?.shiftLabel}</p>
@@ -560,9 +583,7 @@ export default function AppShell({
                     </p>
                     <p className="mt-0.5 text-sm app-copy-muted">{getRoleLabel(user?.role)}</p>
                   </div>
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-gold-400 to-jade-400 text-sm font-semibold text-slate-950">
-                    {initials(user?.fullName)}
-                  </div>
+                  <UserAvatar user={user} className="h-11 w-11 rounded-[18px] text-sm" />
                 </div>
 
                 <div className="mt-4 grid gap-2">
@@ -709,9 +730,7 @@ export default function AppShell({
                 style={{ backdropFilter: "blur(18px)" }}
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-gold-400 to-jade-400 text-sm font-semibold text-slate-950">
-                    {initials(user?.fullName)}
-                  </div>
+                  <UserAvatar user={user} className="h-10 w-10 rounded-[18px] text-sm" />
                   <div className="min-w-0">
                     <p className="max-w-[6.75rem] truncate text-sm font-medium app-copy-primary">
                       {user?.fullName}

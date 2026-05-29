@@ -31,7 +31,8 @@ import {
   formatPositionFreshness,
   formatRelative,
   formatTime,
-  getLocationDisplayLines
+  getLocationDisplayLines,
+  initials
 } from "../utils/format";
 import { getDistanceMeters, hasCoordinates } from "../utils/geo";
 import { publishGuardAdminSignal } from "../utils/guardAdminSignal";
@@ -120,6 +121,15 @@ function buildVersionedAssetUrl(pathname, versionSeed) {
   const version = encodeURIComponent(versionSeed || pathname);
   const separator = assetUrl.includes("?") ? "&" : "?";
   return `${assetUrl}${separator}v=${version}`;
+}
+
+function getGuardProfileImageUrl(profile) {
+  const profilePath = profile?.identityPhotoPath || profile?.avatarUrl || profile?.identitySelfiePath;
+
+  return buildVersionedAssetUrl(
+    profilePath,
+    profile?.identityEnrolledAt || profile?.updatedAt || profilePath
+  );
 }
 
 function getMostRecentLocation(...candidates) {
@@ -322,6 +332,8 @@ export default function GuardDashboard() {
   const liveZoneDetail = liveZoneLines[1] || null;
   const latestSelfie = overview?.lastSelfie || null;
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
+  const guardProfile = overview?.user || user;
+  const guardProfileImageUrl = getGuardProfileImageUrl(guardProfile);
 
   useEffect(() => {
     const selfieId = latestSelfie?.id;
@@ -1075,6 +1087,33 @@ export default function GuardDashboard() {
           title="Shift Overview"
           subtitle="Key duty, selfie, route, and activity numbers for this current guard session."
         >
+          <div className="mb-4 flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 p-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br from-gold-400 to-jade-400 text-xl font-semibold text-slate-950 shadow-accent">
+              {guardProfileImageUrl ? (
+                <img
+                  src={guardProfileImageUrl}
+                  alt={`${guardProfile?.fullName || "Guard"} profile`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                initials(guardProfile?.fullName || user?.fullName)
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">Guard profile</p>
+              <p className="truncate font-display text-xl font-semibold app-copy-primary">
+                {guardProfile?.fullName || user?.fullName || "Guard"}
+              </p>
+              <p className="mt-1 truncate text-sm app-copy-muted">
+                {guardProfile?.employeeCode || guardProfile?.shiftLabel || user?.email}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <StatusBadge status={overview?.currentAttendance ? "On Duty" : "Standby"} />
+                <StatusBadge status={guardProfileImageUrl ? "Photo enrolled" : "No profile photo"} />
+              </div>
+            </div>
+          </div>
+
           <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
             <StatCard
               icon={ShieldCheck}
