@@ -863,7 +863,7 @@ export default function GuardDashboard() {
     }
 
     const nextMessage = isCheckoutSelfie
-      ? "Check-out selfie is ready. GPS will be verified when you end the shift."
+      ? "Check-out selfie is ready. GPS will be verified when you stop the shift."
       : "Check-in selfie is ready. GPS will be verified when you start the shift.";
     setMessage(nextMessage);
     toast.success(nextMessage);
@@ -985,7 +985,7 @@ export default function GuardDashboard() {
         stopSelfieCamera();
 
         const nextMessage = isCheckoutSelfie
-          ? "Check-out selfie captured from live camera. GPS will be verified when you end the shift."
+          ? "Check-out selfie captured from live camera. GPS will be verified when you stop the shift."
           : "Check-in selfie captured from live camera. GPS will be verified when you start the shift.";
         setMessage(nextMessage);
         toast.success(nextMessage);
@@ -999,8 +999,8 @@ export default function GuardDashboard() {
     event?.preventDefault?.();
 
     if (!selfieFile) {
-      setError("Please attach a selfie before starting your shift.");
-      toast.error("Please attach a selfie before starting your shift.");
+      setError("Please capture a check-in selfie before starting your shift.");
+      toast.error("Please capture a check-in selfie before starting your shift.");
       return;
     }
 
@@ -1068,8 +1068,8 @@ export default function GuardDashboard() {
 
   async function handleCheckOut() {
     if (!selfieFile) {
-      setError("Please capture a checkout selfie before ending your shift.");
-      toast.error("Please capture a checkout selfie before ending your shift.");
+      setError("Please capture a check-out selfie before stopping your shift.");
+      toast.error("Please capture a check-out selfie before stopping your shift.");
       return;
     }
 
@@ -1129,6 +1129,40 @@ export default function GuardDashboard() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function openSelfieProof() {
+    document
+      .getElementById("guard-attendance")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openSelfieCamera();
+  }
+
+  function handleShiftAction(event) {
+    event?.preventDefault?.();
+
+    if (busy) {
+      return;
+    }
+
+    if (!selfieFile) {
+      const nextMessage = overview?.currentAttendance
+        ? "Capture a check-out selfie before stopping your shift."
+        : "Capture a check-in selfie before starting your shift.";
+
+      setError("");
+      setMessage(nextMessage);
+      toast(nextMessage);
+      openSelfieProof();
+      return;
+    }
+
+    if (overview?.currentAttendance) {
+      handleCheckOut();
+      return;
+    }
+
+    handleCheckIn(event);
   }
 
   if (loading) {
@@ -1197,33 +1231,39 @@ export default function GuardDashboard() {
                   Quick shift action
                 </p>
                 <h3 className="mt-1 font-display text-2xl font-semibold app-copy-primary">
-                  {overview?.currentAttendance ? "End active shift" : "Start duty shift"}
+                  {overview?.currentAttendance ? "Stop active shift" : "Start duty shift"}
                 </h3>
                 <p className="mt-1 text-sm leading-6 app-copy-muted">
                   {overview?.currentAttendance
-                    ? "Complete checkout with a final live selfie and GPS sync."
+                    ? "Stop duty with a final live selfie and GPS sync."
                     : "Start duty with the selected zone, a live selfie, and current GPS point."}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  document
-                    .getElementById("guard-attendance")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className="app-outline-button rounded-2xl px-4 py-3 text-sm font-semibold"
+                onClick={openSelfieProof}
+                disabled={busy}
+                className="app-outline-button inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Open selfie proof
+                <Camera className="h-4 w-4" />
+                Capture selfie proof
               </button>
             </div>
             <button
               type="button"
-              onClick={overview?.currentAttendance ? handleCheckOut : handleCheckIn}
+              onClick={handleShiftAction}
               disabled={busy}
-              className="app-primary-button mt-4 w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+              className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 ${
+                overview?.currentAttendance ? "app-danger-button" : "app-primary-button"
+              }`}
             >
-              {busy ? "Verifying..." : overview?.currentAttendance ? "End Shift" : "Start Shift"}
+              {busy
+                ? overview?.currentAttendance
+                  ? "Stopping..."
+                  : "Verifying..."
+                : overview?.currentAttendance
+                  ? "Stop Shift"
+                  : "Start Shift"}
             </button>
           </div>
 
@@ -1338,7 +1378,7 @@ export default function GuardDashboard() {
                   </p>
                   <p className="mt-2 text-xs leading-5 app-copy-soft">
                     Capture a live camera selfie. On mobile, use front camera for identity proof or switch to back camera when the duty site needs context. This proof is required before{" "}
-                    {overview?.currentAttendance ? "ending" : "starting"} the shift.
+                    {overview?.currentAttendance ? "stopping" : "starting"} the shift.
                   </p>
                   <input
                     ref={cameraSelfieInputRef}
@@ -1446,7 +1486,7 @@ export default function GuardDashboard() {
                   {!overview?.currentAttendance ? (
                     <button
                       type="button"
-                      onClick={handleCheckIn}
+                      onClick={handleShiftAction}
                       disabled={busy}
                       className="app-primary-button w-full rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
                     >
@@ -1455,11 +1495,11 @@ export default function GuardDashboard() {
                   ) : (
                     <button
                       type="button"
-                      onClick={handleCheckOut}
+                      onClick={handleShiftAction}
                       disabled={busy}
-                      className="app-outline-button w-full rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                      className="app-danger-button w-full rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
                     >
-                      {busy ? "Completing..." : "End Shift"}
+                      {busy ? "Stopping..." : "Stop Shift"}
                     </button>
                   )}
 
