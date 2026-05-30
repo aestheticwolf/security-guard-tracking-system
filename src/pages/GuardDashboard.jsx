@@ -67,7 +67,7 @@ const autoSyncStaleMs = 10 * 60_000;
 const autoSyncIntervalMs = 10 * 60_000;
 const queuedSyncRetryIntervalMs = 20_000;
 const manualSyncFreshTimeoutMs = 25_000;
-const strictGpsMaxAgeMs = 2 * 60_000;
+const strictGpsMaxAgeMs = 30_000;
 const storedLocationFallbackWindowMs = 2 * 60_000;
 
 const guardSectionLinks = [
@@ -76,6 +76,40 @@ const guardSectionLinks = [
   { id: "guard-map", label: "Route", icon: MapPinned },
   { id: "guard-history-page", label: "History", icon: History }
 ];
+
+function normalizeDutyZoneLabels(labels = []) {
+  const seen = new Set();
+
+  return (Array.isArray(labels) ? labels : [])
+    .map((entry) => String(entry ?? "").trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .filter((label) => {
+      const key = label.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 30);
+}
+
+function buildDutyZoneOptions(labels = [], fallback = "") {
+  const options = normalizeDutyZoneLabels(labels);
+  const fallbackText = String(fallback || "").trim().replace(/\s+/g, " ");
+
+  if (
+    fallbackText &&
+    fallbackText !== "Field checkpoint" &&
+    !options.some((label) => label.toLowerCase() === fallbackText.toLowerCase())
+  ) {
+    options.unshift(fallbackText);
+  }
+
+  return options.map((label) => ({ value: label, label }));
+}
 
 function mergeLocationIntoRecentLocations(recentLocations = [], nextLocation) {
   if (!nextLocation) {
@@ -171,6 +205,8 @@ function buildSyncSuccessMessage(location) {
       return "Live location synced using a recent browser location fix.";
     case "watch":
       return "Live location synced after the device delivered a fresh GPS fix.";
+    case "fresh-relaxed":
+      return "Live location synced from a fresh device location fix.";
     case "relaxed":
       return "Live location synced using the latest available browser location fix.";
     case "stored":
@@ -337,6 +373,19 @@ export default function GuardDashboard() {
   const latestSelfieVerified = isSelfieVerificationPassed(latestSelfie);
   const guardProfile = overview?.user || user;
   const guardProfileImageUrl = getGuardProfileImageUrl(guardProfile);
+  const organization = overview?.organization || null;
+  const organizationDutyLabelKey = Array.isArray(organization?.dutyLabels)
+    ? organization.dutyLabels.join("|")
+    : "";
+  const dutyZoneOptions = useMemo(
+    () =>
+      buildDutyZoneOptions(
+        organization?.dutyLabels,
+        guardProfile?.shiftLabel || user?.shiftLabel || locationLabel
+      ),
+    [organizationDutyLabelKey, guardProfile?.shiftLabel, user?.shiftLabel, locationLabel]
+  );
+  const dutyZoneOptionKey = dutyZoneOptions.map((option) => option.value).join("|");
 
   useEffect(() => {
     const selfieId = latestSelfie?.id;
@@ -381,6 +430,22 @@ export default function GuardDashboard() {
       refreshTimers.forEach((timerId) => window.clearTimeout(timerId));
     };
   }, [latestSelfie?.id, latestSelfie?.identityStatus, user?.id]);
+
+  useEffect(() => {
+    if (!dutyZoneOptions.length) {
+      return;
+    }
+
+    setLocationLabel((current) => {
+      const currentText = String(current || "").trim();
+
+      if (currentText && currentText !== "Field checkpoint") {
+        return current;
+      }
+
+      return dutyZoneOptions[0].value;
+    });
+  }, [dutyZoneOptionKey]);
 
   function applySyncedLocation(responseLocation, liveLocation, options = {}) {
     if (!responseLocation) {
@@ -508,8 +573,11 @@ export default function GuardDashboard() {
     try {
       return await refreshLocation(statusLabel, {
         forceFresh: true,
+        strictFresh: true,
+        allowRecentFallback: false,
+        allowStoredFallback: false,
         timeout: manualSyncFreshTimeoutMs,
-        storedMaxAgeMs: allowFallback ? storedLocationFallbackWindowMs : 0,
+        storedMaxAgeMs: 0,
         maxPositionAgeMs: strictGpsMaxAgeMs
       });
     } catch (locationError) {
@@ -519,7 +587,7 @@ export default function GuardDashboard() {
 
       const fallbackLocation = getMostRecentLocation(deviceLocation);
 
-      if (!isRecentLocation(fallbackLocation, storedLocationFallbackWindowMs)) {
+      if (!isRecentLocation(fallbackLocation, strictGpsMaxAgeMs)) {
         throw locationError;
       }
 
@@ -608,6 +676,9 @@ export default function GuardDashboard() {
         try {
           liveLocation = await refreshLocation(statusLabel, {
             forceFresh,
+            strictFresh: forceFresh,
+            allowRecentFallback: !forceFresh,
+            allowStoredFallback: !forceFresh,
             timeout: forceFresh ? manualSyncFreshTimeoutMs : 12_000,
             storedMaxAgeMs: forceFresh ? 0 : storedLocationFallbackWindowMs,
             maxPositionAgeMs: forceFresh ? strictGpsMaxAgeMs : Number.POSITIVE_INFINITY
@@ -925,7 +996,7 @@ export default function GuardDashboard() {
   }
 
   async function handleCheckIn(event) {
-    event.preventDefault();
+    event?.preventDefault?.();
 
     if (!selfieFile) {
       setError("Please attach a selfie before starting your shift.");
@@ -1065,6 +1136,7 @@ export default function GuardDashboard() {
       <AppShell
         title="Guard Command Hub"
         subtitle="Track attendance, verify duty presence with a selfie, and keep your live map route synced automatically during each shift."
+        workspace={overview?.organization}
       >
         <DashboardSkeleton />
       </AppShell>
@@ -1077,6 +1149,7 @@ export default function GuardDashboard() {
       subtitle="Track attendance, verify duty presence with a selfie, and keep your live map route synced automatically during each shift."
       mobileQuickLinks={guardSectionLinks}
       sectionLinks={guardSectionLinks}
+      workspace={overview?.organization}
     >
       <div className="space-y-5">
         {(error || message) && (
@@ -1115,6 +1188,43 @@ export default function GuardDashboard() {
                 <StatusBadge status={guardProfileImageUrl ? "Photo enrolled" : "No profile photo"} />
               </div>
             </div>
+          </div>
+
+          <div className="mb-4 rounded-[24px] border border-white/10 bg-gradient-to-br from-jade-400/12 to-gold-400/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">
+                  Quick shift action
+                </p>
+                <h3 className="mt-1 font-display text-2xl font-semibold app-copy-primary">
+                  {overview?.currentAttendance ? "End active shift" : "Start duty shift"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 app-copy-muted">
+                  {overview?.currentAttendance
+                    ? "Complete checkout with a final live selfie and GPS sync."
+                    : "Start duty with the selected zone, a live selfie, and current GPS point."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  document
+                    .getElementById("guard-attendance")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className="app-outline-button rounded-2xl px-4 py-3 text-sm font-semibold"
+              >
+                Open selfie proof
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={overview?.currentAttendance ? handleCheckOut : handleCheckIn}
+              disabled={busy}
+              className="app-primary-button mt-4 w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {busy ? "Verifying..." : overview?.currentAttendance ? "End Shift" : "Start Shift"}
+            </button>
           </div>
 
           <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -1182,12 +1292,29 @@ export default function GuardDashboard() {
               <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[24px]">
                 <label className="block">
                   <span className="app-label">Duty zone label</span>
-                  <input
-                    value={locationLabel}
-                    onChange={(event) => setLocationLabel(event.target.value)}
-                    className="app-input"
-                    placeholder="North Perimeter"
-                  />
+                  {dutyZoneOptions.length ? (
+                    <select
+                      value={locationLabel}
+                      onChange={(event) => setLocationLabel(event.target.value)}
+                      className="app-input"
+                    >
+                      {dutyZoneOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={locationLabel}
+                      onChange={(event) => setLocationLabel(event.target.value)}
+                      className="app-input"
+                      placeholder="North Perimeter"
+                    />
+                  )}
+                  <p className="mt-2 text-xs leading-5 app-copy-soft">
+                    Duty zone options are managed by your organization admin.
+                  </p>
                 </label>
 
                 <label className="mt-4 block">
@@ -1343,7 +1470,7 @@ export default function GuardDashboard() {
                         showMessage: true,
                         statusLabel: "Syncing live route now...",
                         forceFresh: true,
-                        allowRecentFallback: true
+                        allowRecentFallback: false
                       })
                     }
                     disabled={syncingLocation}

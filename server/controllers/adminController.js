@@ -10,7 +10,10 @@ import {
   deleteUserById,
   countGuards
 } from "../models/userModel.js";
-import { findOrganizationSubscription } from "../models/organizationModel.js";
+import {
+  findOrganizationSubscription,
+  updateOrganizationDutyLabels
+} from "../models/organizationModel.js";
 import {
   createDutySite as createDutySiteRecord,
   findDutySiteById,
@@ -183,6 +186,23 @@ export async function updateDutySite(request, response) {
 
   return response.json({
     dutySite,
+    overview: await buildAdminOverview(organizationId)
+  });
+}
+
+export async function updateDutyLabels(request, response) {
+  const organizationId = requireOrganizationAdmin(request);
+  const rawLabels = Array.isArray(request.body?.labels) ? request.body.labels : [];
+  const labels = rawLabels.map((label) => cleanText(label)).filter(Boolean);
+
+  if (!labels.length) {
+    throw createHttpError(400, "At least one duty zone label is required.");
+  }
+
+  const organization = await updateOrganizationDutyLabels(organizationId, labels);
+
+  return response.json({
+    organization,
     overview: await buildAdminOverview(organizationId)
   });
 }

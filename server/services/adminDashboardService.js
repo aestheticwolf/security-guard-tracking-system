@@ -14,6 +14,7 @@ import {
   listAllLocations
 } from "../models/locationModel.js";
 import { listDutySites } from "../models/dutySiteModel.js";
+import { findOrganizationById } from "../models/organizationModel.js";
 import { listSelfiesByUserId } from "../models/selfieModel.js";
 import { listGuards, listUsers } from "../models/userModel.js";
 import { sanitizeUser } from "./auth.js";
@@ -414,7 +415,10 @@ export async function buildLiveFeed(limit = 20, organizationId = null) {
 
 export async function buildAdminOverview(organizationId = null) {
   const dateKey = getDateKey();
-  const dutySites = organizationId ? await listDutySites(organizationId) : [];
+  const [organization, dutySites] = await Promise.all([
+    organizationId ? findOrganizationById(organizationId) : Promise.resolve(null),
+    organizationId ? listDutySites(organizationId) : Promise.resolve([])
+  ]);
   const [guards, attendance, activities, liveFeed] = await Promise.all([
     buildGuardRoster(organizationId, dutySites),
     listAttendanceForDate(dateKey),
@@ -439,6 +443,7 @@ export async function buildAdminOverview(organizationId = null) {
     : 0;
 
   return {
+    organization,
     metrics: {
       totalGuards: guards.length,
       onDuty: guards.filter((guard) => guard.shiftState === "On Duty").length,

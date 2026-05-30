@@ -30,6 +30,7 @@ import {
   createGuardAccount,
   deleteGuardAccount,
   getAdminOverview,
+  updateDutyZoneLabels,
   updateDutySite,
   updateGuardProfile,
   updateGuardAccess
@@ -143,6 +144,39 @@ function buildDutySiteOptions(dutySites) {
         label: site.area ? `${site.name} - ${site.area}` : site.name
       }))
   ];
+}
+
+function normalizeDutyZoneLabels(labels = []) {
+  const seen = new Set();
+
+  return (Array.isArray(labels) ? labels : [])
+    .map((entry) => String(entry ?? "").trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .filter((label) => {
+      const key = label.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 30);
+}
+
+function buildDutyZoneOptions(labels = [], fallback = "") {
+  const options = normalizeDutyZoneLabels(labels);
+  const fallbackText = String(fallback || "").trim().replace(/\s+/g, " ");
+
+  if (
+    fallbackText &&
+    !options.some((label) => label.toLowerCase() === fallbackText.toLowerCase())
+  ) {
+    options.unshift(fallbackText);
+  }
+
+  return options.map((label) => ({ value: label, label }));
 }
 
 function formatDutySiteCoordinates(site) {
@@ -778,6 +812,8 @@ export default function AdminDashboard() {
   const [dutySiteForm, setDutySiteForm] = useState(emptyDutySiteForm);
   const [dutySitePendingEdit, setDutySitePendingEdit] = useState(null);
   const [dutySiteEditForm, setDutySiteEditForm] = useState(emptyDutySiteForm);
+  const [dutyLabelDraft, setDutyLabelDraft] = useState([]);
+  const [dutyLabelInput, setDutyLabelInput] = useState("");
   const refreshInFlightRef = useRef(false);
   const pendingRefreshReasonRef = useRef("");
   const refreshOverviewRef = useRef(null);
@@ -984,6 +1020,55 @@ export default function AdminDashboard() {
     }
   }
 
+  function handleAddDutyLabel() {
+    const nextLabel = dutyLabelInput.trim().replace(/\s+/g, " ");
+
+    if (!nextLabel) {
+      return;
+    }
+
+    setDutyLabelDraft((current) => {
+      if (current.some((label) => label.toLowerCase() === nextLabel.toLowerCase())) {
+        return current;
+      }
+
+      return [...current, nextLabel].slice(0, 30);
+    });
+    setDutyLabelInput("");
+  }
+
+  function handleRemoveDutyLabel(labelToRemove) {
+    setDutyLabelDraft((current) => current.filter((label) => label !== labelToRemove));
+  }
+
+  async function handleSaveDutyLabels() {
+    const labels = normalizeDutyZoneLabels(dutyLabelDraft);
+
+    if (!labels.length) {
+      const nextError = "At least one duty zone label is required.";
+      setError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const response = await updateDutyZoneLabels({ labels });
+      startTransition(() => setOverview(response.overview));
+      setDutyLabelDraft(response.overview?.organization?.dutyLabels || labels);
+      setMessage("Duty zone labels updated for this organization.");
+      toast.success("Duty zone labels updated for this organization.");
+    } catch (submitError) {
+      const nextError = getDashboardErrorMessage(submitError);
+      setError(nextError);
+      toast.error(nextError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openEditGuard(guard) {
     setGuardPendingEdit(guard);
     setGuardEditForm(buildGuardEditForm(guard));
@@ -1066,7 +1151,12 @@ export default function AdminDashboard() {
   }
 
   const dutySites = overview?.dutySites || [];
+  const organization = overview?.organization || null;
+  const dutyZoneLabels = normalizeDutyZoneLabels(organization?.dutyLabels);
+  const dutyZoneLabelKey = dutyZoneLabels.join("|");
   const dutySiteOptions = buildDutySiteOptions(dutySites);
+  const dutyZoneOptions = buildDutyZoneOptions(dutyZoneLabels, guardForm.shiftLabel);
+  const editDutyZoneOptions = buildDutyZoneOptions(dutyZoneLabels, guardEditForm.shiftLabel);
   const siteCoverage = overview?.siteCoverage || [];
 
   const filteredGuards =
@@ -1129,6 +1219,25 @@ export default function AdminDashboard() {
     : "Monitor live guard operations, manage the roster, inspect attendance, and keep the field team coordinated from one premium dashboard.";
 
   useEffect(() => {
+    setDutyLabelDraft(dutyZoneLabels);
+  }, [dutyZoneLabelKey]);
+
+  useEffect(() => {
+    if (!dutyZoneLabels.length) {
+      return;
+    }
+
+    setGuardForm((current) =>
+      current.shiftLabel
+        ? current
+        : {
+            ...current,
+            shiftLabel: dutyZoneLabels[0]
+          }
+    );
+  }, [dutyZoneLabelKey]);
+
+  useEffect(() => {
     if (!filteredGuards.length) {
       if (selectedGuardId) {
         setSelectedGuardId("");
@@ -1150,6 +1259,7 @@ export default function AdminDashboard() {
       <AppShell
         title={adminShellTitle}
         subtitle={adminShellSubtitle}
+        workspace={overview?.organization}
       >
         <DashboardSkeleton />
       </AppShell>
@@ -1162,6 +1272,7 @@ export default function AdminDashboard() {
       subtitle={adminShellSubtitle}
       mobileQuickLinks={adminSectionLinks}
       sectionLinks={adminSectionLinks}
+      workspace={overview?.organization}
     >
       <div className="space-y-5">
         {(error || message) && (
@@ -1312,6 +1423,7 @@ export default function AdminDashboard() {
               guards={filteredGuards}
               selectedGuardId={selectedGuard?.id}
               onSelectGuard={setSelectedGuardId}
+              onRefreshLocations={refreshOverview}
             />
           </Panel>
 
@@ -1401,6 +1513,72 @@ export default function AdminDashboard() {
             collapsibleOnMobile
             defaultCollapsed={!nativeApp}
           >
+            <div className="mb-5 rounded-[22px] border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">
+                    Duty zone labels
+                  </p>
+                  <h3 className="mt-1 font-display text-xl font-semibold app-copy-primary">
+                    Guard selectable duty zones
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 app-copy-muted">
+                    These organization-level labels appear in the guard shift form on web and Android.
+                  </p>
+                </div>
+                <StatusBadge status={`${dutyLabelDraft.length || 0} labels`} />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {dutyLabelDraft.map((label) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold app-copy-primary"
+                  >
+                    {label}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDutyLabel(label)}
+                      className="rounded-full p-1 app-copy-muted transition hover:bg-white/10"
+                      aria-label={`Remove ${label}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                <input
+                  value={dutyLabelInput}
+                  onChange={(event) => setDutyLabelInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleAddDutyLabel();
+                    }
+                  }}
+                  className="app-input"
+                  placeholder="Add zone label, e.g. Gate A"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddDutyLabel}
+                  className="app-outline-button rounded-2xl px-4 py-3 text-sm font-medium"
+                >
+                  Add label
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDutyLabels}
+                  disabled={busy}
+                  className="app-primary-button rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  Save labels
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleCreateDutySite} className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="Duty site name"
@@ -1589,10 +1767,15 @@ export default function AdminDashboard() {
                 placeholder="+1 202 555 0180"
               />
               <FormField
-                label="Shift label"
+                label="Duty zone label"
+                as="select"
                 value={guardForm.shiftLabel}
                 onChange={(value) => setGuardForm((current) => ({ ...current, shiftLabel: value }))}
-                placeholder="Warehouse Ring"
+                options={
+                  dutyZoneOptions.length
+                    ? dutyZoneOptions
+                    : [{ value: "", label: "Add duty labels first" }]
+                }
               />
               <FormField
                 label="Duty site"
@@ -1987,10 +2170,15 @@ export default function AdminDashboard() {
                   placeholder="+1 202 555 0180"
                 />
                 <FormField
-                  label="Shift label"
+                  label="Duty zone label"
+                  as="select"
                   value={guardEditForm.shiftLabel}
                   onChange={(value) => setGuardEditForm((current) => ({ ...current, shiftLabel: value }))}
-                  placeholder="Warehouse Ring"
+                  options={
+                    editDutyZoneOptions.length
+                      ? editDutyZoneOptions
+                      : [{ value: "", label: "Add duty labels first" }]
+                  }
                 />
                 <FormField
                   label="Duty site"

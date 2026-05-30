@@ -30,6 +30,19 @@ function getUserAvatarUrl(user) {
   return buildAssetUrl(user?.identityPhotoPath || user?.avatarUrl || user?.identitySelfiePath);
 }
 
+function getWorkspaceBrand(user, workspace) {
+  const showWorkspaceBrand = user?.role === "admin" || user?.role === "guard";
+  const logoUrl = showWorkspaceBrand ? buildAssetUrl(workspace?.logoUrl) : "";
+
+  return {
+    name: showWorkspaceBrand && workspace?.name ? workspace.name : "Sentinel Grid",
+    subtitle: showWorkspaceBrand && workspace?.code
+      ? workspace.code
+      : "Security operations console",
+    logoUrl
+  };
+}
+
 function UserAvatar({ user, className = "" }) {
   const avatarUrl = getUserAvatarUrl(user);
 
@@ -151,7 +164,8 @@ export default function AppShell({
   subtitle,
   children,
   mobileQuickLinks = [],
-  sectionLinks = []
+  sectionLinks = [],
+  workspace = null
 }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -167,6 +181,7 @@ export default function AppShell({
   const nativeApp = isNativeApp();
   const nativeTabs = getNativeTabs(user?.role);
   const hasAppTabs = nativeTabs.length > 0;
+  const workspaceBrand = getWorkspaceBrand(user, workspace);
 
   function confirmSignOut() {
     setNativeAccountOpen(false);
@@ -358,12 +373,20 @@ export default function AppShell({
       <div className="flex min-h-screen w-full gap-3 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 xl:px-8 2xl:px-10">
         <aside className="app-sidebar hidden w-72 shrink-0 flex-col overflow-y-auto rounded-[32px] p-5 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)]">
           <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 bg-gradient-to-br from-gold-400/30 to-jade-400/20">
-              <img src="/brand-shield.svg" alt="Sentinel Grid" className="h-8 w-8" />
+            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] border border-white/10 bg-gradient-to-br from-gold-400/30 to-jade-400/20">
+              {workspaceBrand.logoUrl ? (
+                <img
+                  src={workspaceBrand.logoUrl}
+                  alt={`${workspaceBrand.name} logo`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <img src="/brand-shield.svg" alt="Sentinel Grid" className="h-8 w-8" />
+              )}
             </div>
             <div>
-              <p className="font-display text-xl font-semibold app-copy-primary">Sentinel Grid</p>
-              <p className="text-sm app-copy-muted">Security operations console</p>
+              <p className="font-display text-xl font-semibold app-copy-primary">{workspaceBrand.name}</p>
+              <p className="text-sm app-copy-muted">{workspaceBrand.subtitle}</p>
             </div>
           </div>
 
@@ -473,7 +496,15 @@ export default function AppShell({
                   {theme === "dark" ? "Light mode" : "Dark mode"}
                 </button>
                 <div className="app-surface-soft flex w-full items-center justify-center gap-3 rounded-2xl px-4 py-3 sm:w-auto sm:justify-start">
-                  <Users className="h-4 w-4 text-jade-200" />
+                  {workspaceBrand.logoUrl ? (
+                    <img
+                      src={workspaceBrand.logoUrl}
+                      alt={`${workspaceBrand.name} logo`}
+                      className="h-8 w-8 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <Users className="h-4 w-4 text-jade-200" />
+                  )}
                   <div>
                     <p className="text-sm font-medium app-copy-primary">
                       {user?.role === "super_admin"
@@ -587,6 +618,23 @@ export default function AppShell({
                   </div>
                   <UserAvatar user={user} className="h-11 w-11 rounded-[18px] text-sm" />
                 </div>
+
+                {workspaceBrand.logoUrl && (
+                  <div className="mt-4 flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3">
+                    <img
+                      src={workspaceBrand.logoUrl}
+                      alt={`${workspaceBrand.name} logo`}
+                      className="h-12 w-12 rounded-[18px] object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-[0.22em] app-copy-soft">
+                        Workspace
+                      </p>
+                      <p className="truncate font-semibold app-copy-primary">{workspaceBrand.name}</p>
+                      <p className="truncate text-xs app-copy-muted">{workspaceBrand.subtitle}</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 grid gap-2">
                   <button

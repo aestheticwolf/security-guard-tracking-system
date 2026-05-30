@@ -15,7 +15,7 @@ import {
   initials
 } from "../../utils/format";
 import { getDistanceMeters, hasCoordinates } from "../../utils/geo";
-import { readBestAvailableDeviceContext } from "../../utils/device";
+import { readFreshDeviceContext } from "../../utils/device";
 import {
   formatSelfieIdentityScore,
   getGuardIdentityReferenceType,
@@ -118,11 +118,10 @@ function buildGuardProfileImageUrl(guard) {
 }
 
 const operatorLocationRequestOptions = {
-  forceFresh: false,
-  timeout: 8_000,
-  relaxedTimeout: 6_000,
-  maxPositionAgeMs: 30 * 60_000,
-  storedMaxAgeMs: 30 * 60_000
+  timeout: 20_000,
+  watchTimeout: 25_000,
+  relaxedTimeout: 12_000,
+  maxPositionAgeMs: 30_000
 };
 
 function getLocationTimestamp(location) {
@@ -409,7 +408,7 @@ export default function GuardDetailPanel({ guard, compact = false }) {
     setAdminLocationError("");
 
     try {
-      const nextLocation = await readBestAvailableDeviceContext(operatorLocationRequestOptions);
+      const nextLocation = await readFreshDeviceContext(operatorLocationRequestOptions);
       setAdminLocation(nextLocation);
       setAdminFocusSequence((value) => value + 1);
       return nextLocation;

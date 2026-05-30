@@ -3,6 +3,7 @@ import { hasCoordinates } from "./geo";
 const deviceLocationStorageKey = "sentinel-grid-last-device-location";
 const defaultMaximumAge = 20_000;
 const defaultFreshPositionMaxAge = 2 * 60_000;
+const defaultManualFreshPositionMaxAge = 30_000;
 const quickRecentPositionTimeout = 3_000;
 
 function mapGeolocationError(error) {
@@ -221,6 +222,9 @@ export async function readDeviceContext(options = {}) {
 export async function readBestAvailableDeviceContext(options = {}) {
   const {
     forceFresh = false,
+    strictFresh = false,
+    allowRecentFallback = true,
+    allowStoredFallback = true,
     timeout = 12_000,
     storedMaxAgeMs = 2 * 60_000,
     maxPositionAgeMs = forceFresh ? defaultFreshPositionMaxAge : Number.POSITIVE_INFINITY,
@@ -230,7 +234,7 @@ export async function readBestAvailableDeviceContext(options = {}) {
 
   const attempts = [];
 
-  if (forceFresh && Number.isFinite(maxPositionAgeMs)) {
+  if (forceFresh && !strictFresh && allowRecentFallback && Number.isFinite(maxPositionAgeMs)) {
     attempts.push(() =>
       readPositionAttempt({
         enableHighAccuracy: false,
@@ -268,10 +272,15 @@ export async function readBestAvailableDeviceContext(options = {}) {
   attempts.push(() =>
     readPositionAttempt({
       enableHighAccuracy: false,
-      maximumAge: forceFresh && Number.isFinite(maxPositionAgeMs) ? maxPositionAgeMs : 120_000,
+      maximumAge:
+        forceFresh && strictFresh
+          ? 0
+          : forceFresh && Number.isFinite(maxPositionAgeMs)
+            ? maxPositionAgeMs
+            : 120_000,
       timeout: relaxedTimeout,
       maxPositionAgeMs,
-      source: "relaxed"
+      source: forceFresh && strictFresh ? "fresh-relaxed" : "relaxed"
     })
   );
 
@@ -285,13 +294,34 @@ export async function readBestAvailableDeviceContext(options = {}) {
     }
   }
 
-  const storedLocation = getStoredDeviceLocation(storedMaxAgeMs);
+  if (allowStoredFallback) {
+    const storedLocation = getStoredDeviceLocation(storedMaxAgeMs);
 
-  if (storedLocation) {
-    return decorateLocation(storedLocation, "stored", true);
+    if (storedLocation) {
+      return decorateLocation(storedLocation, "stored", true);
+    }
   }
 
   throw lastError || new Error("Unable to read device location.");
+}
+
+export async function readFreshDeviceContext(options = {}) {
+  const {
+    timeout = 20_000,
+    maxPositionAgeMs = defaultManualFreshPositionMaxAge,
+    ...rest
+  } = options;
+
+  return readBestAvailableDeviceContext({
+    ...rest,
+    timeout,
+    maxPositionAgeMs,
+    forceFresh: true,
+    strictFresh: true,
+    allowRecentFallback: false,
+    allowStoredFallback: false,
+    storedMaxAgeMs: 0
+  });
 }
 
 export function watchDeviceContext(onSuccess, onError) {

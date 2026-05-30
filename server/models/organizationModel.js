@@ -12,6 +12,7 @@ const organizationSelect = `
   contact_email AS contactEmail,
   phone,
   logo_url AS logoUrl,
+  duty_labels AS dutyLabels,
   status,
   created_at AS createdAt,
   updated_at AS updatedAt
@@ -30,8 +31,53 @@ const subscriptionSelect = `
   updated_at AS updatedAt
 `;
 
+export const defaultDutyZoneLabels = ["Ring", "Gate", "Lobby", "Warehouse", "Perimeter"];
+
+export function normalizeDutyZoneLabels(value) {
+  let source = value;
+
+  if (typeof value === "string") {
+    try {
+      source = JSON.parse(value);
+    } catch {
+      source = value.split(",");
+    }
+  }
+
+  if (!Array.isArray(source)) {
+    return [...defaultDutyZoneLabels];
+  }
+
+  const seen = new Set();
+  const labels = source
+    .map((entry) => String(entry ?? "").trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .filter((label) => {
+      const key = label.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 30);
+
+  return labels.length ? labels : [...defaultDutyZoneLabels];
+}
+
 function normalizeOrganization(row) {
-  return row ? stripMongoId(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  const organization = stripMongoId(row);
+
+  return {
+    ...organization,
+    dutyLabels: normalizeDutyZoneLabels(organization.dutyLabels)
+  };
 }
 
 function normalizeSubscription(row) {
@@ -45,7 +91,9 @@ export async function findOrganizationById(id) {
   }
 
   const database = await getDb();
-  return database.get(`SELECT ${organizationSelect} FROM organizations WHERE id = ?`, [id]);
+  return normalizeOrganization(
+    await database.get(`SELECT ${organizationSelect} FROM organizations WHERE id = ?`, [id])
+  );
 }
 
 export async function findOrganizationByCode(code) {
@@ -55,21 +103,25 @@ export async function findOrganizationByCode(code) {
   }
 
   const database = await getDb();
-  return database.get(`SELECT ${organizationSelect} FROM organizations WHERE code = ?`, [code]);
+  return normalizeOrganization(
+    await database.get(`SELECT ${organizationSelect} FROM organizations WHERE code = ?`, [code])
+  );
 }
 
 export async function createOrganization(organization) {
+  const dutyLabels = normalizeDutyZoneLabels(organization.dutyLabels);
+
   if (isMongoEnabled()) {
     const collection = await getMongoCollection("organizations");
-    await collection.insertOne({ ...organization });
+    await collection.insertOne({ ...organization, dutyLabels });
     return findOrganizationById(organization.id);
   }
 
   const database = await getDb();
   await database.run(
     `INSERT INTO organizations (
-      id, name, code, contact_email, phone, logo_url, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, name, code, contact_email, phone, logo_url, duty_labels, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       organization.id,
       organization.name,
@@ -77,6 +129,7 @@ export async function createOrganization(organization) {
       organization.contactEmail,
       organization.phone,
       organization.logoUrl ?? null,
+      JSON.stringify(dutyLabels),
       organization.status,
       organization.createdAt,
       organization.updatedAt
@@ -87,6 +140,13 @@ export async function createOrganization(organization) {
 }
 
 export async function updateOrganization(id, organization) {
+  const existingOrganization = await findOrganizationById(id);
+  const dutyLabels = normalizeDutyZoneLabels(
+    Object.prototype.hasOwnProperty.call(organization, "dutyLabels")
+      ? organization.dutyLabels
+      : existingOrganization?.dutyLabels
+  );
+
   if (isMongoEnabled()) {
     const collection = await getMongoCollection("organizations");
     await collection.updateOne(
@@ -98,6 +158,7 @@ export async function updateOrganization(id, organization) {
           contactEmail: organization.contactEmail,
           phone: organization.phone,
           logoUrl: organization.logoUrl ?? null,
+          dutyLabels,
           status: organization.status,
           updatedAt: organization.updatedAt
         }
@@ -109,7 +170,7 @@ export async function updateOrganization(id, organization) {
   const database = await getDb();
   await database.run(
     `UPDATE organizations
-     SET name = ?, code = ?, contact_email = ?, phone = ?, logo_url = ?, status = ?, updated_at = ?
+     SET name = ?, code = ?, contact_email = ?, phone = ?, logo_url = ?, duty_labels = ?, status = ?, updated_at = ?
      WHERE id = ?`,
     [
       organization.name,
@@ -117,10 +178,32 @@ export async function updateOrganization(id, organization) {
       organization.contactEmail,
       organization.phone,
       organization.logoUrl ?? null,
+      JSON.stringify(dutyLabels),
       organization.status,
       organization.updatedAt,
       id
     ]
+  );
+
+  return findOrganizationById(id);
+}
+
+export async function updateOrganizationDutyLabels(id, dutyLabels) {
+  const labels = normalizeDutyZoneLabels(dutyLabels);
+  const updatedAt = new Date().toISOString();
+
+  if (isMongoEnabled()) {
+    const collection = await getMongoCollection("organizations");
+    await collection.updateOne({ id }, { $set: { dutyLabels: labels, updatedAt } });
+    return findOrganizationById(id);
+  }
+
+  const database = await getDb();
+  await database.run(
+    `UPDATE organizations
+     SET duty_labels = ?, updated_at = ?
+     WHERE id = ?`,
+    [JSON.stringify(labels), updatedAt, id]
   );
 
   return findOrganizationById(id);
@@ -215,6 +298,7 @@ export async function listOrganizations() {
       o.contact_email AS contactEmail,
       o.phone,
       o.logo_url AS logoUrl,
+      o.duty_labels AS dutyLabels,
       o.status,
       o.created_at AS createdAt,
       o.updated_at AS updatedAt,
@@ -239,6 +323,7 @@ export async function listOrganizations() {
     contactEmail: row.contactEmail,
     phone: row.phone,
     logoUrl: row.logoUrl,
+    dutyLabels: normalizeDutyZoneLabels(row.dutyLabels),
     status: row.status,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -47,6 +47,11 @@ export async function updateDutySite(id, payload) {
   return data;
 }
 
+export async function updateDutyZoneLabels(payload) {
+  const { data } = await apiClient.patch("/admin/duty-labels", payload);
+  return data;
+}
+
 export async function updateGuardProfile(id, payload) {
   const { data } = await apiClient.patch(`/admin/guards/${id}`, payload);
   return data;

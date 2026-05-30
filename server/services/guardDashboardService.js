@@ -4,6 +4,7 @@ import {
   listAttendanceByUserId
 } from "../models/attendanceModel.js";
 import { listLocationsByUserId } from "../models/locationModel.js";
+import { findOrganizationById } from "../models/organizationModel.js";
 import { listSelfiesByUserId } from "../models/selfieModel.js";
 import { findUserById } from "../models/userModel.js";
 import { sanitizeUser } from "./auth.js";
@@ -37,7 +38,8 @@ function isVerifiedSelfie(selfie) {
 export async function buildGuardOverview(userId) {
   const dateKey = getDateKey();
   const user = await findUserById(userId);
-  const [attendance, activities, locations, selfies, currentAttendance] = await Promise.all([
+  const [organization, attendance, activities, locations, selfies, currentAttendance] = await Promise.all([
+    user?.organizationId ? findOrganizationById(user.organizationId) : Promise.resolve(null),
     listAttendanceByUserId(userId),
     listActivitiesByUserId(userId),
     listLocationsByUserId(userId),
@@ -57,6 +59,7 @@ export async function buildGuardOverview(userId) {
 
   return {
     user: sanitizeUser(user),
+    organization,
     currentAttendance,
     recentAttendance: sortByNewest(todayAttendance, "checkInAt").slice(0, 3),
     recentActivities: sortByNewest(activities, "createdAt").slice(0, 8),

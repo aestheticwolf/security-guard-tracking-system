@@ -13,6 +13,8 @@ import {
 } from "../services/organizationDefaults.js";
 
 const __filename = fileURLToPath(import.meta.url);
+const defaultDutyZoneLabels = ["Ring", "Gate", "Lobby", "Warehouse", "Perimeter"];
+const defaultDutyZoneLabelsJson = JSON.stringify(defaultDutyZoneLabels);
 
 function offsetMinutes(minutes) {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
@@ -27,6 +29,7 @@ async function createSchema(database) {
       contact_email TEXT DEFAULT '',
       phone TEXT DEFAULT '',
       logo_url TEXT,
+      duty_labels TEXT DEFAULT '[]',
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -344,6 +347,7 @@ async function runMigrations(database) {
   await ensureColumn(database, "locations", "zone_detail", "TEXT");
   await ensureColumn(database, "locations", "duty_label", "TEXT");
   await ensureColumn(database, "organizations", "logo_url", "TEXT");
+  await ensureColumn(database, "organizations", "duty_labels", "TEXT DEFAULT '[]'");
   await ensureColumn(database, "users", "organization_id", "TEXT");
   await ensureColumn(database, "users", "duty_site_id", "TEXT");
   await ensureColumn(database, "users", "identity_photo_path", "TEXT");
@@ -423,8 +427,8 @@ async function ensurePlatformRecords(database) {
 
   await database.run(
     `INSERT INTO organizations (
-      id, name, code, contact_email, phone, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      id, name, code, contact_email, phone, duty_labels, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO NOTHING`,
     [
       defaultOrganizationId,
@@ -432,10 +436,18 @@ async function ensurePlatformRecords(database) {
       defaultOrganizationCode,
       "operations@infipre.local",
       "",
+      defaultDutyZoneLabelsJson,
       "active",
       timestamp,
       timestamp
     ]
+  );
+
+  await database.run(
+    `UPDATE organizations
+     SET duty_labels = ?
+     WHERE id = ? AND (duty_labels IS NULL OR duty_labels = '' OR duty_labels = '[]')`,
+    [defaultDutyZoneLabelsJson, defaultOrganizationId]
   );
 
   await database.run(
@@ -600,14 +612,15 @@ async function seedDatabase(database) {
   try {
     await database.run(
       `INSERT INTO organizations (
-        id, name, code, contact_email, phone, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, code, contact_email, phone, duty_labels, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         defaultOrganizationId,
         "Infipre Demo Organization",
         defaultOrganizationCode,
         "operations@infipre.local",
         "",
+        defaultDutyZoneLabelsJson,
         "active",
         offsetMinutes(1500),
         offsetMinutes(1500)

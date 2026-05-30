@@ -51,6 +51,8 @@ function offsetMinutes(minutes) {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
 }
 
+const defaultDutyZoneLabels = ["Ring", "Gate", "Lobby", "Warehouse", "Perimeter"];
+
 async function createMongoIndexes(database) {
   await Promise.all([
     database.collection("users").createIndex({ email: 1 }, { unique: true }),
@@ -87,6 +89,7 @@ async function seedMongoDatabase(database) {
     contactEmail: "operations@infipre.local",
     phone: "",
     logoUrl: null,
+    dutyLabels: defaultDutyZoneLabels,
     status: "active",
     createdAt: offsetMinutes(1500),
     updatedAt: offsetMinutes(1500)
@@ -300,12 +303,24 @@ async function ensureMongoPlatformRecords(database) {
         contactEmail: "operations@infipre.local",
         phone: "",
         logoUrl: null,
+        dutyLabels: defaultDutyZoneLabels,
         status: "active",
         createdAt: timestamp,
         updatedAt: timestamp
       }
     },
     { upsert: true }
+  );
+
+  await database.collection("organizations").updateMany(
+    {
+      $or: [
+        { dutyLabels: { $exists: false } },
+        { dutyLabels: null },
+        { dutyLabels: { $size: 0 } }
+      ]
+    },
+    { $set: { dutyLabels: defaultDutyZoneLabels } }
   );
 
   await database.collection("organization_subscriptions").updateOne(

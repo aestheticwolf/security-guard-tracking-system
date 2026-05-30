@@ -16,7 +16,7 @@ import {
   hasCoordinates,
   toLatLng
 } from "../../utils/geo";
-import { readBestAvailableDeviceContext } from "../../utils/device";
+import { readFreshDeviceContext } from "../../utils/device";
 import {
   buildLeafletMapError,
   buildLeafletPopupHtml,
@@ -29,11 +29,10 @@ import {
 const indiaCenter = [20.5937, 78.9629];
 const markerCollisionPrecision = 3;
 const operatorLocationRequestOptions = {
-  forceFresh: false,
-  timeout: 8_000,
-  relaxedTimeout: 6_000,
-  maxPositionAgeMs: 30 * 60_000,
-  storedMaxAgeMs: 30 * 60_000
+  timeout: 20_000,
+  watchTimeout: 25_000,
+  relaxedTimeout: 12_000,
+  maxPositionAgeMs: 30_000
 };
 
 function getLocationTimestamp(location) {
@@ -151,7 +150,12 @@ function matchesGuardSearch(guard, query) {
     .includes(query);
 }
 
-export default function GuardPositionMap({ guards = [], selectedGuardId, onSelectGuard }) {
+export default function GuardPositionMap({
+  guards = [],
+  selectedGuardId,
+  onSelectGuard,
+  onRefreshLocations
+}) {
   const { theme } = useTheme();
   const shellRef = useRef(null);
   const containerRef = useRef(null);
@@ -166,6 +170,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
   const hadRenderableSizeRef = useRef(false);
   const hasAutoFocusedRef = useRef(false);
   const lastAutoFocusedGuardIdRef = useRef("");
+  const pendingGuardLocateRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
   const [mapSearch, setMapSearch] = useState("");
@@ -173,6 +178,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
   const [adminLocation, setAdminLocation] = useState(null);
   const [adminLocationError, setAdminLocationError] = useState("");
   const [adminLocationLoading, setAdminLocationLoading] = useState(false);
+  const [guardLocationRefreshing, setGuardLocationRefreshing] = useState(false);
 
   const locatedGuards = useMemo(
     () => guards.filter((guard) => hasCoordinates(getGuardMapLocation(guard))),
@@ -297,7 +303,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     setAdminLocationError("");
 
     try {
-      const nextLocation = await readBestAvailableDeviceContext(operatorLocationRequestOptions);
+      const nextLocation = await readFreshDeviceContext(operatorLocationRequestOptions);
       setAdminLocation(nextLocation);
       return nextLocation;
     } catch (error) {
@@ -311,7 +317,7 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     }
   }
 
-  function handleLocateSelectedGuard() {
+  function focusSelectedGuardOnMap() {
     const map = mapRef.current;
 
     if (!map) {
@@ -331,6 +337,29 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     }
 
     fitLeafletMapToPoints(map, markerPoints, markerPoints.length > 1 ? 15 : 16);
+  }
+
+  async function handleLocateSelectedGuard() {
+    if (guardLocationRefreshing) {
+      return;
+    }
+
+    if (!onRefreshLocations) {
+      focusSelectedGuardOnMap();
+      return;
+    }
+
+    pendingGuardLocateRef.current = true;
+    setGuardLocationRefreshing(true);
+
+    try {
+      await onRefreshLocations({
+        reason: "locate-guard",
+        keepCurrentMessage: true
+      });
+    } finally {
+      setGuardLocationRefreshing(false);
+    }
   }
 
   async function handleMyPosition() {
@@ -376,6 +405,26 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
     ];
     latestFitZoomRef.current = latestFitPointsRef.current.length > 1 ? 15 : 17;
   }, [adminPoint, markerPoints, selectedTrailPoints]);
+
+  useEffect(() => {
+    if (!pendingGuardLocateRef.current || guardLocationRefreshing) {
+      return undefined;
+    }
+
+    pendingGuardLocateRef.current = false;
+    const timerId = window.setTimeout(() => {
+      focusSelectedGuardOnMap();
+    }, 80);
+
+    return () => window.clearTimeout(timerId);
+  }, [
+    guardLocationRefreshing,
+    guards,
+    markerPoints,
+    selectedGuardId,
+    selectedGuardLocation,
+    selectedTrailPoints
+  ]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -684,10 +733,14 @@ export default function GuardPositionMap({ guards = [], selectedGuardId, onSelec
           type="button"
           onClick={handleLocateSelectedGuard}
           className="security-map-guard-button disabled:cursor-not-allowed disabled:opacity-70"
-          disabled={!selectedGuard || (!selectedTrailPoints.length && !hasCoordinates(selectedGuardLocation))}
+          disabled={
+            guardLocationRefreshing ||
+            !selectedGuard ||
+            (!selectedTrailPoints.length && !hasCoordinates(selectedGuardLocation))
+          }
         >
           <MapPinned className="h-4 w-4" />
-          Locate Guard
+          {guardLocationRefreshing ? "Refreshing guard" : "Locate Guard"}
         </button>
         {(adminLocation || adminLocationError || adminLocationLoading) && (
           <div className="security-map-overlay bottom-4 left-3 inline-flex max-w-[calc(100%-9rem)] items-center gap-2 sm:left-4">

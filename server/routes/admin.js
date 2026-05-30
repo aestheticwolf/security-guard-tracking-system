@@ -7,6 +7,7 @@ import {
   getGuards,
   getLiveFeed,
   getOverview,
+  updateDutyLabels,
   updateGuard,
   updateGuardStatus,
   updateDutySite
@@ -23,6 +24,7 @@ router.get("/overview", asyncHandler(getOverview));
 router.get("/duty-sites", asyncHandler(getDutySites));
 router.post("/duty-sites", asyncHandler(createDutySite));
 router.patch("/duty-sites/:id", asyncHandler(updateDutySite));
+router.patch("/duty-labels", asyncHandler(updateDutyLabels));
 router.get("/guards", asyncHandler(getGuards));
 router.get("/live-feed", asyncHandler(getLiveFeed));
 router.post(
