@@ -36,6 +36,16 @@ Backend health:
 https://sentinel-grid-api.onrender.com/api/health
 ```
 
+Current feature baseline:
+
+- `Super Admin`: organizations, subscriptions, organization logos, organization admins, admin profile photos, guard limits, and workspace status.
+- `Admin`: overview, live map, guard lookup/directory, selected guard detail, add guard, duty site management, duty zone labels, attendance history, selfie verification, and account controls.
+- `Guard`: quick Start Shift / End Shift, live selfie capture, duty zone dropdown, shift note, GPS sync, route map, history, and account controls.
+- Organization logos appear for both admins and guards in the same workspace.
+- Guard avatars use enrolled/registered guard images where available.
+- Admin-only identity match score is hidden from guard users.
+- Android APK uses focused page navigation for super admin, admin, and guard flows.
+
 ## 2. Required Accounts And Tools
 
 Accounts:
@@ -709,15 +719,24 @@ http://localhost:5173
 Test:
 
 - Login as admin.
+- Confirm organization logo appears for admin when configured.
 - Create or edit guard.
 - Enroll reference photo/selfie.
+- Confirm guard avatar uses enrolled/registered photo where available.
+- Add or edit organization duty zone labels.
+- Create a duty site using search, map tap, or `Use GPS`; use manual coordinates only as fallback.
 - Login as guard.
+- Confirm organization logo appears for guard when configured.
 - Capture check-in selfie.
+- Confirm duty zone dropdown and shift note appear before starting shift.
 - Start shift.
 - Capture check-out selfie.
 - End shift.
 - Login as admin.
+- Search the guard from guard lookup/directory.
+- Confirm latest guard location, duty site, assigned area, and position freshness.
 - Confirm admin sees latest selfie verification.
+- Confirm today's check-in/check-out selfies are compact and older history is collapsed.
 - Confirm guard does not see match percentage.
 
 ### 14.2 Live Test With ngrok
@@ -757,6 +776,33 @@ https://security-guard-tracking-system.pages.dev
 ```
 
 Capture a new guard selfie. Old records may still show previous statuses; always test with a new capture after Render redeploy.
+
+### 14.3 Android APK Test
+
+After frontend changes:
+
+```powershell
+npm run build
+npm run android:sync
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:release
+```
+
+Install:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+Test:
+
+- Login as super admin and verify organizations, add organization, admins, and account pages.
+- Login as admin and verify home, live map, guards, add/sites, and account pages.
+- Login as guard and verify home, shift, route, history, and account pages.
+- Confirm camera and location permissions are requested on first use.
+- Confirm quick Start Shift / End Shift works from guard home.
+- Confirm Android stays on the selected tab after selfie capture unless the user changes tabs.
 
 ## 15. Troubleshooting
 
@@ -859,6 +905,24 @@ Check:
 - Browser tab is open.
 - User clicked `Sync now` if auto sync did not run.
 - Site is loaded over HTTPS for live mobile testing.
+- Use `My Position`, `Locate Guard`, or `Use GPS` to request a current device position.
+- If the device returns an old operating-system GPS fix, move near a window/open area and retry.
+
+### Duty Site Map Opens Blank Or Over Water
+
+Preferred setup order:
+
+1. Search a place, office, landmark, or area.
+2. Tap the map to pin the exact duty point.
+3. Use current GPS.
+4. Use manual latitude/longitude only as a fallback.
+
+Check:
+
+- Latitude and longitude are valid numbers.
+- Empty coordinate fields are not being saved as `0,0`.
+- Internet access is available for OpenStreetMap tiles.
+- After using GPS/search, confirm the marker is visible before saving the duty site.
 
 ### Port Already In Use
 
@@ -881,16 +945,16 @@ Restart:
 npm run dev
 ```
 
-## 16. Production Notes
-
 ## 16. Android APK Setup
 
 The Android app is built with Capacitor from the same React/Vite codebase.
 
 APK behavior:
 
-- Admin APK uses a focused mobile console with overview, live map, selected guard detail, latest selfie verification with score, add guard, duty site management, and field guard directory.
-- Guard APK uses the same guard shift flow as web/mobile: start shift, end shift, live selfie, GPS sync, camera mode switching, and duty notes.
+- Super admin APK uses separate pages for overview, organizations, add organization, admins, and account controls.
+- Admin APK uses focused pages for overview, live map, guards, add/sites, guard detail, latest selfie verification with score, duty site management, and account controls.
+- Guard APK uses focused pages for home, shift, route, history, and account.
+- Guard home includes quick Start Shift / End Shift, live selfie, GPS sync, duty zone selection, and duty notes.
 - Browser/web dashboard remains unchanged.
 
 Required local tools:
@@ -933,6 +997,20 @@ Generated APK:
 
 ```text
 android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Build signed release APK for internal testing:
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:release
+```
+
+Release APK:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
 ```
 
 Open Android project:
@@ -1014,6 +1092,11 @@ npm run android:sync
 $env:JAVA_HOME="C:\Program Files\Java\jdk-21"
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
 npm run android:apk:debug
+
+# Build Android release APK for internal testing
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:release
 
 # Start production backend locally
 npm start

@@ -3,7 +3,7 @@ import L from "leaflet";
 import { Loader2, MapPin, Search, Target } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { searchDutySiteLocations } from "../../services/adminService";
-import { readBestAvailableDeviceContext } from "../../utils/device";
+import { getStoredDeviceLocation, readBestAvailableDeviceContext } from "../../utils/device";
 import { formatCoordinates } from "../../utils/format";
 import {
   buildLeafletMapError,
@@ -14,14 +14,28 @@ import {
 } from "../../utils/leafletMaps";
 import StatusBadge from "../StatusBadge";
 
-const defaultCenter = [20.5937, 78.9629];
+const defaultCenter = [15.4909, 73.8278];
+const defaultZoom = 13;
+const storedMapCenterMaxAgeMs = 30 * 60_000;
 
 function parseCoordinate(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "string" && !value.trim()) {
+    return null;
+  }
+
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
 }
 
 function getPointFromValue(value = {}) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
   const latitude = parseCoordinate(value.latitude);
   const longitude = parseCoordinate(value.longitude);
 
@@ -30,6 +44,25 @@ function getPointFromValue(value = {}) {
   }
 
   return [latitude, longitude];
+}
+
+function getPointFromLocation(location = {}) {
+  if (!location || typeof location !== "object") {
+    return null;
+  }
+
+  const latitude = parseCoordinate(location.latitude);
+  const longitude = parseCoordinate(location.longitude);
+
+  if (latitude === null || longitude === null) {
+    return null;
+  }
+
+  return [latitude, longitude];
+}
+
+function getStoredMapPoint() {
+  return getPointFromLocation(getStoredDeviceLocation(storedMapCenterMaxAgeMs));
 }
 
 function formatCoordinateInput(value) {
@@ -47,11 +80,55 @@ function buildLocationPatch(location, currentValue = {}) {
   };
 }
 
+function canUseLeafletMap(map) {
+  const container = map?.getContainer?.();
+  return Boolean(map && container && container.isConnected);
+}
+
+function safelyResizeMap(map) {
+  if (!canUseLeafletMap(map)) {
+    return false;
+  }
+
+  try {
+    map.invalidateSize();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safelySetMapView(map, point, zoom) {
+  if (!safelyResizeMap(map)) {
+    return;
+  }
+
+  try {
+    map.setView(point, zoom, { animate: false });
+  } catch {
+    // Leaflet can throw while mobile panels are being mounted or hidden.
+  }
+}
+
+function safelyFitMapToPoints(map, points, zoom) {
+  if (!safelyResizeMap(map)) {
+    return;
+  }
+
+  try {
+    fitLeafletMapToPoints(map, points, zoom);
+  } catch {
+    // Keep the form usable even if Leaflet is between layout passes.
+  }
+}
+
 export default function DutySiteLocationPicker({ value = {}, onChange }) {
   const { theme } = useTheme();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const initialCenterRef = useRef(null);
+  const pendingTimeoutsRef = useRef([]);
   const onChangeRef = useRef(onChange);
   const valueRef = useRef(value);
   const [query, setQuery] = useState("");
@@ -65,6 +142,19 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
 
   const selectedPoint = useMemo(() => getPointFromValue(value), [value.latitude, value.longitude]);
 
+  if (!initialCenterRef.current) {
+    initialCenterRef.current = selectedPoint || getStoredMapPoint() || defaultCenter;
+  }
+
+  function scheduleMapTask(callback, delay) {
+    const timeoutId = window.setTimeout(() => {
+      pendingTimeoutsRef.current = pendingTimeoutsRef.current.filter((id) => id !== timeoutId);
+      callback();
+    }, delay);
+
+    pendingTimeoutsRef.current.push(timeoutId);
+  }
+
   function resizeMapView(point = selectedPoint, delays = [0, 120, 360, 800]) {
     const map = mapRef.current;
 
@@ -73,12 +163,32 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
     }
 
     delays.forEach((delay) => {
-      window.setTimeout(() => {
-        map.invalidateSize();
+      scheduleMapTask(() => {
+        if (mapRef.current !== map || !safelyResizeMap(map)) {
+          return;
+        }
 
         if (point) {
-          fitLeafletMapToPoints(map, [point], 17);
+          safelyFitMapToPoints(map, [point], 17);
         }
+      }, delay);
+    });
+  }
+
+  function centerMapView(point = initialCenterRef.current || defaultCenter, zoom = defaultZoom, delays = [0, 120, 360, 800]) {
+    const map = mapRef.current;
+
+    if (!map || !Array.isArray(point) || !point.every(Number.isFinite)) {
+      return;
+    }
+
+    delays.forEach((delay) => {
+      scheduleMapTask(() => {
+        if (mapRef.current !== map) {
+          return;
+        }
+
+        safelySetMapView(map, point, zoom);
       }, delay);
     });
   }
@@ -94,7 +204,8 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
     }
 
     try {
-      const map = createLeafletMap(containerRef.current, selectedPoint || defaultCenter, selectedPoint ? 16 : 5);
+      const initialCenter = initialCenterRef.current || selectedPoint || defaultCenter;
+      const map = createLeafletMap(containerRef.current, initialCenter, selectedPoint ? 16 : defaultZoom);
       createLeafletTileLayer().addTo(map);
 
       map.on("click", (event) => {
@@ -112,9 +223,11 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
 
       mapRef.current = map;
       setMapReady(true);
-      resizeMapView(selectedPoint, [80, 250, 700]);
+      centerMapView(initialCenter, selectedPoint ? 16 : defaultZoom, [80, 250, 700]);
 
       return () => {
+        pendingTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+        pendingTimeoutsRef.current = [];
         map.remove();
         mapRef.current = null;
         markerRef.current = null;
@@ -132,10 +245,12 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
 
     const map = mapRef.current;
     const resizeMap = () => {
-      map.invalidateSize();
+      if (mapRef.current !== map || !safelyResizeMap(map)) {
+        return;
+      }
 
       if (selectedPoint) {
-        fitLeafletMapToPoints(map, [selectedPoint], 17);
+        safelyFitMapToPoints(map, [selectedPoint], 17);
       }
     };
     const resizeObserver =
@@ -165,10 +280,14 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
       return;
     }
 
-    markerRef.current = L.marker(selectedPoint, {
-      icon: createLeafletDivIcon("SITE", "jade", "pinpoint")
-    }).addTo(mapRef.current);
-    fitLeafletMapToPoints(mapRef.current, [selectedPoint], 17);
+    try {
+      markerRef.current = L.marker(selectedPoint, {
+        icon: createLeafletDivIcon("SITE", "jade", "pinpoint")
+      }).addTo(mapRef.current);
+      safelyFitMapToPoints(mapRef.current, [selectedPoint], 17);
+    } catch {
+      markerRef.current = null;
+    }
   }, [mapReady, selectedPoint]);
 
   async function handleSearch(event) {
@@ -190,11 +309,25 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
       const locations = response.locations || [];
       setResults(locations);
       setHelperText(locations.length ? "Select the best match below." : "No places found. Try a more specific name.");
-      resizeMapView();
+
+      const resultPoints = locations
+        .map((location) => getPointFromLocation(location))
+        .filter(Boolean);
+
+      if (resultPoints.length && mapRef.current) {
+        const map = mapRef.current;
+        scheduleMapTask(() => {
+          if (mapRef.current === map) {
+            safelyFitMapToPoints(map, resultPoints, 13);
+          }
+        }, 120);
+      } else {
+        centerMapView(initialCenterRef.current || defaultCenter, defaultZoom, [120, 360]);
+      }
     } catch {
       setResults([]);
       setHelperText("Place search is unavailable. You can still tap the map or enter coordinates manually.");
-      resizeMapView();
+      centerMapView(selectedPoint || initialCenterRef.current || defaultCenter, selectedPoint ? 17 : defaultZoom, [120, 360]);
     } finally {
       setLoading(false);
     }
@@ -224,7 +357,8 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
       setHelperText("Current GPS applied. Confirm the duty site name and address before saving.");
 
       if (mapRef.current && point.every(Number.isFinite)) {
-        resizeMapView(point);
+        initialCenterRef.current = point;
+        centerMapView(point, 17);
       }
     } catch (error) {
       setHelperText(error?.message || "GPS is unavailable. Search a place or tap the map instead.");
@@ -244,7 +378,8 @@ export default function DutySiteLocationPicker({ value = {}, onChange }) {
     const point = [Number(location.latitude), Number(location.longitude)];
 
     if (mapRef.current && point.every(Number.isFinite)) {
-      resizeMapView(point);
+      initialCenterRef.current = point;
+      centerMapView(point, 17);
     }
   }
 

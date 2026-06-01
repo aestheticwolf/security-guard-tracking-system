@@ -1,0 +1,211 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/skeletons/DashboardSkeleton.jsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=86b335b7"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+import SkeletonBlock from "/src/components/skeletons/SkeletonBlock.jsx";
+export default function DashboardSkeleton({ cardCount = 4 }) {
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-5", children: [
+    /* @__PURE__ */ jsxDEV("section", { className: "grid gap-4 sm:grid-cols-2 xl:grid-cols-4", children: Array.from({ length: cardCount }).map(
+      (_, index) => /* @__PURE__ */ jsxDEV(
+        "div",
+        {
+          className: "rounded-[24px] border border-white/10 bg-white/5 p-5",
+          children: [
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-3 w-24" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 31,
+              columnNumber: 13
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "mt-4 h-10 w-24" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 32,
+              columnNumber: 13
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "mt-3 h-3 w-32" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 33,
+              columnNumber: 13
+            }, this)
+          ]
+        },
+        index,
+        true,
+        {
+          fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+          lineNumber: 27,
+          columnNumber: 9
+        },
+        this
+      )
+    ) }, void 0, false, {
+      fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+      lineNumber: 25,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid gap-5 xl:grid-cols-[1.05fr_0.95fr]", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "space-y-5", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "glass-panel rounded-[28px] border border-white/10 p-5 shadow-glow", children: [
+          /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-5 w-56" }, void 0, false, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 41,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "mt-3 h-3 w-72" }, void 0, false, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 42,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-6 grid gap-4 lg:grid-cols-2", children: [
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-64 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 44,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-64 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 45,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 43,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+          lineNumber: 40,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "glass-panel rounded-[28px] border border-white/10 p-5 shadow-glow", children: [
+          /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-5 w-44" }, void 0, false, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 49,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-5 grid gap-3", children: [
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-20 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 51,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-20 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 52,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-20 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 53,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 50,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+          lineNumber: 48,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+        lineNumber: 39,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "space-y-5", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "glass-panel rounded-[28px] border border-white/10 p-5 shadow-glow", children: [
+          /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-5 w-32" }, void 0, false, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 60,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "mt-5 h-48 w-full" }, void 0, false, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 61,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+          lineNumber: 59,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "glass-panel rounded-[28px] border border-white/10 p-5 shadow-glow", children: [
+          /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-5 w-48" }, void 0, false, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 64,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-5 space-y-3", children: [
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-20 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 66,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-20 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 67,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV(SkeletonBlock, { className: "h-20 w-full" }, void 0, false, {
+              fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+              lineNumber: 68,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+            lineNumber: 65,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+          lineNumber: 63,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+        lineNumber: 58,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+      lineNumber: 38,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx",
+    lineNumber: 24,
+    columnNumber: 5
+  }, this);
+}
+_c = DashboardSkeleton;
+var _c;
+$RefreshReg$(_c, "DashboardSkeleton");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("A:/0/infipre/security/src/components/skeletons/DashboardSkeleton.jsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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QkFBQyxpQkFBYyxXQUFVLGlCQUF6QjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFzQztBQUFBLFlBQ3RDLHVCQUFDLGlCQUFjLFdBQVUsaUJBQXpCO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQXNDO0FBQUEsZUFIeEM7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFJQTtBQUFBLGFBTkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQU9BO0FBQUEsV0FaRjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBYUE7QUFBQSxTQWpDRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBa0NBO0FBQUEsT0FoREY7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQWlEQTtBQUVKO0FBQUNDLEtBckR1QlI7QUFBaUIsSUFBQVE7QUFBQSxhQUFBQSxJQUFBIiwibmFtZXMiOlsiU2tlbGV0b25CbG9jayIsIkRhc2hib2FyZFNrZWxldG9uIiwiY2FyZENvdW50IiwiQXJyYXkiLCJmcm9tIiwibGVuZ3RoIiwibWFwIiwiXyIsImluZGV4IiwiX2MiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiRGFzaGJvYXJkU2tlbGV0b24uanN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBTa2VsZXRvbkJsb2NrIGZyb20gXCIuL1NrZWxldG9uQmxvY2tcIjtcblxuZXhwb3J0IGRlZmF1bHQgZnVuY3Rpb24gRGFzaGJvYXJkU2tlbGV0b24oeyBjYXJkQ291bnQgPSA0IH0pIHtcbiAgcmV0dXJuIChcbiAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktNVwiPlxuICAgICAgPHNlY3Rpb24gY2xhc3NOYW1lPVwiZ3JpZCBnYXAtNCBzbTpncmlkLWNvbHMtMiB4bDpncmlkLWNvbHMtNFwiPlxuICAgICAgICB7QXJyYXkuZnJvbSh7IGxlbmd0aDogY2FyZENvdW50IH0pLm1hcCgoXywgaW5kZXgpID0+IChcbiAgICAgICAgICA8ZGl2XG4gICAgICAgICAgICBrZXk9e2luZGV4fVxuICAgICAgICAgICAgY2xhc3NOYW1lPVwicm91bmRlZC1bMjRweF0gYm9yZGVyIGJvcmRlci13aGl0ZS8xMCBiZy13aGl0ZS81IHAtNVwiXG4gICAgICAgICAgPlxuICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwiaC0zIHctMjRcIiAvPlxuICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwibXQtNCBoLTEwIHctMjRcIiAvPlxuICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwibXQtMyBoLTMgdy0zMlwiIC8+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgICkpfVxuICAgICAgPC9zZWN0aW9uPlxuXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ2FwLTUgeGw6Z3JpZC1jb2xzLVsxLjA1ZnJfMC45NWZyXVwiPlxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktNVwiPlxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ2xhc3MtcGFuZWwgcm91bmRlZC1bMjhweF0gYm9yZGVyIGJvcmRlci13aGl0ZS8xMCBwLTUgc2hhZG93LWdsb3dcIj5cbiAgICAgICAgICAgIDxTa2VsZXRvbkJsb2NrIGNsYXNzTmFtZT1cImgtNSB3LTU2XCIgLz5cbiAgICAgICAgICAgIDxTa2VsZXRvbkJsb2NrIGNsYXNzTmFtZT1cIm10LTMgaC0zIHctNzJcIiAvPlxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC02IGdyaWQgZ2FwLTQgbGc6Z3JpZC1jb2xzLTJcIj5cbiAgICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwiaC02NCB3LWZ1bGxcIiAvPlxuICAgICAgICAgICAgICA8U2tlbGV0b25CbG9jayBjbGFzc05hbWU9XCJoLTY0IHctZnVsbFwiIC8+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdsYXNzLXBhbmVsIHJvdW5kZWQtWzI4cHhdIGJvcmRlciBib3JkZXItd2hpdGUvMTAgcC01IHNoYWRvdy1nbG93XCI+XG4gICAgICAgICAgICA8U2tlbGV0b25CbG9jayBjbGFzc05hbWU9XCJoLTUgdy00NFwiIC8+XG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LTUgZ3JpZCBnYXAtM1wiPlxuICAgICAgICAgICAgICA8U2tlbGV0b25CbG9jayBjbGFzc05hbWU9XCJoLTIwIHctZnVsbFwiIC8+XG4gICAgICAgICAgICAgIDxTa2VsZXRvbkJsb2NrIGNsYXNzTmFtZT1cImgtMjAgdy1mdWxsXCIgLz5cbiAgICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwiaC0yMCB3LWZ1bGxcIiAvPlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgIDwvZGl2PlxuXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwic3BhY2UteS01XCI+XG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJnbGFzcy1wYW5lbCByb3VuZGVkLVsyOHB4XSBib3JkZXIgYm9yZGVyLXdoaXRlLzEwIHAtNSBzaGFkb3ctZ2xvd1wiPlxuICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwiaC01IHctMzJcIiAvPlxuICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwibXQtNSBoLTQ4IHctZnVsbFwiIC8+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJnbGFzcy1wYW5lbCByb3VuZGVkLVsyOHB4XSBib3JkZXIgYm9yZGVyLXdoaXRlLzEwIHAtNSBzaGFkb3ctZ2xvd1wiPlxuICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwiaC01IHctNDhcIiAvPlxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC01IHNwYWNlLXktM1wiPlxuICAgICAgICAgICAgICA8U2tlbGV0b25CbG9jayBjbGFzc05hbWU9XCJoLTIwIHctZnVsbFwiIC8+XG4gICAgICAgICAgICAgIDxTa2VsZXRvbkJsb2NrIGNsYXNzTmFtZT1cImgtMjAgdy1mdWxsXCIgLz5cbiAgICAgICAgICAgICAgPFNrZWxldG9uQmxvY2sgY2xhc3NOYW1lPVwiaC0yMCB3LWZ1bGxcIiAvPlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgIDwvZGl2PlxuICAgICAgPC9kaXY+XG4gICAgPC9kaXY+XG4gICk7XG59XG4iXSwiZmlsZSI6IkE6LzAvaW5maXByZS9zZWN1cml0eS9zcmMvY29tcG9uZW50cy9za2VsZXRvbnMvRGFzaGJvYXJkU2tlbGV0b24uanN4In0=

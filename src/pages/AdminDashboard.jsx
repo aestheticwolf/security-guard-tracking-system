@@ -136,7 +136,7 @@ const adminSectionLinks = [
   { id: "admin-create-guard", label: "Add & Sites", icon: UserPlus }
 ];
 
-const quickDutyZoneLabels = ["Gate", "Lobby", "Warehouse", "Perimeter"];
+const defaultQuickDutyZoneLabels = ["Gate", "Lobby", "Warehouse", "Perimeter", "Ring"];
 
 function buildDutySiteOptions(dutySites) {
   return [
@@ -167,6 +167,14 @@ function normalizeDutyZoneLabels(labels = []) {
       return true;
     })
     .slice(0, 30);
+}
+
+function getDutyZoneLabelKey(label) {
+  return String(label ?? "").trim().toLowerCase();
+}
+
+function buildQuickDutyZoneLabels(labels = []) {
+  return normalizeDutyZoneLabels([...labels, ...defaultQuickDutyZoneLabels]);
 }
 
 function buildDutyZoneOptions(labels = [], fallback = "") {
@@ -880,7 +888,10 @@ export default function AdminDashboard() {
   const [dutySiteEditForm, setDutySiteEditForm] = useState(emptyDutySiteForm);
   const [dutyLabelDraft, setDutyLabelDraft] = useState([]);
   const [dutyLabelInput, setDutyLabelInput] = useState("");
+  const [selectedDutyLabelForEdit, setSelectedDutyLabelForEdit] = useState("");
   const [dutyLabelAutoSaving, setDutyLabelAutoSaving] = useState(false);
+  const [dutyLabelPendingSave, setDutyLabelPendingSave] = useState(null);
+  const [dutyLabelPendingDelete, setDutyLabelPendingDelete] = useState(null);
   const refreshInFlightRef = useRef(false);
   const pendingRefreshReasonRef = useRef("");
   const refreshOverviewRef = useRef(null);
@@ -1087,21 +1098,67 @@ export default function AdminDashboard() {
     }
   }
 
-  function handleAddDutyLabel() {
-    const nextLabel = dutyLabelInput.trim().replace(/\s+/g, " ");
+  function buildDutyLabelSaveRequest(label, { mode = "auto" } = {}) {
+    const nextLabel = String(label || "").trim().replace(/\s+/g, " ");
 
     if (!nextLabel) {
-      return;
+      return null;
     }
 
-    setDutyLabelDraft((current) => {
-      if (current.some((label) => label.toLowerCase() === nextLabel.toLowerCase())) {
-        return current;
+    const currentLabels = normalizeDutyZoneLabels(dutyLabelDraft);
+    const selectedKey = mode === "add" ? "" : getDutyZoneLabelKey(selectedDutyLabelForEdit);
+    const nextKey = getDutyZoneLabelKey(nextLabel);
+    const editingIndex = selectedKey
+      ? currentLabels.findIndex((label) => getDutyZoneLabelKey(label) === selectedKey)
+      : -1;
+    const duplicateIndex = currentLabels.findIndex(
+      (label) => getDutyZoneLabelKey(label) === nextKey
+    );
+    let nextLabels = currentLabels;
+
+    if (duplicateIndex !== -1 && duplicateIndex !== editingIndex) {
+      const existingLabel = currentLabels[duplicateIndex];
+      setSelectedDutyLabelForEdit(existingLabel);
+      setDutyLabelInput(existingLabel);
+      toast.error(`${existingLabel} is already available.`);
+      return null;
+    }
+
+    let action = "add";
+    let previousLabel = "";
+
+    if (editingIndex !== -1) {
+      nextLabels = [...currentLabels];
+      previousLabel = currentLabels[editingIndex];
+      nextLabels[editingIndex] = nextLabel;
+      action = "update";
+    } else {
+      if (currentLabels.length >= 30) {
+        const nextError = "Up to 30 duty zone labels can be saved.";
+        setError(nextError);
+        toast.error(nextError);
+        return null;
       }
 
-      return [...current, nextLabel].slice(0, 30);
-    });
-    setDutyLabelInput("");
+      nextLabels = [...currentLabels, nextLabel];
+    }
+
+    const normalizedLabels = normalizeDutyZoneLabels(nextLabels);
+
+    return {
+      action,
+      label: nextLabel,
+      previousLabel,
+      nextLabels: normalizedLabels
+    };
+  }
+
+  function handleAddDutyLabel() {
+    const pendingChange = buildDutyLabelSaveRequest(dutyLabelInput);
+
+    if (pendingChange) {
+      setDutyLabelPendingSave(pendingChange);
+    }
   }
 
   async function persistDutyLabels(labels, { successMessage = "", auto = false } = {}) {
@@ -1147,31 +1204,131 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleQuickDutyLabel(label) {
+  function handleQuickDutyLabel(label) {
     const nextLabel = String(label || "").trim().replace(/\s+/g, " ");
 
     if (!nextLabel) {
       return;
     }
 
-    setDutyLabelInput(nextLabel);
+    const existingLabel = dutyLabelDraft.find(
+      (entry) => getDutyZoneLabelKey(entry) === getDutyZoneLabelKey(nextLabel)
+    );
+    const selectedLabel = existingLabel || nextLabel;
 
-    const exists = dutyLabelDraft.some((entry) => entry.toLowerCase() === nextLabel.toLowerCase());
+    setSelectedDutyLabelForEdit(selectedLabel);
+    setDutyLabelInput(selectedLabel);
 
-    if (exists) {
+    if (existingLabel) {
       return;
     }
 
-    const nextLabels = normalizeDutyZoneLabels([...dutyLabelDraft, nextLabel]).slice(0, 30);
-    setDutyLabelDraft(nextLabels);
-    await persistDutyLabels(nextLabels, {
-      auto: true,
-      successMessage: `${nextLabel} added to guard shift zones.`
+    const pendingChange = buildDutyLabelSaveRequest(nextLabel, { mode: "add" });
+
+    if (pendingChange) {
+      setDutyLabelPendingSave(pendingChange);
+    }
+  }
+
+  async function handleConfirmDutyLabelSave() {
+    if (!dutyLabelPendingSave) {
+      return;
+    }
+
+    const successMessage =
+      dutyLabelPendingSave.action === "update"
+        ? `${dutyLabelPendingSave.previousLabel} was updated to ${dutyLabelPendingSave.label}.`
+        : `${dutyLabelPendingSave.label} was added to guard shift zones.`;
+
+    const savedLabels = await persistDutyLabels(dutyLabelPendingSave.nextLabels, {
+      successMessage
+    });
+
+    if (savedLabels) {
+      if (dutyLabelPendingSave.action === "update") {
+        const savedLabel =
+          savedLabels.find(
+            (entry) =>
+              getDutyZoneLabelKey(entry) === getDutyZoneLabelKey(dutyLabelPendingSave.label)
+          ) || dutyLabelPendingSave.label;
+        setSelectedDutyLabelForEdit(savedLabel);
+        setDutyLabelInput(savedLabel);
+      } else {
+        setSelectedDutyLabelForEdit("");
+        setDutyLabelInput("");
+      }
+
+      setDutyLabelPendingSave(null);
+    }
+  }
+
+  function handleRequestDeleteDutyLabel(label) {
+    const currentLabels = normalizeDutyZoneLabels(dutyLabelDraft);
+    const labelKey = getDutyZoneLabelKey(label);
+    const existingLabel = currentLabels.find(
+      (entry) => getDutyZoneLabelKey(entry) === labelKey
+    );
+
+    if (!existingLabel) {
+      return;
+    }
+
+    if (currentLabels.length <= 1) {
+      const nextError = "At least one duty zone label is required.";
+      setError(nextError);
+      toast.error(nextError);
+      return;
+    }
+
+    const assignedGuardCount = (overview?.guards || []).filter(
+      (guard) => getDutyZoneLabelKey(guard.shiftLabel) === labelKey
+    ).length;
+    const nextLabels = currentLabels.filter(
+      (entry) => getDutyZoneLabelKey(entry) !== labelKey
+    );
+
+    setDutyLabelPendingDelete({
+      label: existingLabel,
+      nextLabels,
+      assignedGuardCount
     });
   }
 
+  async function handleConfirmDutyLabelDelete() {
+    if (!dutyLabelPendingDelete) {
+      return;
+    }
+
+    const savedLabels = await persistDutyLabels(dutyLabelPendingDelete.nextLabels, {
+      successMessage: `${dutyLabelPendingDelete.label} was removed from guard shift zones.`
+    });
+
+    if (savedLabels) {
+      if (
+        getDutyZoneLabelKey(selectedDutyLabelForEdit) ===
+        getDutyZoneLabelKey(dutyLabelPendingDelete.label)
+      ) {
+        setSelectedDutyLabelForEdit("");
+        setDutyLabelInput("");
+      }
+
+      setDutyLabelPendingDelete(null);
+    }
+  }
+
   async function handleSaveDutyLabels() {
-    const labels = normalizeDutyZoneLabels(dutyLabelDraft);
+    const pendingLabel = dutyLabelInput.trim().replace(/\s+/g, " ");
+    let labels = normalizeDutyZoneLabels(dutyLabelDraft);
+
+    if (pendingLabel) {
+      const pendingChange = buildDutyLabelSaveRequest(pendingLabel);
+
+      if (pendingChange) {
+        setDutyLabelPendingSave(pendingChange);
+      }
+
+      return;
+    }
 
     if (!labels.length) {
       const nextError = "At least one duty zone label is required.";
@@ -1273,6 +1430,13 @@ export default function AdminDashboard() {
   const dutySiteOptions = buildDutySiteOptions(dutySites);
   const dutyZoneOptions = buildDutyZoneOptions(dutyZoneLabels, guardForm.shiftLabel);
   const editDutyZoneOptions = buildDutyZoneOptions(dutyZoneLabels, guardEditForm.shiftLabel);
+  const quickDutyZoneOptions = buildQuickDutyZoneLabels(
+    dutyLabelDraft.length ? dutyLabelDraft : dutyZoneLabels
+  );
+  const selectedDutyLabelKey = getDutyZoneLabelKey(selectedDutyLabelForEdit);
+  const selectedDutyLabelExists = dutyLabelDraft.some(
+    (label) => getDutyZoneLabelKey(label) === selectedDutyLabelKey
+  );
   const siteCoverage = overview?.siteCoverage || [];
 
   const filteredGuards =
@@ -1336,6 +1500,12 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setDutyLabelDraft(dutyZoneLabels);
+    setSelectedDutyLabelForEdit((current) =>
+      current &&
+      dutyZoneLabels.some((label) => getDutyZoneLabelKey(label) === getDutyZoneLabelKey(current))
+        ? current
+        : ""
+    );
   }, [dutyZoneLabelKey]);
 
   useEffect(() => {
@@ -1650,29 +1820,49 @@ export default function AdminDashboard() {
                   Quick select
                 </p>
                 <p className="mt-1 text-xs app-copy-muted">
-                  Tap a preset to fill the field and save it.
+                  Pick a saved zone or preset. Remove saved labels with the delete icon.
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {quickDutyZoneLabels.map((label) => {
+                  {quickDutyZoneOptions.map((label) => {
                     const isAdded = dutyLabelDraft.some(
-                      (entry) => entry.toLowerCase() === label.toLowerCase()
+                      (entry) => getDutyZoneLabelKey(entry) === getDutyZoneLabelKey(label)
                     );
+                    const isSelected = getDutyZoneLabelKey(label) === selectedDutyLabelKey;
+                    const chipClass = isSelected
+                      ? "border-jade-400 bg-jade-300 text-slate-950 shadow-lg shadow-jade-500/20 ring-2 ring-jade-300/40"
+                      : isAdded
+                        ? "border-emerald-300 bg-emerald-100 text-emerald-950 shadow-sm"
+                        : "border-slate-300 bg-white text-slate-950 shadow-sm hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50";
 
                     return (
-                      <button
+                      <div
                         key={label}
-                        type="button"
-                        onClick={() => handleQuickDutyLabel(label)}
-                        disabled={dutyLabelAutoSaving}
-                        className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-xs font-semibold transition ${
-                          isAdded
-                            ? "border-emerald-300 bg-emerald-100 text-emerald-950 shadow-sm"
-                            : "border-slate-300 bg-white text-slate-950 shadow-sm hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50"
-                        } disabled:cursor-not-allowed disabled:opacity-70`}
-                        aria-pressed={isAdded}
+                        className={`inline-flex min-w-0 items-center overflow-hidden rounded-2xl border text-xs font-semibold transition ${chipClass} ${
+                          dutyLabelAutoSaving ? "opacity-70" : ""
+                        }`}
                       >
-                        {label}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickDutyLabel(label)}
+                          disabled={dutyLabelAutoSaving}
+                          className="min-w-0 flex-1 truncate px-3 py-2 transition disabled:cursor-not-allowed"
+                          aria-pressed={isSelected}
+                        >
+                          {label}
+                        </button>
+                        {isAdded && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDeleteDutyLabel(label)}
+                            disabled={dutyLabelAutoSaving || busy}
+                            className="flex h-full items-center justify-center border-l border-current/15 px-2.5 py-2 transition hover:bg-red-100/70 disabled:cursor-not-allowed disabled:opacity-60"
+                            aria-label={`Delete ${label} duty zone label`}
+                            title={`Delete ${label}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -1696,7 +1886,7 @@ export default function AdminDashboard() {
                   onClick={handleAddDutyLabel}
                   className="app-outline-button rounded-2xl px-4 py-3 text-sm font-medium"
                 >
-                  Add label
+                  {selectedDutyLabelExists ? "Update label" : "Add label"}
                 </button>
                 <button
                   type="button"
@@ -2297,6 +2487,148 @@ export default function AdminDashboard() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {dutyLabelPendingSave && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+              className="glass-panel w-full max-w-xl rounded-[24px] border p-5 shadow-[0_28px_80px_rgba(2,6,23,0.45)] sm:rounded-[28px] sm:p-6"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-jade-300/30 bg-jade-300/10 text-jade-200">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display text-2xl font-semibold app-copy-primary">
+                    {dutyLabelPendingSave.action === "update"
+                      ? "Update duty zone label?"
+                      : "Add duty zone label?"}
+                  </h3>
+                  <p className="mt-2 text-sm app-copy-muted">
+                    {dutyLabelPendingSave.action === "update" ? (
+                      <>
+                        This will rename{" "}
+                        <span className="font-semibold app-copy-primary">
+                          {dutyLabelPendingSave.previousLabel}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-semibold app-copy-primary">
+                          {dutyLabelPendingSave.label}
+                        </span>{" "}
+                        for future guard shift selections.
+                      </>
+                    ) : (
+                      <>
+                        This will add{" "}
+                        <span className="font-semibold app-copy-primary">
+                          {dutyLabelPendingSave.label}
+                        </span>{" "}
+                        as a selectable duty zone for guard shift forms.
+                      </>
+                    )}
+                  </p>
+                  <p className="mt-3 rounded-2xl border border-jade-300/25 bg-jade-300/10 px-3 py-2 text-sm font-medium app-copy-primary">
+                    Existing attendance records will remain unchanged.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDutyLabelPendingSave(null)}
+                  disabled={busy}
+                  className={`app-outline-button rounded-2xl px-4 py-3 text-sm font-medium ${
+                    busy ? "app-button-disabled" : ""
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDutyLabelSave}
+                  disabled={busy}
+                  className={`app-primary-button inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold ${
+                    busy ? "app-button-disabled" : ""
+                  }`}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  {busy
+                    ? "Saving label..."
+                    : dutyLabelPendingSave.action === "update"
+                      ? "Update label"
+                      : "Add label"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {dutyLabelPendingDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+              className="glass-panel w-full max-w-xl rounded-[24px] border p-5 shadow-[0_28px_80px_rgba(2,6,23,0.45)] sm:rounded-[28px] sm:p-6"
+            >
+              <div className="flex items-start gap-4">
+                <div className="app-danger-icon-shell flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display text-2xl font-semibold app-copy-primary">
+                    Delete duty zone label?
+                  </h3>
+                  <p className="mt-2 text-sm app-copy-muted">
+                    You are about to remove{" "}
+                    <span className="font-semibold app-copy-primary">
+                      {dutyLabelPendingDelete.label}
+                    </span>{" "}
+                    from the guard-selectable duty zone list.
+                  </p>
+                  {dutyLabelPendingDelete.assignedGuardCount > 0 && (
+                    <p className="mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-sm font-medium app-copy-primary">
+                      {dutyLabelPendingDelete.assignedGuardCount} guard
+                      {dutyLabelPendingDelete.assignedGuardCount === 1 ? "" : "s"} currently use
+                      this label. Their saved assignments and old attendance records will not be
+                      deleted.
+                    </p>
+                  )}
+                  <p className="app-danger-copy mt-3 text-sm font-medium">
+                    Guards will not be able to choose this label for new shifts after removal.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDutyLabelPendingDelete(null)}
+                  disabled={busy}
+                  className={`app-outline-button rounded-2xl px-4 py-3 text-sm font-medium ${
+                    busy ? "app-button-disabled" : ""
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDutyLabelDelete}
+                  disabled={busy}
+                  className={`app-danger-button inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold ${
+                    busy ? "app-button-disabled" : ""
+                  }`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {busy ? "Deleting label..." : "Delete label"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {guardPendingEdit && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/52 px-4 py-6 backdrop-blur-sm">

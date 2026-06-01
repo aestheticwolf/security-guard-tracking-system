@@ -52,6 +52,20 @@ Render needs backend secrets, database values, Cloudinary values, and optional C
 
 Do not put backend secrets in Cloudflare Pages.
 
+## Current Live Feature Checklist
+
+After each live deploy, verify these current production features:
+
+- Super admin can create/edit organizations, subscriptions, organization logos, and admin profile photos.
+- Organization logo appears for both organization admins and guards after login.
+- Admin can create guards, enroll identity images, assign duty sites, and manage guard-selectable duty zone labels.
+- Admin can search guards quickly from the guard directory and open focused guard detail.
+- Admin live map shows latest saved guard locations and can request the admin device position.
+- Duty site setup supports place search, map tap, current GPS, and manual coordinates as a secondary fallback.
+- Guard can capture live selfie proof, confirm duty zone and shift note, and start/end shift.
+- Guard does not see identity match percentage; admin does.
+- Android APK and mobile web use compact page navigation for the same role-specific workflows.
+
 ## Render Backend Environment
 
 Required:
@@ -213,6 +227,24 @@ https://sentinel-grid-api.onrender.com/api/health
 
 Old selfie records may still show old statuses. Test with a new capture after deploy.
 
+## GPS And Duty Site Map Checks
+
+The duty site map should not rely on manual latitude/longitude as the first path. The preferred setup order is:
+
+1. Search a place name, office, landmark, or area.
+2. Tap the map to pin the exact post.
+3. Use current GPS when setting a site from the device location.
+4. Use manual coordinates only as a fallback.
+
+If the map opens blank or over water, confirm the duty site coordinates are valid and use `Use GPS` or search to refresh the point before saving.
+
+For live guard/admin tracking:
+
+- `My Position` should request the current admin/guard device location.
+- `Locate Guard` should focus the latest saved guard sync point.
+- `Sync now` should save a fresh guard location when permission is granted.
+- Browser GPS may return a cached operating-system fix until the device produces a fresh position.
+
 ## Git Update Flow
 
 Before pushing:
@@ -347,6 +379,7 @@ VITE_API_URL=https://sentinel-grid-api.onrender.com/api
 Build commands:
 
 ```powershell
+npm run build
 npm run android:sync
 $env:JAVA_HOME="C:\Program Files\Java\jdk-21"
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
@@ -358,3 +391,21 @@ Debug APK:
 ```text
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Signed release APK for internal testing:
+
+```powershell
+npm run build
+npm run android:sync
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:release
+```
+
+Release APK:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+Rebuild and reinstall the APK after frontend, auth, navigation, camera, GPS, or environment changes.

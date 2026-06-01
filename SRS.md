@@ -189,13 +189,16 @@ https://sentinel-grid-api.onrender.com/api/health
 - Super admins shall access only the super admin dashboard.
 - Organization admins shall manage only their organization data.
 - Guards shall not access admin or super admin routes.
+- Sign-out shall use a styled confirmation modal, not a browser-native confirmation prompt.
 
 ### 3.2 Super Admin Organization Management
 
 - Super admins shall create organizations.
 - Super admins shall edit organization details.
+- Super admins shall upload and replace organization logos.
 - Super admins shall create organization admin credentials.
 - Super admins shall view organization admin details.
+- Super admins shall upload and replace organization admin profile photos.
 - Super admins shall track subscription plan/status manually.
 - Super admins shall set guard limits.
 - Super admins shall suspend and activate organizations.
@@ -208,22 +211,31 @@ https://sentinel-grid-api.onrender.com/api/health
 - Admins shall optionally update the guard password.
 - Admins shall enroll registered photo and enrollment selfie.
 - Admins shall view existing enrolled images before replacing them.
+- Guard profile avatars shall use enrolled/registered guard images where available.
 - Admins shall suspend/reactivate guards with a warning confirmation.
 - Admins shall delete guards with a warning confirmation.
 - Admins shall search and filter the guard roster.
+- Admins shall use a focused guard lookup to find guard profile, duty site, location, status, and latest selfie review quickly.
 
 ### 3.4 Duty Sites
 
 - Admins shall create duty sites for organization locations.
-- Duty sites shall include name, area/city, optional coordinates, and guard capacity where available.
+- Duty sites shall include name, area/city, address/duty details, optional coordinates, and guard capacity where available.
+- Duty site setup shall prefer place search, map tap, or current GPS before manual latitude/longitude entry.
+- Manual latitude/longitude shall remain available as a secondary fallback.
 - Admins shall assign guards to duty sites.
+- Admins shall manage organization-level duty zone labels used by guard shift forms.
+- Admins shall be able to use quick-select duty zone suggestions, highlight the selected suggestion, edit existing labels, and save up to five quick labels.
 - The admin overview shall show assigned, unassigned, on-duty, and tracked guard counts by duty site.
 - Duty site metrics shall use real guard and attendance data, not static values.
 
 ### 3.5 Guard Attendance
 
+- Guards shall see a quick Start Shift or End Shift action on the first guard screen.
 - Guards shall capture a live camera selfie before check-in.
 - Guards shall capture a live camera selfie before check-out.
+- Guards shall select a duty zone label from admin-managed options instead of typing unrestricted free text.
+- Guards shall confirm duty zone and shift note after selfie capture and before starting or ending shift.
 - The system shall prevent duplicate active shifts.
 - The system shall prevent check-out when no active shift exists.
 - Attendance records shall store check-in time, check-out time, duty label, notes, GPS data, and selfie references.
@@ -257,10 +269,12 @@ Expected admin statuses:
 - The guard dashboard shall request browser location permission.
 - The system shall capture latitude, longitude, and accuracy.
 - The guard shall be able to manually sync location.
+- The app shall request a fresh/current device position when the user taps `My Position`, `Locate Guard`, `Use GPS`, or `Sync now`.
 - Active shifts may auto-sync location while the dashboard is open.
 - Failed syncs should retry where possible.
 - The admin live map shall show latest saved guard locations.
 - Selected guard detail shall show exact sync point, live zone, assigned duty site, assigned area, and position freshness.
+- Map views shall open with a safe default center or stored/current GPS instead of a blank or invalid coordinate state.
 
 ### 3.8 Admin Live Monitoring
 
@@ -281,6 +295,9 @@ Expected admin statuses:
 - Admin selected-guard detail shall avoid long blank columns on desktop.
 - Admin selfie history shall be compact and responsive.
 - Sidebar shall avoid duplicate `Guard History` entries.
+- Android and mobile web views shall use role-specific page navigation rather than one long screen where practical.
+- Default theme shall be light mode with dark mode available as an option.
+- Dashboard copy shall be concise and action-oriented to reduce scanning effort.
 - Light and dark themes shall keep text readable.
 
 ## 4. External Interface Requirements
@@ -469,23 +486,36 @@ Cloudflare Pages must not store backend secrets.
 ### 7.2 Guard Check-In
 
 1. Guard opens dashboard.
-2. Guard captures live camera selfie.
-3. Browser captures GPS where available.
-4. Guard starts shift.
-5. Backend stores attendance, selfie, location, and activity.
-6. CompreFace score is requested if configured.
-7. Admin can review result.
+2. Guard uses quick shift action or shift page.
+3. Guard captures live camera selfie.
+4. Guard confirms duty zone and shift note.
+5. Browser captures GPS where available.
+6. Guard starts shift.
+7. Backend stores attendance, selfie, location, and activity.
+8. CompreFace score is requested if configured.
+9. Admin can review result.
 
 ### 7.3 Guard Check-Out
 
-1. Guard captures check-out selfie.
-2. Browser captures final GPS where available.
-3. Guard ends shift.
-4. Backend closes attendance record.
-5. Backend stores check-out selfie, location, and activity.
-6. Admin can review in/out proof for the day.
+1. Guard uses quick shift action or shift page.
+2. Guard captures check-out selfie.
+3. Guard confirms final duty zone and note.
+4. Browser captures final GPS where available.
+5. Guard ends shift.
+6. Backend closes attendance record.
+7. Backend stores check-out selfie, location, and activity.
+8. Admin can review in/out proof for the day.
 
-### 7.4 Admin Selfie Review
+### 7.4 Duty Site And Duty Zone Setup
+
+1. Admin opens Add & Sites / Duty Site Management.
+2. Admin manages organization duty zone labels.
+3. Admin can quick-select, edit, add, remove, and save labels.
+4. Admin creates duty sites by searching a place, tapping the map, or using GPS.
+5. Manual latitude/longitude remains available only as a fallback.
+6. Guards see saved duty zone labels in the shift dropdown.
+
+### 7.5 Admin Selfie Review
 
 1. Admin opens selected guard detail.
 2. Latest verification summary is shown.
@@ -493,7 +523,7 @@ Cloudflare Pages must not store backend secrets.
 4. Older records remain available through show-more.
 5. Admin sees match score, score status, image source, and review guidance.
 
-### 7.5 CompreFace Through ngrok For Testing
+### 7.6 CompreFace Through ngrok For Testing
 
 1. Docker Desktop runs CompreFace locally.
 2. ngrok exposes port `8000`.
@@ -953,16 +983,23 @@ The Android APK shall be built with Capacitor from the same React/Vite codebase.
 Admin APK requirements:
 
 - The admin Android view shall show a focused mobile console instead of the full desktop dashboard.
-- The admin Android view shall include overview metrics, live map, selected guard detail, latest selfie verification, add guard, duty site management, and field guard directory.
+- The admin Android view shall include overview metrics, live map, guard lookup/directory, selected guard detail, latest selfie verification, add guard, duty site management, and account controls.
 - The admin Android view shall show identity match score and review status when face scoring is available.
 - The admin Android view shall keep long audit sections collapsed or hidden unless needed.
 
 Guard APK requirements:
 
+- The guard Android home shall show the current shift state and quick Start Shift / End Shift action.
 - The guard Android view shall support start-shift and end-shift selfie capture.
 - The guard Android view shall support GPS sync and live route status.
 - The guard Android view shall support front camera selfie and back camera context capture.
+- The guard Android view shall use admin-managed duty zone labels.
 - The guard Android view shall not show admin-only identity match score.
+
+Super admin APK requirements:
+
+- The super admin Android view shall use separate focused pages for overview, organizations, add organization, admins, and account controls.
+- The super admin Android view shall support organization logo and admin profile photo management.
 
 Android platform requirements:
 
@@ -970,6 +1007,7 @@ Android platform requirements:
 - The APK shall request camera and location permissions.
 - The APK shall remain usable on common Android phone screen sizes.
 - The debug APK shall be generated through `npm run android:apk:debug`.
+- The release APK for internal testing shall be generated through `npm run android:apk:release`.
 
 ## 14. Document Control
 
@@ -990,5 +1028,5 @@ COMPLETE_SETUP_RUNBOOK.md
 Status:
 
 ```text
-Updated for current Cloudflare Pages frontend, Render backend, MongoDB Atlas, Cloudinary, Duty Sites, live camera selfie proof, admin-only face scoring, optional CompreFace deployment, and Capacitor Android APK support.
+Updated for current Cloudflare Pages frontend, Render backend, MongoDB Atlas, Cloudinary, organization branding, admin-managed duty zones, duty site map/search/GPS setup, live camera selfie proof, admin-only face scoring, optional CompreFace deployment, styled confirmations, and Capacitor Android APK support.
 ```

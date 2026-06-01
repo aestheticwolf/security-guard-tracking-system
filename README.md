@@ -40,19 +40,35 @@ LIVE_DEPLOYMENT_GUIDE.md
 
 - Role-based login for super admin, organization admin, and guard users.
 - Super admin organization management.
+- Organization logo and admin profile photo management from super admin.
 - Manual subscription plan tracking for organizations.
 - Admin guard creation and editing.
 - Guard suspend, reactivate, and delete workflows with confirmation.
 - Duty Sites for office/site allocation such as Panjim, Margao, warehouses, gates, or client posts.
+- Admin-managed duty zone labels that guards select from a dropdown during shift verification.
+- Duty site creation through place search, map pinning, current GPS, or manual coordinates as a secondary fallback.
 - Admin live operations map with latest guard locations.
 - Admin selected-guard detail with GPS, duty site, attendance trail, and selfie review.
+- Admin guard lookup for fast search, location review, duty site context, and roster actions.
+- Guard quick Start Shift / End Shift action on the first screen with selfie, GPS, duty zone, and note confirmation.
 - Guard start-shift and end-shift flows with live camera selfie proof.
 - Admin-side registered reference photo/enrollment selfie for guards.
 - Optional automatic face verification through CompreFace.
 - Admin-only face match score and selfie audit history.
-- Android APK shell through Capacitor with a focused admin mobile console and guard shift flow.
+- Android APK shell through Capacitor with page-based mobile navigation for super admin, admin, and guard workflows.
 - Mobile responsive guard and admin dashboards.
+- Styled confirmation modals for sign-out, suspend, delete, and other sensitive actions.
 - Light/dark theme support.
+
+## Current Product Snapshot
+
+- Default experience starts in light mode, with dark mode available from account/session controls.
+- Super admin manages organizations, subscriptions, admins, organization logos, and admin profile photos.
+- Organization logos are shown to both admins and guards in the same workspace.
+- Admins manage guards, duty sites, duty zone labels, live map, guard directory, attendance history, and selfie verification.
+- Guards use a simplified flow: capture selfie, confirm duty zone and shift note, then start or end shift with current GPS.
+- Guards do not see identity match scores; admins see match status, score, reference image, live selfie, and review guidance.
+- Android and mobile web use compact page navigation instead of one long dashboard where practical.
 
 ## Tech Stack
 
@@ -307,6 +323,20 @@ Sync the Android project after frontend changes:
 npm run android:sync
 ```
 
+Build a local release APK for internal testing:
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:release
+```
+
+Release APK output:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
 Build a local debug APK:
 
 ```powershell
@@ -379,6 +409,18 @@ Map does not load:
 
 - Check internet access.
 - OpenStreetMap tiles are loaded online.
+
+Duty site map opens over water or blank:
+
+- Use `Use GPS` or place search to set a point.
+- Latitude/longitude are optional fallback fields and should not be the primary setup path.
+- If no coordinates are set, the app uses a safe default center until GPS/search/map tap updates the point.
+
+Live location appears stale:
+
+- Use `My Position`, `Locate Guard`, or `Sync now` to request a fresh device position.
+- Keep location permission and device GPS enabled.
+- Browser and Android GPS can still return old cached positions if the operating system has not produced a fresh fix yet.
 
 ## More Documentation
 
