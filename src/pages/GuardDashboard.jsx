@@ -260,6 +260,7 @@ export default function GuardDashboard() {
   const [cameraDevices, setCameraDevices] = useState([]);
   const [selectedCameraSelection, setSelectedCameraSelection] = useState("");
   const [activeCameraLabel, setActiveCameraLabel] = useState("");
+  const [selfieCameraSurface, setSelfieCameraSurface] = useState("attendance");
   const [mapFocusSequence, setMapFocusSequence] = useState(0);
   const { deviceLocation, setDeviceLocation, locationStatus, setLocationStatus, refreshLocation } =
     useLiveLocation();
@@ -891,8 +892,9 @@ export default function GuardDashboard() {
     }, 320);
   }
 
-  async function openSelfieCamera(selectionOverride = null) {
+  async function openSelfieCamera(selectionOverride = null, surface = "attendance") {
     setCameraError("");
+    setSelfieCameraSurface(surface);
 
     if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
       cameraSelfieInputRef.current?.click();
@@ -949,7 +951,7 @@ export default function GuardDashboard() {
 
     if (cameraActive) {
       window.setTimeout(() => {
-        openSelfieCamera(selection);
+        openSelfieCamera(selection, selfieCameraSurface);
       }, 0);
     }
   }
@@ -1159,19 +1161,12 @@ export default function GuardDashboard() {
     }
   }
 
-  function openSelfieProof() {
-    quickSelfieReturnRef.current = true;
-    navigateAppSection("guard-attendance");
-
-    window.setTimeout(() => {
-      document
-        .getElementById("guard-attendance")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      openSelfieCamera();
-    }, 220);
+  function openSelfieProof(surface = "overview") {
+    quickSelfieReturnRef.current = false;
+    openSelfieCamera(null, surface);
   }
 
-  function handleShiftAction(event) {
+  function handleShiftAction(event, surface = "overview") {
     event?.preventDefault?.();
 
     if (busy) {
@@ -1186,7 +1181,7 @@ export default function GuardDashboard() {
       setError("");
       setMessage(nextMessage);
       toast(nextMessage);
-      openSelfieProof();
+      openSelfieProof(surface);
       return;
     }
 
@@ -1274,7 +1269,7 @@ export default function GuardDashboard() {
               </div>
               <button
                 type="button"
-                onClick={openSelfieProof}
+                onClick={() => openSelfieProof("overview")}
                 disabled={busy}
                 className="app-outline-button inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
               >
@@ -1282,6 +1277,74 @@ export default function GuardDashboard() {
                 Capture selfie proof
               </button>
             </div>
+            {(cameraDevices.length > 0 || cameraActive) && selfieCameraSurface === "overview" && (
+              <label className="mt-4 block">
+                <span className="app-label">Camera mode</span>
+                <select
+                  value={selectedCameraSelection}
+                  onChange={(event) => handleCameraSelectionChange(event.target.value)}
+                  className="app-input"
+                >
+                  {cameraSelectionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {cameraActive && selfieCameraSurface === "overview" && (
+              <div className="mt-4 rounded-[20px] border border-white/10 bg-slate-950/45 p-3">
+                {activeCameraLabel && (
+                  <p className="mb-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
+                    Active camera: {activeCameraLabel}
+                  </p>
+                )}
+                <video
+                  ref={selfieVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className={`h-[280px] w-full rounded-2xl bg-black sm:h-56 ${
+                    selectedCameraSelection === cameraSelectionModes.rear
+                      ? "object-contain"
+                      : "object-cover"
+                  }`}
+                />
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={captureLiveSelfie}
+                    className="app-primary-button rounded-2xl px-4 py-2.5 text-sm font-semibold"
+                  >
+                    Use live selfie
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelSelfieCamera}
+                    className="app-outline-button rounded-2xl px-4 py-2.5 text-sm font-medium"
+                  >
+                    Cancel camera
+                  </button>
+                  {isMobileCamera && (
+                    <button
+                      type="button"
+                      onClick={switchMobileCamera}
+                      className="app-outline-button rounded-2xl px-4 py-2.5 text-sm font-medium"
+                    >
+                      {selectedCameraSelection === cameraSelectionModes.rear
+                        ? "Switch to front camera"
+                        : "Switch to back camera"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {cameraError && selfieCameraSurface === "overview" && (
+              <p className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs leading-5 app-error-copy">
+                {cameraError}
+              </p>
+            )}
             <AnimatePresence initial={false}>
               {selfieFile && (
                 <motion.div
@@ -1305,6 +1368,32 @@ export default function GuardDashboard() {
                       </div>
                       <StatusBadge status="Selfie ready" />
                     </div>
+
+                    {selfiePreview && (
+                      <div className="mb-3 flex items-center gap-3 rounded-[18px] border border-white/10 bg-slate-950/35 p-2.5">
+                        <SelfieImageFrame
+                          src={selfiePreview}
+                          alt="Captured selfie preview"
+                          className="h-16 w-16 shrink-0 rounded-2xl sm:h-20 sm:w-20"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs uppercase tracking-[0.2em] text-jade-200">
+                            Preview ready
+                          </p>
+                          <p className="mt-1 truncate text-sm app-copy-muted">
+                            Check the image before {overview?.currentAttendance ? "stopping" : "starting"}.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openSelfieCamera(null, "overview")}
+                          disabled={busy}
+                          className="app-outline-button rounded-2xl px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          Retake
+                        </button>
+                      </div>
+                    )}
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block">
@@ -1352,7 +1441,7 @@ export default function GuardDashboard() {
             </AnimatePresence>
             <button
               type="button"
-              onClick={handleShiftAction}
+              onClick={(event) => handleShiftAction(event, "overview")}
               disabled={busy}
               className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 ${
                 overview?.currentAttendance ? "app-danger-button" : "app-primary-button"
@@ -1361,7 +1450,7 @@ export default function GuardDashboard() {
               {busy
                 ? overview?.currentAttendance
                   ? "Stopping..."
-                  : "Verifying..."
+                  : "Starting..."
                 : overview?.currentAttendance
                   ? "Stop Shift"
                   : "Start Shift"}
@@ -1512,13 +1601,13 @@ export default function GuardDashboard() {
                   />
                   <button
                     type="button"
-                    onClick={() => openSelfieCamera()}
+                    onClick={() => openSelfieCamera(null, "attendance")}
                     className="app-outline-button mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold sm:w-auto"
                   >
                     <Camera className="h-4 w-4" />
                     {overview?.currentAttendance ? "Capture check-out selfie" : "Capture check-in selfie"}
                   </button>
-                  {(cameraDevices.length > 0 || cameraActive) && (
+                  {(cameraDevices.length > 0 || cameraActive) && selfieCameraSurface === "attendance" && (
                     <label className="mt-3 block">
                       <span className="app-label">Camera mode</span>
                       <select
@@ -1539,7 +1628,7 @@ export default function GuardDashboard() {
                       {cameraAvailabilityNote}
                     </p>
                   )}
-                  {cameraActive && (
+                  {cameraActive && selfieCameraSurface === "attendance" && (
                     <div className="mt-4 rounded-[20px] border border-white/10 bg-slate-950/45 p-3">
                       {activeCameraLabel && (
                         <p className="mb-2 text-xs uppercase tracking-[0.2em] app-copy-soft">
@@ -1586,7 +1675,7 @@ export default function GuardDashboard() {
                       </div>
                     </div>
                   )}
-                  {cameraError && (
+                  {cameraError && selfieCameraSurface === "attendance" && (
                     <p className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs leading-5 app-error-copy">
                       {cameraError}
                     </p>
@@ -1603,16 +1692,16 @@ export default function GuardDashboard() {
                   {!overview?.currentAttendance ? (
                     <button
                       type="button"
-                      onClick={handleShiftAction}
+                      onClick={(event) => handleShiftAction(event, "attendance")}
                       disabled={busy}
                       className="app-primary-button w-full rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
                     >
-                      {busy ? "Verifying..." : "Start Shift"}
+                      {busy ? "Starting..." : "Start Shift"}
                     </button>
                   ) : (
                     <button
                       type="button"
-                      onClick={handleShiftAction}
+                      onClick={(event) => handleShiftAction(event, "attendance")}
                       disabled={busy}
                       className="app-danger-button w-full rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
                     >
