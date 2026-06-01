@@ -107,7 +107,7 @@ export default function AdminHistoryPage() {
     return (
       <AppShell
         title="Guard History Vault"
-        subtitle="Search a guard and inspect stored selfie proof, attendance trail, location pings, and activity records."
+        subtitle="Stored guard records."
       >
         <DashboardSkeleton />
       </AppShell>
@@ -117,7 +117,7 @@ export default function AdminHistoryPage() {
   return (
     <AppShell
       title="Guard History Vault"
-      subtitle="Search a guard and inspect stored selfie proof, attendance trail, location pings, and activity records."
+      subtitle="Stored guard records."
       mobileQuickLinks={historyMobileSections}
       sectionLinks={historyMobileSections}
     >
@@ -141,7 +141,7 @@ export default function AdminHistoryPage() {
         <Panel
           id="history-search"
           title="Search Guard Records"
-          subtitle="Select one guard to view their complete previous data and selfie verification history."
+          subtitle="Select a guard to review history."
           action={
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 app-copy-soft" />
@@ -214,7 +214,7 @@ export default function AdminHistoryPage() {
         <Panel
           id="history-records"
           title="Selected Guard Previous Data"
-          subtitle="Selfie proof, attendance records, activity notes, and saved GPS location history for the selected guard."
+          subtitle="Selfies, attendance, activity, and GPS."
           action={
             selectedGuard ? (
               <div className="flex flex-wrap gap-2">

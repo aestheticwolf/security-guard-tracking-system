@@ -533,8 +533,8 @@ export default function AuthPage() {
                 Sign in to your{" "}
                 <span className="auth-gradient-text">security workspace.</span>
               </h2>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">
-                A protected local session starts after your credentials are verified.
+              <p className="mt-3 max-w-sm text-sm leading-5 text-slate-300">
+                Credentials unlock your workspace.
               </p>
             </motion.div>
 

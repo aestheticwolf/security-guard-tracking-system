@@ -300,6 +300,25 @@ export default function AppShell({
   }
 
   useEffect(() => {
+    function handleSectionNavigation(event) {
+      const target = event.detail?.target;
+
+      if (!target) {
+        return;
+      }
+
+      setNativeAccountOpen(false);
+      jumpToSection(target);
+    }
+
+    window.addEventListener("sentinel:navigate-section", handleSectionNavigation);
+
+    return () => {
+      window.removeEventListener("sentinel:navigate-section", handleSectionNavigation);
+    };
+  });
+
+  useEffect(() => {
     if (!pendingNativeTargetRef.current) {
       return undefined;
     }
@@ -452,9 +471,9 @@ export default function AppShell({
 
           <div className="mt-auto rounded-[26px] border border-white/10 bg-gradient-to-br from-gold-400/15 to-jade-400/10 p-4">
             <p className="font-display text-lg font-semibold app-copy-primary">Always-on visibility</p>
-            <p className="mt-2 text-sm app-copy-muted">
-              Live attendance, selfie proof, and patrol telemetry stay synced from one secure local stack.
-            </p>
+              <p className="mt-2 text-sm app-copy-muted">
+                Live shifts, selfies, and route sync.
+              </p>
           </div>
 
           <button
@@ -479,7 +498,7 @@ export default function AppShell({
                   {title}
                 </h1>
                 {subtitle && (
-                  <p className="mt-2 max-w-none text-[13px] leading-6 app-copy-muted sm:max-w-2xl sm:text-sm">
+            <p className="mt-2 max-w-none text-[13px] leading-5 app-copy-muted sm:max-w-2xl sm:text-sm">
                     {subtitle}
                   </p>
                 )}
@@ -860,8 +879,8 @@ export default function AppShell({
                       <p id="sign-out-confirm-title" className="font-display text-xl font-semibold app-copy-primary">
                         Sign out of this session?
                       </p>
-                      <p className="mt-2 text-sm leading-6 app-copy-muted">
-                        You will need to sign in again before accessing guard, admin, or platform controls.
+                      <p className="mt-2 text-sm leading-5 app-copy-muted">
+                        Sign in again to access controls.
                       </p>
                     </div>
                   </div>

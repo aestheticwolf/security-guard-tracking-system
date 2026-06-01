@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Camera,
   Clock3,
@@ -34,6 +35,7 @@ import {
   getLocationDisplayLines,
   initials
 } from "../utils/format";
+import { navigateAppSection } from "../utils/appNavigation";
 import { getDistanceMeters, hasCoordinates } from "../utils/geo";
 import { publishGuardAdminSignal } from "../utils/guardAdminSignal";
 import {
@@ -272,6 +274,7 @@ export default function GuardDashboard() {
   const cameraSelfieInputRef = useRef(null);
   const selfieVideoRef = useRef(null);
   const selfieCameraStreamRef = useRef(null);
+  const quickSelfieReturnRef = useRef(false);
 
   useEffect(() => {
     locationLabelRef.current = locationLabel;
@@ -868,6 +871,24 @@ export default function GuardDashboard() {
     setMessage(nextMessage);
     toast.success(nextMessage);
     event.target.value = "";
+    returnToQuickShiftAction();
+  }
+
+  function returnToQuickShiftAction() {
+    if (!quickSelfieReturnRef.current) {
+      return;
+    }
+
+    quickSelfieReturnRef.current = false;
+
+    window.setTimeout(() => {
+      navigateAppSection("guard-overview");
+      window.setTimeout(() => {
+        document
+          .getElementById("guard-overview")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 180);
+    }, 320);
   }
 
   async function openSelfieCamera(selectionOverride = null) {
@@ -918,6 +939,7 @@ export default function GuardDashboard() {
           ? "No camera device was found. Check Windows camera privacy settings and MSI webcam hotkey/utility controls."
           : "Live camera is not available. Check browser permission, Windows camera privacy settings, or choose another camera mode.";
       setCameraError(nextError);
+      quickSelfieReturnRef.current = false;
       toast.error(nextError);
     }
   }
@@ -938,6 +960,11 @@ export default function GuardDashboard() {
         ? cameraSelectionModes.front
         : cameraSelectionModes.rear;
     handleCameraSelectionChange(nextSelection);
+  }
+
+  function cancelSelfieCamera() {
+    quickSelfieReturnRef.current = false;
+    stopSelfieCamera();
   }
 
   function captureLiveSelfie() {
@@ -989,6 +1016,7 @@ export default function GuardDashboard() {
           : "Check-in selfie captured from live camera. GPS will be verified when you start the shift.";
         setMessage(nextMessage);
         toast.success(nextMessage);
+        returnToQuickShiftAction();
       },
       "image/jpeg",
       0.82
@@ -1132,10 +1160,15 @@ export default function GuardDashboard() {
   }
 
   function openSelfieProof() {
-    document
-      .getElementById("guard-attendance")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    openSelfieCamera();
+    quickSelfieReturnRef.current = true;
+    navigateAppSection("guard-attendance");
+
+    window.setTimeout(() => {
+      document
+        .getElementById("guard-attendance")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      openSelfieCamera();
+    }, 220);
   }
 
   function handleShiftAction(event) {
@@ -1169,7 +1202,7 @@ export default function GuardDashboard() {
     return (
       <AppShell
         title="Guard Command Hub"
-        subtitle="Track attendance, verify duty presence with a selfie, and keep your live map route synced automatically during each shift."
+        subtitle="Selfie, shift, and live route."
         workspace={overview?.organization}
       >
         <DashboardSkeleton />
@@ -1180,7 +1213,7 @@ export default function GuardDashboard() {
   return (
     <AppShell
       title="Guard Command Hub"
-      subtitle="Track attendance, verify duty presence with a selfie, and keep your live map route synced automatically during each shift."
+      subtitle="Selfie, shift, and live route."
       mobileQuickLinks={guardSectionLinks}
       sectionLinks={guardSectionLinks}
       workspace={overview?.organization}
@@ -1195,7 +1228,7 @@ export default function GuardDashboard() {
         <MobileCollapseSection
           id="guard-overview"
           title="Shift Overview"
-          subtitle="Key duty, selfie, route, and activity numbers for this current guard session."
+          subtitle="Current shift essentials."
         >
           <div className="mb-4 flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 p-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br from-gold-400 to-jade-400 text-xl font-semibold text-slate-950 shadow-accent">
@@ -1233,10 +1266,10 @@ export default function GuardDashboard() {
                 <h3 className="mt-1 font-display text-2xl font-semibold app-copy-primary">
                   {overview?.currentAttendance ? "Stop active shift" : "Start duty shift"}
                 </h3>
-                <p className="mt-1 text-sm leading-6 app-copy-muted">
+                <p className="mt-1 text-sm leading-5 app-copy-muted">
                   {overview?.currentAttendance
-                    ? "Stop duty with a final live selfie and GPS sync."
-                    : "Start duty with the selected zone, a live selfie, and current GPS point."}
+                    ? "Final selfie and GPS sync."
+                    : "Selfie, zone, and GPS."}
                 </p>
               </div>
               <button
@@ -1249,6 +1282,74 @@ export default function GuardDashboard() {
                 Capture selfie proof
               </button>
             </div>
+            <AnimatePresence initial={false}>
+              {selfieFile && (
+                <motion.div
+                  key="quick-shift-confirmation"
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -8, height: 0 }}
+                  transition={{ duration: 0.24, ease: "easeOut" }}
+                  className="mt-4 overflow-hidden"
+                >
+                  <div className="rounded-[22px] border border-jade-300/25 bg-white/5 p-4 shadow-[0_16px_34px_rgba(16,185,129,0.08)]">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">
+                          Confirm shift
+                        </p>
+                        <p className="mt-1 text-sm app-copy-muted">
+                          Selfie ready. Confirm before{" "}
+                          {overview?.currentAttendance ? "stopping" : "starting"}.
+                        </p>
+                      </div>
+                      <StatusBadge status="Selfie ready" />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="app-label">Duty zone</span>
+                        {dutyZoneOptions.length ? (
+                          <select
+                            value={locationLabel}
+                            onChange={(event) => setLocationLabel(event.target.value)}
+                            className="app-input"
+                          >
+                            {dutyZoneOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            value={locationLabel}
+                            onChange={(event) => setLocationLabel(event.target.value)}
+                            className="app-input"
+                            placeholder="North Perimeter"
+                          />
+                        )}
+                      </label>
+
+                      <label className="block">
+                        <span className="app-label">Shift note</span>
+                        <textarea
+                          rows="3"
+                          value={attendanceNote}
+                          onChange={(event) => setAttendanceNote(event.target.value)}
+                          className="app-input min-h-[7rem]"
+                          placeholder={
+                            overview?.currentAttendance
+                              ? "Optional note before shift end."
+                              : "Optional note before shift start."
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <button
               type="button"
               onClick={handleShiftAction}
@@ -1265,6 +1366,22 @@ export default function GuardDashboard() {
                   ? "Stop Shift"
                   : "Start Shift"}
             </button>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => navigateAppSection("guard-attendance")}
+                className="app-outline-button rounded-2xl px-3 py-2 text-xs font-semibold"
+              >
+                Shift details
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateAppSection("guard-map")}
+                className="app-outline-button rounded-2xl px-3 py-2 text-xs font-semibold"
+              >
+                Live map
+              </button>
+            </div>
           </div>
 
           <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -1318,7 +1435,7 @@ export default function GuardDashboard() {
           <Panel
             id="guard-attendance"
             title="Attendance & Selfie Verification"
-            subtitle="Start or end your shift with a verified selfie, a location tag, and an optional note."
+            subtitle="Selfie and GPS proof."
             collapsibleOnMobile
             action={
               overview?.currentAttendance ? (
@@ -1353,7 +1470,7 @@ export default function GuardDashboard() {
                     />
                   )}
                   <p className="mt-2 text-xs leading-5 app-copy-soft">
-                    Duty zone options are managed by your organization admin.
+                    Managed by your admin.
                   </p>
                 </label>
 
@@ -1377,7 +1494,7 @@ export default function GuardDashboard() {
                     {overview?.currentAttendance ? "Check-out selfie confirmation" : "Check-in selfie verification"}
                   </p>
                   <p className="mt-2 text-xs leading-5 app-copy-soft">
-                    Capture a live camera selfie. On mobile, use front camera for identity proof or switch to back camera when the duty site needs context. This proof is required before{" "}
+                    Live selfie required before{" "}
                     {overview?.currentAttendance ? "stopping" : "starting"} the shift.
                   </p>
                   <input
@@ -1450,7 +1567,7 @@ export default function GuardDashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={stopSelfieCamera}
+                          onClick={cancelSelfieCamera}
                           className="app-outline-button rounded-2xl px-4 py-2.5 text-sm font-medium"
                         >
                           Cancel camera
@@ -1582,7 +1699,7 @@ export default function GuardDashboard() {
             <Panel
               id="guard-map"
               title="Live Route Map"
-              subtitle="Your device updates this map automatically while the dashboard is open and location permission is enabled."
+              subtitle="Live GPS while this screen is open."
               collapsibleOnMobile
               defaultCollapsed={false}
             >
@@ -1666,7 +1783,7 @@ export default function GuardDashboard() {
             <Panel
               id="guard-history-page"
               title="Shift History"
-              subtitle="Recent check-in and check-out records for this guard session."
+              subtitle="Recent shift records."
             >
               {recentAttendanceTimeline}
             </Panel>

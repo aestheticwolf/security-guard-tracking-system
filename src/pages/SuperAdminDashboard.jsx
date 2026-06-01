@@ -26,6 +26,7 @@ import {
   updateOrganizationWorkspace
 } from "../services/superAdminService";
 import { buildAssetUrl } from "../services/apiClient";
+import { navigateAppSection } from "../utils/appNavigation";
 import { formatDateTime, initials } from "../utils/format";
 
 const emptyOrganizationForm = {
@@ -75,6 +76,56 @@ const superAdminLinks = [
   { id: "new-organization", label: "Add Company", icon: Building2 },
   { id: "organization-admins", label: "Admins", icon: UserPlus }
 ];
+
+function SuperAdminQuickActions({ metrics }) {
+  const actions = [
+    {
+      target: "organizations",
+      label: "Review companies",
+      detail: `${metrics?.organizations ?? 0} workspaces`,
+      icon: Building2
+    },
+    {
+      target: "new-organization",
+      label: "Add company",
+      detail: "Create workspace and first admin",
+      icon: Landmark
+    },
+    {
+      target: "organization-admins",
+      label: "Add admin",
+      detail: "Give access to an existing company",
+      icon: UserPlus
+    }
+  ];
+
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {actions.map((action) => {
+        const Icon = action.icon;
+
+        return (
+          <button
+            key={action.target}
+            type="button"
+            onClick={() => navigateAppSection(action.target)}
+            className="rounded-[24px] border border-white/10 bg-white/5 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/10"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10">
+                <Icon className="h-5 w-5 app-copy-muted" />
+              </span>
+              <span>
+                <span className="block font-semibold app-copy-primary">{action.label}</span>
+                <span className="mt-1 block text-xs app-copy-muted">{action.detail}</span>
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function organizationStatusAction(status) {
   return status === "active" ? "suspended" : "active";
@@ -438,7 +489,7 @@ export default function SuperAdminDashboard() {
     return (
       <AppShell
         title="Platform Control"
-        subtitle="Manage client organizations, organization administrators, and manual subscription records."
+        subtitle="Organizations, admins, and plans."
       >
         <DashboardSkeleton />
       </AppShell>
@@ -450,7 +501,7 @@ export default function SuperAdminDashboard() {
   return (
     <AppShell
       title="Platform Control"
-      subtitle="Manage company workspaces, organization admins, and subscription limits from the Infipre owner workspace."
+      subtitle="Workspaces, admins, and limits."
       mobileQuickLinks={superAdminLinks}
       sectionLinks={superAdminLinks}
     >
@@ -461,41 +512,44 @@ export default function SuperAdminDashboard() {
           </div>
         )}
 
-        <section id="platform-overview" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <StatCard
-            icon={Building2}
-            label="Organizations"
-            value={overview?.metrics?.organizations ?? 0}
-            detail={`${overview?.metrics?.activeOrganizations ?? 0} active workspaces`}
-          />
-          <StatCard
-            icon={CreditCard}
-            label="Subscriptions"
-            value={overview?.metrics?.activeSubscriptions ?? 0}
-            detail="Manual active subscription records"
-            tone="jade"
-          />
-          <StatCard
-            icon={ShieldCheck}
-            label="Guards"
-            value={overview?.metrics?.totalGuards ?? 0}
-            detail="Across all organizations"
-            tone="gold"
-          />
-          <StatCard
-            icon={Users}
-            label="Owner Role"
-            value="Super"
-            detail="Platform-level access"
-            tone="slate"
-          />
+        <section id="platform-overview" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+            <StatCard
+              icon={Building2}
+              label="Organizations"
+              value={overview?.metrics?.organizations ?? 0}
+              detail={`${overview?.metrics?.activeOrganizations ?? 0} active workspaces`}
+            />
+            <StatCard
+              icon={CreditCard}
+              label="Subscriptions"
+              value={overview?.metrics?.activeSubscriptions ?? 0}
+              detail="Manual active subscription records"
+              tone="jade"
+            />
+            <StatCard
+              icon={ShieldCheck}
+              label="Guards"
+              value={overview?.metrics?.totalGuards ?? 0}
+              detail="Across all organizations"
+              tone="gold"
+            />
+            <StatCard
+              icon={Users}
+              label="Owner Role"
+              value="Super"
+              detail="Platform-level access"
+              tone="slate"
+            />
+          </div>
+          <SuperAdminQuickActions metrics={overview?.metrics} />
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
           <Panel
             id="new-organization"
             title="Add Company Workspace"
-            subtitle="Create a client company workspace with an optional first organization admin."
+            subtitle="Create workspace and first admin."
           >
             <form onSubmit={handleCreateOrganization} className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -580,7 +634,7 @@ export default function SuperAdminDashboard() {
           <Panel
             id="organization-admins"
             title="Add Organization Admin"
-            subtitle="Give an existing organization another admin login."
+            subtitle="Add admin access."
           >
             <form onSubmit={handleCreateAdmin} className="grid gap-4 sm:grid-cols-2">
               <label className="block sm:col-span-2">
@@ -644,7 +698,7 @@ export default function SuperAdminDashboard() {
         <Panel
           id="organizations"
           title="Company Workspaces"
-          subtitle="Client organizations, administrators, subscription status, and guard capacity."
+          subtitle="Workspaces, admins, plans, and guard limits."
         >
           <div className="grid gap-4 xl:grid-cols-2">
             {organizations.length ? (

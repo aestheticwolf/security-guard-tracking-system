@@ -252,7 +252,7 @@ function TodaySelfieEvidence({ guard, evidence = [] }) {
             Today&apos;s check-in and check-out selfies
           </div>
           <p className="mt-2 text-sm text-slate-300">
-            Daily shift proof paired from saved attendance records.
+            Today's saved shift proof.
           </p>
         </div>
         <StatusBadge status={`${evidence.length} shift${evidence.length === 1 ? "" : "s"} today`} />
@@ -344,7 +344,7 @@ function PreviousSelfieHistory({ guardName, selfieHistory = [] }) {
             More selfie history
           </div>
           <p className="mt-2 text-sm text-slate-300">
-            Older saved captures are kept available for audit without stretching the live detail view.
+            Older captures for audit.
           </p>
         </div>
         <StatusBadge status={captureLabel} />
@@ -426,7 +426,7 @@ export default function GuardDetailPanel({ guard, compact = false }) {
   if (!guard) {
     return (
       <div className="flex h-full min-h-[28rem] items-center justify-center rounded-[26px] border border-dashed border-white/10 bg-white/5 px-8 text-center text-sm app-copy-soft">
-        Select a guard from the live map or roster to inspect their route, selfie verification, and shift events.
+        Select a guard to review route, selfies, and shift events.
       </div>
     );
   }
@@ -671,7 +671,7 @@ export default function GuardDetailPanel({ guard, compact = false }) {
                   <p className="mt-2 text-sm text-slate-300">
                     {compact
                       ? "Compares the latest live selfie with the enrolled reference."
-                      : "Reviews the live shift selfie against the enrolled identity reference and highlights whether supervisor action is needed."}
+                      : "Compares live selfie with enrolled identity."}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-right">

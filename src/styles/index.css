@@ -1543,6 +1543,7 @@ body.is-native-app {
 
   .native-app-shell .glass-panel {
     border-radius: 1.35rem;
+    padding: 1rem;
   }
 
   .native-app-shell main {
@@ -1556,6 +1557,59 @@ body.is-native-app {
 
   .native-app-shell video {
     max-height: 68vh;
+  }
+
+  .native-app-shell .mobile-collapse-toggle {
+    display: none !important;
+  }
+
+  .native-app-shell .mobile-collapse-header {
+    gap: 0.75rem;
+  }
+
+  .native-app-shell .mobile-collapse-title {
+    font-size: 1.05rem;
+    line-height: 1.25;
+  }
+
+  .native-app-shell .mobile-collapse-subtitle {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 0.78rem;
+    line-height: 1.35rem;
+  }
+
+  .native-app-shell .mobile-collapse-content {
+    display: block !important;
+    margin-top: 0.85rem !important;
+  }
+
+  .native-app-shell h1 {
+    font-size: clamp(1.55rem, 6vw, 2rem);
+    line-height: 1.05;
+  }
+
+  .native-app-shell h2 {
+    font-size: clamp(1.05rem, 4.2vw, 1.25rem);
+    line-height: 1.2;
+  }
+
+  .native-app-shell h3 {
+    font-size: clamp(1rem, 4vw, 1.18rem);
+    line-height: 1.25;
+  }
+
+  .native-app-shell p {
+    line-height: 1.45;
+  }
+
+  .native-app-shell .app-primary-button,
+  .native-app-shell .app-outline-button,
+  .native-app-shell .app-danger-button {
+    min-height: 2.75rem;
   }
 
   .native-app-shell[data-native-role="super_admin"] #platform-overview,
@@ -1581,7 +1635,6 @@ body.is-native-app {
   .native-app-shell[data-native-role="super_admin"][data-native-tab="add"] #new-organization,
   .native-app-shell[data-native-role="super_admin"][data-native-tab="admins"] #organization-admins,
   .native-app-shell[data-native-role="admin"][data-native-tab="home"] #admin-overview,
-  .native-app-shell[data-native-role="admin"][data-native-tab="home"] #admin-feed,
   .native-app-shell[data-native-role="admin"][data-native-tab="map"] #admin-map,
   .native-app-shell[data-native-role="admin"][data-native-tab="guards"] #admin-guard-detail,
   .native-app-shell[data-native-role="admin"][data-native-tab="guards"] #admin-roster,

@@ -28,6 +28,7 @@ import {
   now
 } from "../services/coreService.js";
 import { sanitizeUser } from "../services/auth.js";
+import { searchGeocodeLocations } from "../services/geocoding.js";
 import { deleteStoredSelfies, storeSelfieFile } from "../services/selfie.js";
 
 function requireOrganizationAdmin(request) {
@@ -118,6 +119,20 @@ export async function getOverview(request, response) {
 export async function getDutySites(request, response) {
   const organizationId = requireOrganizationAdmin(request);
   return response.json({ dutySites: await listDutySites(organizationId) });
+}
+
+export async function searchDutySiteLocations(request, response) {
+  requireOrganizationAdmin(request);
+
+  const query = cleanText(request.query?.q);
+
+  if (query.length < 3) {
+    throw createHttpError(400, "Search at least 3 characters.");
+  }
+
+  return response.json({
+    locations: await searchGeocodeLocations(query, { limit: 6 })
+  });
 }
 
 export async function createDutySite(request, response) {

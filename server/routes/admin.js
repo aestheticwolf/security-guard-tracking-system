@@ -7,6 +7,7 @@ import {
   getGuards,
   getLiveFeed,
   getOverview,
+  searchDutySiteLocations,
   updateDutyLabels,
   updateGuard,
   updateGuardStatus,
@@ -21,6 +22,7 @@ const router = Router();
 router.use(requireAuth, requireRole("admin"));
 
 router.get("/overview", asyncHandler(getOverview));
+router.get("/geocode/search", asyncHandler(searchDutySiteLocations));
 router.get("/duty-sites", asyncHandler(getDutySites));
 router.post("/duty-sites", asyncHandler(createDutySite));
 router.patch("/duty-sites/:id", asyncHandler(updateDutySite));

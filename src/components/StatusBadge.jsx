@@ -4,6 +4,7 @@ export default function StatusBadge({ status }) {
     "active",
     "verified",
     "on duty",
+    "selfie ready",
     "image verified",
     "identity matched",
     "likely registered guard"

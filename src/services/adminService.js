@@ -42,6 +42,13 @@ export async function createDutySite(payload) {
   return data;
 }
 
+export async function searchDutySiteLocations(query) {
+  const { data } = await apiClient.get("/admin/geocode/search", {
+    params: { q: query }
+  });
+  return data;
+}
+
 export async function updateDutySite(id, payload) {
   const { data } = await apiClient.patch(`/admin/duty-sites/${id}`, payload);
   return data;

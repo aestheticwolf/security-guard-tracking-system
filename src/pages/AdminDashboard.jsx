@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import GuardDetailPanel from "../components/admin/GuardDetailPanel";
+import DutySiteLocationPicker from "../components/admin/DutySiteLocationPicker";
 import GuardPositionMap from "../components/admin/GuardPositionMap";
 import FormField from "../components/FormField";
 import MobileCollapseSection from "../components/MobileCollapseSection";
@@ -45,6 +46,7 @@ import {
   getLocationDisplayLines,
   initials
 } from "../utils/format";
+import { navigateAppSection } from "../utils/appNavigation";
 import {
   buildCameraConstraints,
   cameraSelectionModes,
@@ -133,6 +135,8 @@ const adminSectionLinks = [
   { id: "admin-guard-detail", label: "Guards", icon: ShieldCheck },
   { id: "admin-create-guard", label: "Add & Sites", icon: UserPlus }
 ];
+
+const quickDutyZoneLabels = ["Gate", "Lobby", "Warehouse", "Perimeter"];
 
 function buildDutySiteOptions(dutySites) {
   return [
@@ -436,6 +440,68 @@ function GuardLookupPanel({
           No guard matches this search. Try name, employee code, duty site, or area.
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminActionHub({ selectedGuard, metrics }) {
+  const locationSummary = selectedGuard ? getGuardLocationSummary(selectedGuard) : null;
+
+  return (
+    <div className="mb-4 rounded-[24px] border border-white/10 bg-gradient-to-br from-jade-400/12 to-gold-400/10 p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          {selectedGuard ? (
+            <GuardAvatar guard={selectedGuard} className="h-16 w-16 rounded-[24px] text-sm" />
+          ) : (
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-white/10 bg-white/10">
+              <ShieldCheck className="h-6 w-6 app-copy-muted" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">Command focus</p>
+            <h3 className="mt-1 truncate font-display text-2xl font-semibold app-copy-primary">
+              {selectedGuard?.fullName || "Find a guard quickly"}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-sm app-copy-muted">
+              {selectedGuard
+                ? `${selectedGuard.dutySite?.name || selectedGuard.shiftLabel || "Unassigned duty"} • ${locationSummary?.freshness || "Awaiting sync"}`
+                : `${metrics?.totalGuards ?? 0} guards registered • ${metrics?.onDuty ?? 0} currently on duty`}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+          <button
+            type="button"
+            onClick={() => navigateAppSection("admin-guard-detail")}
+            className="app-primary-button rounded-2xl px-3 py-3 text-xs font-semibold"
+          >
+            Find Guards
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateAppSection("admin-map")}
+            className="app-outline-button rounded-2xl px-3 py-3 text-xs font-semibold"
+          >
+            Live Map
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateAppSection("admin-create-guard")}
+            className="app-outline-button rounded-2xl px-3 py-3 text-xs font-semibold"
+          >
+            Add Guard
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateAppSection("admin-duty-site-management")}
+            className="app-outline-button rounded-2xl px-3 py-3 text-xs font-semibold"
+          >
+            Sites
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -814,6 +880,7 @@ export default function AdminDashboard() {
   const [dutySiteEditForm, setDutySiteEditForm] = useState(emptyDutySiteForm);
   const [dutyLabelDraft, setDutyLabelDraft] = useState([]);
   const [dutyLabelInput, setDutyLabelInput] = useState("");
+  const [dutyLabelAutoSaving, setDutyLabelAutoSaving] = useState(false);
   const refreshInFlightRef = useRef(false);
   const pendingRefreshReasonRef = useRef("");
   const refreshOverviewRef = useRef(null);
@@ -1037,8 +1104,70 @@ export default function AdminDashboard() {
     setDutyLabelInput("");
   }
 
-  function handleRemoveDutyLabel(labelToRemove) {
-    setDutyLabelDraft((current) => current.filter((label) => label !== labelToRemove));
+  async function persistDutyLabels(labels, { successMessage = "", auto = false } = {}) {
+    const normalizedLabels = normalizeDutyZoneLabels(labels);
+
+    if (!normalizedLabels.length) {
+      const nextError = "At least one duty zone label is required.";
+      setError(nextError);
+      toast.error(nextError);
+      return null;
+    }
+
+    if (auto) {
+      setDutyLabelAutoSaving(true);
+    } else {
+      setBusy(true);
+    }
+    setError("");
+
+    try {
+      const response = await updateDutyZoneLabels({ labels: normalizedLabels });
+      const savedLabels = response.overview?.organization?.dutyLabels || normalizedLabels;
+      startTransition(() => setOverview(response.overview));
+      setDutyLabelDraft(savedLabels);
+
+      if (successMessage) {
+        setMessage(successMessage);
+        toast.success(successMessage);
+      }
+
+      return savedLabels;
+    } catch (submitError) {
+      const nextError = getDashboardErrorMessage(submitError);
+      setError(nextError);
+      toast.error(nextError);
+      return null;
+    } finally {
+      if (auto) {
+        setDutyLabelAutoSaving(false);
+      } else {
+        setBusy(false);
+      }
+    }
+  }
+
+  async function handleQuickDutyLabel(label) {
+    const nextLabel = String(label || "").trim().replace(/\s+/g, " ");
+
+    if (!nextLabel) {
+      return;
+    }
+
+    setDutyLabelInput(nextLabel);
+
+    const exists = dutyLabelDraft.some((entry) => entry.toLowerCase() === nextLabel.toLowerCase());
+
+    if (exists) {
+      return;
+    }
+
+    const nextLabels = normalizeDutyZoneLabels([...dutyLabelDraft, nextLabel]).slice(0, 30);
+    setDutyLabelDraft(nextLabels);
+    await persistDutyLabels(nextLabels, {
+      auto: true,
+      successMessage: `${nextLabel} added to guard shift zones.`
+    });
   }
 
   async function handleSaveDutyLabels() {
@@ -1051,22 +1180,9 @@ export default function AdminDashboard() {
       return;
     }
 
-    setBusy(true);
-    setError("");
-
-    try {
-      const response = await updateDutyZoneLabels({ labels });
-      startTransition(() => setOverview(response.overview));
-      setDutyLabelDraft(response.overview?.organization?.dutyLabels || labels);
-      setMessage("Duty zone labels updated for this organization.");
-      toast.success("Duty zone labels updated for this organization.");
-    } catch (submitError) {
-      const nextError = getDashboardErrorMessage(submitError);
-      setError(nextError);
-      toast.error(nextError);
-    } finally {
-      setBusy(false);
-    }
+    await persistDutyLabels(labels, {
+      successMessage: "Duty zone labels updated for this organization."
+    });
   }
 
   function openEditGuard(guard) {
@@ -1215,8 +1331,8 @@ export default function AdminDashboard() {
     : filteredGuards.slice(0, initialRosterVisibleCount);
   const adminShellTitle = nativeApp ? "Admin Field Console" : "Admin Mission Control";
   const adminShellSubtitle = nativeApp
-    ? "Focused Android view for guard details, live map, selfie verification, duty sites, and roster actions."
-    : "Monitor live guard operations, manage the roster, inspect attendance, and keep the field team coordinated from one premium dashboard.";
+    ? "Guards, map, selfies, and sites."
+    : "Live guards, sites, and attendance.";
 
   useEffect(() => {
     setDutyLabelDraft(dutyZoneLabels);
@@ -1284,8 +1400,9 @@ export default function AdminDashboard() {
         <MobileCollapseSection
           id="admin-overview"
           title="Operations Overview"
-          subtitle="Quick command numbers for guards, attendance, alerts, and tracked patrol movement."
+          subtitle="Key command numbers."
         >
+          <AdminActionHub selectedGuard={selectedGuard} metrics={overview?.metrics} />
           <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-6">
             <StatCard
               icon={Users}
@@ -1335,7 +1452,7 @@ export default function AdminDashboard() {
           <MobileCollapseSection
             id="admin-duty-sites"
             title="Duty Site Coverage"
-            subtitle="See how many guards are assigned to each duty site and how many are currently tracked there."
+            subtitle="Site coverage and tracked guards."
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {siteCoverage.length ? (
@@ -1415,7 +1532,7 @@ export default function AdminDashboard() {
           <Panel
             id="admin-map"
             title="Operations Live Map"
-            subtitle="Each marker reflects the latest saved guard location from selfie-linked attendance, automatic route pings, and field updates."
+            subtitle="Latest saved guard positions."
             collapsibleOnMobile
             defaultCollapsed={!nativeApp}
           >
@@ -1430,7 +1547,7 @@ export default function AdminDashboard() {
           <Panel
             id="admin-guard-detail"
             title="Guard Lookup"
-            subtitle="Search, select, and review each guard's profile, location, duty site, and latest verification in one focused view."
+            subtitle="Find guards and view details."
             collapsibleOnMobile
             defaultCollapsed={!nativeApp}
           >
@@ -1457,8 +1574,8 @@ export default function AdminDashboard() {
             title={nativeApp ? "Recent Activity" : "Live Operations Feed"}
             subtitle={
               nativeApp
-                ? "Latest attendance, selfie, and location notes for quick mobile review."
-                : "A unified stream of attendance, activity, and location updates from across the team."
+                ? "Latest field updates."
+                : "Attendance, activity, and location updates."
             }
             collapsibleOnMobile
           >
@@ -1508,7 +1625,7 @@ export default function AdminDashboard() {
           <Panel
             id="admin-duty-site-management"
             title="Duty Site Management"
-            subtitle="Create and maintain organization locations such as Panjim Office, Margao Office, warehouses, gates, or client posts."
+            subtitle="Sites, zones, and guard posts."
             className="self-start"
             collapsibleOnMobile
             defaultCollapsed={!nativeApp}
@@ -1522,30 +1639,43 @@ export default function AdminDashboard() {
                   <h3 className="mt-1 font-display text-xl font-semibold app-copy-primary">
                     Guard selectable duty zones
                   </h3>
-                  <p className="mt-1 text-sm leading-6 app-copy-muted">
-                    These organization-level labels appear in the guard shift form on web and Android.
+                  <p className="mt-1 text-sm leading-5 app-copy-muted">
+                    Used in guard shift forms.
                   </p>
                 </div>
-                <StatusBadge status={`${dutyLabelDraft.length || 0} labels`} />
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {dutyLabelDraft.map((label) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold app-copy-primary"
-                  >
-                    {label}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDutyLabel(label)}
-                      className="rounded-full p-1 app-copy-muted transition hover:bg-white/10"
-                      aria-label={`Remove ${label}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+              <div className="mt-4 rounded-[20px] border border-white/10 bg-white/5 p-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] app-copy-soft">
+                  Quick select
+                </p>
+                <p className="mt-1 text-xs app-copy-muted">
+                  Tap a preset to fill the field and save it.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {quickDutyZoneLabels.map((label) => {
+                    const isAdded = dutyLabelDraft.some(
+                      (entry) => entry.toLowerCase() === label.toLowerCase()
+                    );
+
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => handleQuickDutyLabel(label)}
+                        disabled={dutyLabelAutoSaving}
+                        className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-xs font-semibold transition ${
+                          isAdded
+                            ? "border-emerald-300 bg-emerald-100 text-emerald-950 shadow-sm"
+                            : "border-slate-300 bg-white text-slate-950 shadow-sm hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50"
+                        } disabled:cursor-not-allowed disabled:opacity-70`}
+                        aria-pressed={isAdded}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
@@ -1580,6 +1710,15 @@ export default function AdminDashboard() {
             </div>
 
             <form onSubmit={handleCreateDutySite} className="grid gap-4 sm:grid-cols-2">
+              <DutySiteLocationPicker
+                value={dutySiteForm}
+                onChange={(nextValue) =>
+                  setDutySiteForm((current) => ({
+                    ...current,
+                    ...nextValue
+                  }))
+                }
+              />
               <FormField
                 label="Duty site name"
                 value={dutySiteForm.name}
@@ -1598,24 +1737,39 @@ export default function AdminDashboard() {
                 onChange={(value) => setDutySiteForm((current) => ({ ...current, address: value }))}
                 placeholder="Main gate, lobby, perimeter, or client site"
               />
-              <FormField
-                label="Latitude"
-                type="number"
-                value={dutySiteForm.latitude}
-                onChange={(value) => setDutySiteForm((current) => ({ ...current, latitude: value }))}
-                placeholder="15.4909"
-              />
-              <FormField
-                label="Longitude"
-                type="number"
-                value={dutySiteForm.longitude}
-                onChange={(value) => setDutySiteForm((current) => ({ ...current, longitude: value }))}
-                placeholder="73.8278"
-              />
+              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:col-span-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">
+                      Manual coordinates
+                    </p>
+                    <p className="mt-1 text-sm app-copy-muted">
+                      Optional fallback if search or map selection is unavailable.
+                    </p>
+                  </div>
+                  <StatusBadge status="secondary" />
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    label="Latitude"
+                    type="number"
+                    value={dutySiteForm.latitude}
+                    onChange={(value) => setDutySiteForm((current) => ({ ...current, latitude: value }))}
+                    placeholder="15.4909"
+                  />
+                  <FormField
+                    label="Longitude"
+                    type="number"
+                    value={dutySiteForm.longitude}
+                    onChange={(value) => setDutySiteForm((current) => ({ ...current, longitude: value }))}
+                    placeholder="73.8278"
+                  />
+                </div>
+              </div>
               <button
                 type="submit"
                 disabled={busy}
-                className="app-primary-button rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:self-end"
+                className="app-primary-button rounded-2xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2"
               >
                 Create duty site
               </button>
@@ -1643,6 +1797,15 @@ export default function AdminDashboard() {
 
                     {dutySitePendingEdit?.id === site.id ? (
                       <form onSubmit={handleUpdateDutySite} className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <DutySiteLocationPicker
+                          value={dutySiteEditForm}
+                          onChange={(nextValue) =>
+                            setDutySiteEditForm((current) => ({
+                              ...current,
+                              ...nextValue
+                            }))
+                          }
+                        />
                         <FormField
                           label="Duty site name"
                           value={dutySiteEditForm.name}
@@ -1658,18 +1821,33 @@ export default function AdminDashboard() {
                           value={dutySiteEditForm.address}
                           onChange={(value) => setDutySiteEditForm((current) => ({ ...current, address: value }))}
                         />
-                        <FormField
-                          label="Latitude"
-                          type="number"
-                          value={dutySiteEditForm.latitude}
-                          onChange={(value) => setDutySiteEditForm((current) => ({ ...current, latitude: value }))}
-                        />
-                        <FormField
-                          label="Longitude"
-                          type="number"
-                          value={dutySiteEditForm.longitude}
-                          onChange={(value) => setDutySiteEditForm((current) => ({ ...current, longitude: value }))}
-                        />
+                        <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 sm:col-span-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">
+                                Manual coordinates
+                              </p>
+                              <p className="mt-1 text-sm app-copy-muted">
+                                Optional fallback if search or map selection is unavailable.
+                              </p>
+                            </div>
+                            <StatusBadge status="secondary" />
+                          </div>
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <FormField
+                              label="Latitude"
+                              type="number"
+                              value={dutySiteEditForm.latitude}
+                              onChange={(value) => setDutySiteEditForm((current) => ({ ...current, latitude: value }))}
+                            />
+                            <FormField
+                              label="Longitude"
+                              type="number"
+                              value={dutySiteEditForm.longitude}
+                              onChange={(value) => setDutySiteEditForm((current) => ({ ...current, longitude: value }))}
+                            />
+                          </div>
+                        </div>
                         <FormField
                           label="Status"
                           as="select"
@@ -1734,7 +1912,7 @@ export default function AdminDashboard() {
           <Panel
             id="admin-create-guard"
             title="Add Guard"
-            subtitle="Create a new field account with a shift assignment and a login password."
+            subtitle="Add guard access and assignment."
             className="self-start"
             collapsibleOnMobile
             defaultCollapsed={!nativeApp}
@@ -1850,7 +2028,7 @@ export default function AdminDashboard() {
         <Panel
           id="admin-roster"
           title="Guard Directory"
-          subtitle="Compact roster with profile photo, access state, duty assignment, and last known position."
+          subtitle="Roster, access, and location."
           className="mx-auto w-full xl:max-w-[72rem]"
           collapsibleOnMobile
           defaultCollapsed={!nativeApp}
@@ -2013,7 +2191,7 @@ export default function AdminDashboard() {
         {!nativeApp && (
           <Panel
             title="Today’s Attendance Snapshot"
-            subtitle="A quick operational list of who checked in, from where, and when they started."
+            subtitle="Today check-ins."
             collapsibleOnMobile
             defaultCollapsed
           >
