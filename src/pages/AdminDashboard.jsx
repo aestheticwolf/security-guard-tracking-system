@@ -46,7 +46,6 @@ import {
   getLocationDisplayLines,
   initials
 } from "../utils/format";
-import { navigateAppSection } from "../utils/appNavigation";
 import {
   buildCameraConstraints,
   cameraSelectionModes,
@@ -131,9 +130,10 @@ function getAttendanceDurationMinutes(entry) {
 
 const adminSectionLinks = [
   { id: "admin-overview", label: "Overview", icon: LayoutDashboard },
+  { id: "admin-duty-site-management", label: "Master", icon: Building2 },
   { id: "admin-map", label: "Live Map", icon: MapPinned },
   { id: "admin-guard-detail", label: "Guards", icon: ShieldCheck },
-  { id: "admin-create-guard", label: "Add & Sites", icon: UserPlus }
+  { id: "admin-create-guard", label: "Guard Setup", icon: UserPlus }
 ];
 
 const defaultQuickDutyZoneLabels = ["Gate", "Lobby", "Warehouse", "Perimeter", "Ring"];
@@ -448,68 +448,6 @@ function GuardLookupPanel({
           No guard matches this search. Try name, employee code, duty site, or area.
         </div>
       )}
-    </div>
-  );
-}
-
-function AdminActionHub({ selectedGuard, metrics }) {
-  const locationSummary = selectedGuard ? getGuardLocationSummary(selectedGuard) : null;
-
-  return (
-    <div className="mb-4 rounded-[24px] border border-white/10 bg-gradient-to-br from-jade-400/12 to-gold-400/10 p-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          {selectedGuard ? (
-            <GuardAvatar guard={selectedGuard} className="h-16 w-16 rounded-[24px] text-sm" />
-          ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-white/10 bg-white/10">
-              <ShieldCheck className="h-6 w-6 app-copy-muted" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.24em] app-copy-soft">Command focus</p>
-            <h3 className="mt-1 truncate font-display text-2xl font-semibold app-copy-primary">
-              {selectedGuard?.fullName || "Find a guard quickly"}
-            </h3>
-            <p className="mt-1 line-clamp-2 text-sm app-copy-muted">
-              {selectedGuard
-                ? `${selectedGuard.dutySite?.name || selectedGuard.shiftLabel || "Unassigned duty"} • ${locationSummary?.freshness || "Awaiting sync"}`
-                : `${metrics?.totalGuards ?? 0} guards registered • ${metrics?.onDuty ?? 0} currently on duty`}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
-          <button
-            type="button"
-            onClick={() => navigateAppSection("admin-guard-detail")}
-            className="app-primary-button rounded-2xl px-3 py-3 text-xs font-semibold"
-          >
-            Find Guards
-          </button>
-          <button
-            type="button"
-            onClick={() => navigateAppSection("admin-map")}
-            className="app-outline-button rounded-2xl px-3 py-3 text-xs font-semibold"
-          >
-            Live Map
-          </button>
-          <button
-            type="button"
-            onClick={() => navigateAppSection("admin-create-guard")}
-            className="app-outline-button rounded-2xl px-3 py-3 text-xs font-semibold"
-          >
-            Add Guard
-          </button>
-          <button
-            type="button"
-            onClick={() => navigateAppSection("admin-duty-site-management")}
-            className="app-outline-button rounded-2xl px-3 py-3 text-xs font-semibold"
-          >
-            Sites
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1572,7 +1510,6 @@ export default function AdminDashboard() {
           title="Operations Overview"
           subtitle="Key command numbers."
         >
-          <AdminActionHub selectedGuard={selectedGuard} metrics={overview?.metrics} />
           <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-6">
             <StatCard
               icon={Users}

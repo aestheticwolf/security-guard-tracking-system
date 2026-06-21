@@ -15,7 +15,6 @@ import {
   Settings,
   ShieldCheck,
   SunMedium,
-  UserPlus,
   Users
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -89,10 +88,10 @@ function getNativeTabs(role) {
   if (role === "admin") {
     return [
       { id: "home", label: "Home", icon: LayoutDashboard, to: "/admin", target: "admin-overview" },
+      { id: "master", label: "Master", icon: Building2, to: "/admin", target: "admin-duty-site-management" },
       { id: "map", label: "Map", icon: MapPinned, to: "/admin", target: "admin-map" },
       { id: "guards", label: "Guards", icon: ShieldCheck, to: "/admin", target: "admin-guard-detail" },
-      { id: "add", label: "Add", icon: UserPlus, to: "/admin", target: "admin-create-guard" },
-      { id: "account", label: "Account", icon: Users, account: true }
+      { id: "more", label: "More", icon: Settings, account: true }
     ];
   }
 
@@ -124,13 +123,13 @@ function getScreenForTarget(role, target) {
   if (role === "admin") {
     const adminScreens = {
       "admin-overview": "home",
-      "admin-duty-sites": "home",
+      "admin-duty-sites": "master",
       "admin-feed": "home",
       "admin-map": "map",
       "admin-guard-detail": "guards",
       "admin-roster": "guards",
-      "admin-create-guard": "add",
-      "admin-duty-site-management": "add"
+      "admin-create-guard": "guards",
+      "admin-duty-site-management": "master"
     };
 
     return adminScreens[target] || "";
@@ -677,11 +676,11 @@ export default function AppShell({
                       </button>
                       <button
                         type="button"
-                        onClick={() => jumpToNativeAction("admin-roster")}
+                        onClick={() => jumpToNativeAction("admin-create-guard")}
                         className="native-account-action"
                       >
                         <Users className="h-4 w-4" />
-                        Field Guard Directory
+                        Guard Setup
                       </button>
                       <button
                         type="button"
