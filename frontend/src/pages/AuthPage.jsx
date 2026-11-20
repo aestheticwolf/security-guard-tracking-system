@@ -1,275 +1,46 @@
-import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Activity,
   AlertCircle,
   ArrowRight,
-  Fingerprint,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
   LockKeyhole,
   ShieldCheck,
-  Sparkles,
-  Eye,
-  EyeOff
+  UserCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { heroReveal } from "../animations/transitions";
-import FormField from "../components/FormField";
 import { useAuth } from "../context/AuthContext";
-import { isNativeApp } from "../utils/nativeApp";
 
-// ── Floating particle component ───────────────────────────────────────────────
-function Particle({ delay, duration, x, y, size, opacity }) {
-  return (
-    <motion.div
-      className="auth-particle"
-      style={{ left: `${x}%`, top: `${y}%`, width: size, height: size, opacity }}
-      animate={{
-        y: [0, -40, -80, -40, 0],
-        x: [0, 12, -8, 16, 0],
-        opacity: [opacity, opacity * 1.6, opacity * 0.4, opacity * 1.2, opacity],
-        scale: [1, 1.3, 0.8, 1.1, 1],
-      }}
-      transition={{ duration, delay, repeat: Infinity, ease: "easeInOut" }}
-    />
-  );
-}
-
-// ── Animated radar ring ───────────────────────────────────────────────────────
-function RadarRings() {
-  return (
-    <div className="auth-radar" aria-hidden="true">
-      {[0, 1, 2, 3].map((i) => (
-        <motion.div
-          key={i}
-          className="auth-radar__ring"
-          animate={{ scale: [0.4, 1.8], opacity: [0.7, 0] }}
-          transition={{
-            duration: 3.2,
-            delay: i * 0.8,
-            repeat: Infinity,
-            ease: "easeOut",
-          }}
-        />
-      ))}
-      <div className="auth-radar__core" />
-    </div>
-  );
-}
-
-// ── Scanning line animation ───────────────────────────────────────────────────
-function ScanLine() {
-  return (
-    <motion.div
-      className="auth-scan-line"
-      aria-hidden="true"
-      animate={{ y: ["0%", "100%", "0%"] }}
-      transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-    />
-  );
-}
-
-// ── Live stats ticker ─────────────────────────────────────────────────────────
-function LiveTicker() {
-  const [index, setIndex] = useState(0);
-  const items = [
-    "Sentinel Grid online — all systems operational",
-    "3 guards on active duty — last sync 2 min ago",
-    "Secure access verified — command workspace ready",
-    "Live route telemetry prepared for active patrols",
-  ];
-  useEffect(() => {
-    const t = setInterval(() => setIndex((i) => (i + 1) % items.length), 3200);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="auth-ticker">
-      <span className="auth-ticker__dot" />
-      <AnimatePresence mode="wait">
-        <motion.span
-          key={index}
-          className="auth-ticker__text"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.35 }}
-        >
-          {items[index]}
-        </motion.span>
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ── Credential card ───────────────────────────────────────────────────────────
-function CredentialCard({ title, email, password, accent = "jade", compact = false }) {
-  const [copied, setCopied] = useState(false);
-  function handleCopy() {
-    navigator.clipboard?.writeText(`${email} / ${password}`).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  }
-  return (
-    <motion.div
-      whileHover={compact ? undefined : { y: -4, scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.2 }}
-      className={`auth-cred-card auth-cred-card--${accent} ${compact ? "auth-cred-card--compact" : ""}`}
-      onClick={handleCopy}
-      style={{ cursor: "pointer" }}
-      title="Click to copy credentials"
-    >
-      <div className="flex items-center justify-between">
-        <p className="font-semibold text-white text-sm">{title}</p>
-        <AnimatePresence mode="wait">
-          {copied ? (
-            <motion.span
-              key="copied"
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="auth-cred-copied"
-            >
-              Copied!
-            </motion.span>
-          ) : (
-            <motion.span
-              key="role"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className={`auth-role-badge auth-role-badge--${accent}`}
-            >
-              {title}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </div>
-      <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs font-mono text-slate-300`}>{email}</p>
-      <p className="mt-1 text-xs font-mono text-slate-400">{password}</p>
-    </motion.div>
-  );
-}
-
-// ── Route visual with animated nodes ─────────────────────────────────────────
-function AuthRouteVisual() {
-  const nodes = [
-    { label: "Access", x: "13%", y: "65%", delay: 0 },
-    { label: "Selfie", x: "41%", y: "45%", delay: 0.5 },
-    { label: "Route", x: "67%", y: "31%", delay: 1.0 },
-    { label: "Admin", x: "86%", y: "52%", delay: 1.5 },
-  ];
-  const routePath = "M72 112 C142 50 204 118 250 76 C306 30 365 30 406 47 C446 66 476 83 510 82";
-
-  return (
-    <div className="auth-route-visual mt-7 hidden rounded-[28px] border border-white/10 p-5 sm:block">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Live field flow</p>
-          <p className="mt-1.5 text-sm text-slate-300">Authenticate → verify presence → sync route → command visibility</p>
-        </div>
-        <motion.div
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-jade-300/20 bg-jade-300/10"
-          animate={{ boxShadow: ["0 0 0px rgba(56,200,155,0)", "0 0 20px rgba(56,200,155,0.28)", "0 0 0px rgba(56,200,155,0)"] }}
-          transition={{ duration: 2.4, repeat: Infinity }}
-        >
-          <Activity className="h-5 w-5 text-jade-200" />
-        </motion.div>
-      </div>
-
-      <div className="auth-route-canvas relative mt-5 h-36 overflow-hidden rounded-[22px] border border-white/10">
-        <div className="auth-route-grid" />
-        <ScanLine />
-        {/* path */}
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 560 160" fill="none" aria-hidden="true">
-          {/* ghost path */}
-          <path
-            d={routePath}
-            stroke="rgba(148,163,184,0.18)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          {/* animated glow path */}
-          <motion.path
-            d={routePath}
-            stroke="url(#rg1)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray="60 300"
-            animate={{ strokeDashoffset: [0, -360] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-          />
-          <motion.path
-            d={routePath}
-            stroke="url(#rg2)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray="30 330"
-            style={{ filter: "blur(3px)" }}
-            animate={{ strokeDashoffset: [0, -360] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "linear", delay: 0.15 }}
-          />
-          <defs>
-            <linearGradient id="rg1" x1="72" y1="112" x2="510" y2="82" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#f3bc52" />
-              <stop offset="0.5" stopColor="#8fd17e" />
-              <stop offset="1" stopColor="#38c89b" />
-            </linearGradient>
-            <linearGradient id="rg2" x1="72" y1="112" x2="510" y2="82" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#f3bc52" stopOpacity="0.6" />
-              <stop offset="1" stopColor="#38c89b" stopOpacity="0.6" />
-            </linearGradient>
-          </defs>
-        </svg>
-        {/* nodes */}
-        {nodes.map((node) => (
-          <div
-            key={node.label}
-            className="auth-route-node-anchor absolute"
-            style={{ left: node.x, top: node.y }}
-          >
-            <motion.div
-              className="auth-route-node flex items-center gap-2 rounded-full border border-white/12 px-3 py-1.5 text-xs font-semibold text-white shadow-glow backdrop-blur"
-              animate={{ y: [0, -5, 0], scale: [1, 1.05, 1] }}
-              transition={{ duration: 2.6, delay: node.delay, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <motion.span
-                className="h-2 w-2 rounded-full bg-jade-300"
-                style={{ boxShadow: "0 0 0 5px rgba(52,211,153,0.18)" }}
-                animate={{ boxShadow: ["0 0 0 4px rgba(52,211,153,0.18)", "0 0 0 8px rgba(52,211,153,0)", "0 0 0 4px rgba(52,211,153,0.18)"] }}
-                transition={{ duration: 1.8, delay: node.delay, repeat: Infinity }}
-              />
-              {node.label}
-            </motion.div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DemoCredentials({ className = "", spacingClass = "mt-8", compact = false }) {
-  return (
-    <motion.div
-      className={`auth-credentials-card ${
-        compact ? "auth-credentials-card--compact" : ""
-      } ${spacingClass} rounded-[22px] border border-white/10 bg-slate-950/45 p-4 sm:rounded-[26px] sm:p-5 ${className}`}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-    >
-      <div className="flex items-center gap-3">
-        <ShieldCheck className={`${compact ? "h-4 w-4" : "h-5 w-5"} text-jade-200`} />
-        <p className={`${compact ? "text-sm" : ""} font-semibold text-white`}>Demo credentials</p>
-        <span className="ml-auto hidden text-xs text-slate-500 sm:inline">Click any card to copy</span>
-      </div>
-      <div className={`${compact ? "mt-3 gap-2" : "mt-4 gap-3"} grid sm:grid-cols-3`}>
-        <CredentialCard title="Super Admin" email="super@sentinel.local" password="Super@123" accent="jade" compact={compact} />
-        <CredentialCard title="Admin" email="admin@sentinel.local" password="Admin@123" accent="gold" compact={compact} />
-        <CredentialCard title="Guard" email="guard@sentinel.local" password="Guard@123" accent="jade" compact={compact} />
-      </div>
-    </motion.div>
-  );
-}
+const DEMO_ACCOUNTS = [
+  {
+    roleKey: "guard",
+    title: "Guard",
+    email: "guard@sentinel.local",
+    password: "Guard@123",
+    badge: "GUARD",
+    badgeStyle: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  },
+  {
+    roleKey: "admin",
+    title: "Admin",
+    email: "admin@sentinel.local",
+    password: "Admin@123",
+    badge: "ADMIN",
+    badgeStyle: "bg-blue-50 text-blue-800 border-blue-200",
+  },
+  {
+    roleKey: "super_admin",
+    title: "Super Admin",
+    email: "super@sentinel.local",
+    password: "Super@123",
+    badge: "SUPER",
+    badgeStyle: "bg-slate-100 text-slate-800 border-slate-200",
+  },
+];
 
 function getDashboardPathForRole(role) {
   if (role === "super_admin") return "/super-admin";
@@ -277,47 +48,16 @@ function getDashboardPathForRole(role) {
   return "/dashboard";
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, user } = useAuth();
-  const nativeApp = isNativeApp();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  const [selectedDemo, setSelectedDemo] = useState(null);
   const [loginStage, setLoginStage] = useState("idle"); // idle | loading | success
-
-  // Mouse parallax for left card
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const springX = useSpring(mouseX, { stiffness: 60, damping: 20 });
-  const springY = useSpring(mouseY, { stiffness: 60, damping: 20 });
-  const cardRotateX = useTransform(springY, [-300, 300], [3, -3]);
-  const cardRotateY = useTransform(springX, [-300, 300], [-3, 3]);
-
-  function handleMouseMove(e) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    mouseX.set(e.clientX - rect.left - rect.width / 2);
-    mouseY.set(e.clientY - rect.top - rect.height / 2);
-  }
-  function handleMouseLeave() {
-    mouseX.set(0);
-    mouseY.set(0);
-  }
-
-  // Particles config
-  const particles = [
-    { x: 12, y: 18, size: 3, opacity: 0.28, duration: 7, delay: 0 },
-    { x: 28, y: 72, size: 2, opacity: 0.2, duration: 9, delay: 1.2 },
-    { x: 55, y: 35, size: 4, opacity: 0.18, duration: 8, delay: 0.6 },
-    { x: 76, y: 60, size: 2.5, opacity: 0.24, duration: 6.5, delay: 2 },
-    { x: 88, y: 24, size: 3, opacity: 0.22, duration: 10, delay: 0.4 },
-    { x: 42, y: 85, size: 2, opacity: 0.16, duration: 7.5, delay: 1.8 },
-    { x: 64, y: 12, size: 3.5, opacity: 0.2, duration: 8.5, delay: 0.9 },
-    { x: 8, y: 52, size: 2, opacity: 0.18, duration: 9.5, delay: 3 },
-  ];
 
   function getFriendlyAuthError(rawMessage) {
     const message = rawMessage?.trim();
@@ -325,7 +65,9 @@ export default function AuthPage() {
     if (/network error/i.test(message)) {
       return "Cannot reach the security backend. Check the API deployment and try again.";
     }
-    if (/bcrypt/i.test(message)) return "Authentication service was updated. Please restart the app server and sign in again.";
+    if (/bcrypt/i.test(message)) {
+      return "Authentication service was updated. Please restart the app server and sign in again.";
+    }
     return message;
   }
 
@@ -335,13 +77,29 @@ export default function AuthPage() {
     }
   }, [navigate, user]);
 
+  function handlePickDemo(account) {
+    setSelectedDemo(account.roleKey);
+    setForm({ email: account.email, password: account.password });
+    setError("");
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(`${account.email} / ${account.password}`).catch(() => {});
+      }
+    } catch {
+      // Ignore clipboard restrictions
+    }
+
+    toast.success(`${account.title} credentials loaded & copied!`, { duration: 1800 });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     const trimmedEmail = form.email.trim();
     const password = form.password;
 
     if (!trimmedEmail || !password.trim()) {
-      const msg = "Enter both your email address and password to continue.";
+      const msg = "Enter both email and password or pick a demo profile.";
       setError(msg);
       toast.error(msg);
       return;
@@ -357,7 +115,7 @@ export default function AuthPage() {
       setTimeout(() => {
         navigate(location.state?.from || getDashboardPathForRole(nextUser.role), { replace: true });
         toast.success("Secure session started.");
-      }, 600);
+      }, 500);
     } catch (submitError) {
       const nextError = getFriendlyAuthError(submitError?.message);
       setError(nextError);
@@ -370,308 +128,205 @@ export default function AuthPage() {
 
   function updateField(key, value) {
     if (error) setError("");
+    setSelectedDemo(null);
     setForm((c) => ({ ...c, [key]: value }));
   }
 
   return (
-    <div
-      className={`auth-scene mesh-background relative isolate min-h-screen overflow-hidden px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-6 lg:py-6 ${nativeApp ? "auth-scene--native" : ""}`}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Background orbs */}
-      <motion.div aria-hidden="true" className="auth-orb auth-orb--gold"
-        animate={{ x: [0, 28, -14, 0], y: [0, -24, 18, 0], scale: [1, 1.1, 0.94, 1] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div aria-hidden="true" className="auth-orb auth-orb--jade"
-        animate={{ x: [0, -22, 26, 0], y: [0, 28, -20, 0], scale: [1, 0.93, 1.12, 1] }}
-        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-      />
-      {/* Third accent orb */}
-      <motion.div aria-hidden="true" className="auth-orb auth-orb--violet"
-        animate={{ x: [0, 16, -20, 0], y: [0, -18, 12, 0], scale: [1, 1.06, 0.98, 1] }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-      />
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col justify-between overflow-x-hidden w-full antialiased selection:bg-[#182B45] selection:text-white">
+      {/* ── Top Header ──────────────────────────────────────────────────────── */}
+      <header className="w-full max-w-5xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex items-center justify-between">
+        <Link to="/" className="inline-flex items-center gap-2 group shrink-0">
+          <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center justify-center group-hover:border-slate-300 transition-colors">
+            <img src="/brand-shield.svg" alt="Sentinel Grid" className="h-4 w-4 sm:h-5 sm:w-5" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-sm sm:text-base text-slate-900 tracking-tight">
+              Sentinel Grid
+            </span>
+            <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">
+              Workspace
+            </span>
+          </div>
+        </Link>
+        <Link
+          to="/"
+          className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors shrink-0"
+        >
+          <span>← Back to home</span>
+        </Link>
+      </header>
 
-      <div aria-hidden="true" className="auth-grid-lines" />
-
-      {/* Floating particles */}
-      {particles.map((p, i) => <Particle key={i} {...p} />)}
-
-      {/* Main grid */}
-      <div
-        className={
-          nativeApp
-            ? "relative z-10 mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-xl flex-col gap-4 sm:gap-5"
-            : "relative z-10 mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1440px] gap-4 sm:gap-5 lg:min-h-[calc(100vh-3rem)] lg:grid-cols-[1.1fr_0.9fr]"
-        }
-      >
-
-        {/* ── LEFT: Story card ──────────────────────────────────────────── */}
-        {!nativeApp && (
-          <motion.section
-            {...heroReveal}
-            style={{ rotateX: cardRotateX, rotateY: cardRotateY, transformPerspective: 1200 }}
-            className="auth-card auth-story-card glass-panel order-2 flex flex-col justify-between rounded-[24px] border border-white/10 p-5 shadow-glow sm:rounded-[32px] sm:p-8 lg:order-1"
-          >
+      {/* ── Unified Single-Card Sign In Page ─────────────────────────────────── */}
+      <main className="w-full max-w-[460px] mx-auto px-3.5 sm:px-4 py-4 sm:py-8 flex-1 flex flex-col justify-center">
+        <div className="w-full bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 sm:p-7">
+          {/* Header Info */}
           <div>
-            {/* Logo */}
-            <Link to="/" className="inline-flex items-center gap-3 group">
-              <motion.div
-                className="auth-logo-glow flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-gradient-to-br from-gold-400/25 to-jade-400/20 sm:h-14 sm:w-14 sm:rounded-[20px]"
-                whileHover={{ scale: 1.08, rotate: 5 }}
-                animate={{ boxShadow: [
-                  "0 0 0 rgba(56,200,155,0)",
-                  "0 0 36px rgba(56,200,155,0.28)",
-                  "0 0 0 rgba(56,200,155,0)"
-                ] }}
-                transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <img src="/brand-shield.svg" alt="Sentinel Grid" className="h-7 w-7 sm:h-8 sm:w-8" />
-              </motion.div>
-              <div>
-                <p className="font-display text-xl font-semibold tracking-tight sm:text-2xl group-hover:text-jade-200 transition-colors duration-200">
-                  Sentinel Grid
-                </p>
-                <p className="text-xs text-slate-400 sm:text-sm">Premium security control</p>
-              </div>
-            </Link>
-
-            {/* Headline */}
-            <div className="mt-8 max-w-xl sm:mt-10">
-              <motion.div
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="inline-flex items-center gap-2 rounded-full border border-gold-300/22 bg-gold-300/10 px-3 py-1.5 text-xs uppercase tracking-[0.28em] text-gold-200"
-              >
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                </motion.div>
-                Protected access
-              </motion.div>
-
-              <motion.h1
-                className="mt-3 font-display text-[2.2rem] font-semibold leading-[1.06] sm:mt-4 sm:text-[2.8rem] lg:text-5xl"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.18 }}
-              >
-                Secure every shift{" "}
-                <span className="auth-gradient-text">from one smooth</span>{" "}
-                login experience.
-              </motion.h1>
-
-              <motion.p
-                className="mt-4 text-sm leading-7 text-slate-300 sm:mt-5 sm:text-base sm:leading-8"
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.26 }}
-              >
-                Guards clock in with selfie verification and live location updates, while admins manage rosters and monitor operations in realtime.
-              </motion.p>
-            </div>
-
-            {/* Live ticker */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="mt-5"
-            >
-              <LiveTicker />
-            </motion.div>
-
-            {/* Radar + route visual */}
-            <div className="mt-6 flex items-start gap-5">
-              <div className="hidden sm:block">
-                <RadarRings />
-              </div>
-              <div className="flex-1">
-                <AuthRouteVisual />
-              </div>
-            </div>
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#0F766E]">
+              Secure Access
+            </span>
+            <h1 className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+              Sign in to your account
+            </h1>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-500">
+              Select a demo profile below or enter credentials.
+            </p>
           </div>
 
-          {/* Demo credentials */}
-            <DemoCredentials />
-          </motion.section>
-        )}
+          {/* ── Integrated One-Click Demo Role Selector (No separate card!) ── */}
+          <div className="mt-3.5 sm:mt-4 p-2.5 sm:p-3 rounded-lg bg-slate-50/80 border border-slate-200/90">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-[#0F766E]" />
+                <span>Instant Demo Login</span>
+              </span>
+              <span className="text-[10px] text-slate-600">Tap to autofill & copy</span>
+            </div>
 
-        {/* ── RIGHT: Login card ─────────────────────────────────────────── */}
-        <motion.section
-          {...heroReveal}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className={`auth-card auth-login-card glass-panel order-1 flex items-start rounded-[24px] border border-white/10 p-5 pb-6 shadow-glow sm:rounded-[32px] sm:p-8 ${
-            nativeApp
-              ? "min-h-0"
-              : "sm:min-h-[calc(100vh-2.5rem)] lg:order-2 lg:min-h-0 lg:items-center"
-          }`}
-        >
-          <div className="auth-login-inner mx-auto mt-3 w-full max-w-md sm:mt-10 lg:mt-0">
+            {/* 3 Role Buttons side-by-side */}
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              {DEMO_ACCOUNTS.map((acc) => {
+                const isSelected = selectedDemo === acc.roleKey;
+                return (
+                  <button
+                    key={acc.roleKey}
+                    type="button"
+                    onClick={() => handlePickDemo(acc)}
+                    className={`py-1.5 sm:py-2 px-1 rounded-md transition-all border text-center flex flex-col items-center justify-center cursor-pointer ${
+                      isSelected
+                        ? "bg-[#182B45] text-white border-[#182B45] shadow-xs"
+                        : "bg-white hover:bg-slate-100/80 text-slate-800 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`text-[9px] font-bold uppercase tracking-wider px-1 rounded ${
+                        isSelected ? "bg-white/20 text-white" : acc.badgeStyle
+                      }`}
+                    >
+                      {acc.badge}
+                    </span>
+                    <span
+                      className={`mt-1 text-xs font-semibold leading-none truncate ${
+                        isSelected ? "text-white" : "text-slate-900"
+                      }`}
+                    >
+                      {acc.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* Header */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45 }}
-            >
-              <div className="inline-flex items-center gap-2 rounded-full border border-jade-300/22 bg-jade-300/10 px-3 py-1.5 text-xs uppercase tracking-[0.24em] text-jade-200">
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <Fingerprint className="h-3.5 w-3.5" />
-                </motion.div>
-                Welcome back
-              </div>
-              <h2 className="mt-3 font-display text-[1.9rem] font-semibold leading-[1.08] sm:text-[2.4rem]">
-                Sign in to your{" "}
-                <span className="auth-gradient-text">security workspace.</span>
-              </h2>
-              <p className="mt-3 max-w-sm text-sm leading-5 text-slate-300">
-                Credentials unlock your workspace.
-              </p>
-            </motion.div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="mt-7 space-y-4 sm:mt-8">
-
-              {/* Email */}
+            {/* Selected Demo Profile Details Helper */}
+            {selectedDemo && (
               <motion.div
-                initial={{ opacity: 0, x: 16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.38, delay: 0.2 }}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-600 font-mono"
               >
-                <FormField
-                  label="Email address"
-                  type="email"
-                  value={form.email}
-                  onChange={(value) => updateField("email", value)}
-                  placeholder="guard@sentinel.local"
-                />
+                <span className="truncate text-slate-700">
+                  {DEMO_ACCOUNTS.find((a) => a.roleKey === selectedDemo)?.email}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 shrink-0">
+                  <Check className="h-3 w-3" /> Copied
+                </span>
               </motion.div>
+            )}
+          </div>
 
-              {/* Password */}
-              <motion.div
-                initial={{ opacity: 0, x: 16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.38, delay: 0.28 }}
-                className="relative"
-              >
-                <FormField
-                  label="Password"
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="mt-3.5 sm:mt-4 space-y-3 sm:space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Email address
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => updateField("email", e.target.value)}
+                placeholder="name@sentinel.local"
+                autoComplete="email"
+                className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-[#182B45] focus:ring-1 focus:ring-[#182B45] transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
                   type={showPassword ? "text" : "password"}
                   value={form.password}
-                  onChange={(value) => updateField("password", value)}
+                  onChange={(e) => updateField("password", e.target.value)}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 pr-10 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-[#182B45] focus:ring-1 focus:ring-[#182B45] transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="auth-eye-toggle"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                   tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
-              </motion.div>
+              </div>
+            </div>
 
-              {/* Error */}
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    className="app-banner app-banner-error flex items-start gap-3"
-                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                    animate={{ opacity: 1, height: "auto", marginTop: 8 }}
-                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{error}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            {/* Error notice */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: "auto", marginTop: 6 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs overflow-hidden"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{error}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-              {/* Submit */}
-              <motion.button
-                type="submit"
-                disabled={submitting}
-                className="auth-primary-action relative inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold text-slate-950 shadow-accent disabled:cursor-not-allowed disabled:opacity-70 overflow-hidden"
-                whileHover={!submitting ? { scale: 1.015, y: -1 } : {}}
-                whileTap={!submitting ? { scale: 0.985 } : {}}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.38, delay: 0.34 }}
-              >
-                <AnimatePresence mode="wait">
-                  {loginStage === "success" ? (
-                    <motion.span
-                      key="success"
-                      className="flex items-center gap-2"
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <ShieldCheck className="h-4 w-4" />
-                      Session secured!
-                    </motion.span>
-                  ) : submitting ? (
-                    <motion.span
-                      key="loading"
-                      className="flex items-center gap-2"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <motion.div
-                        className="h-4 w-4 rounded-full border-2 border-slate-800/40 border-t-slate-900"
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                      />
-                      Securing session...
-                    </motion.span>
-                  ) : (
-                    <motion.span
-                      key="idle"
-                      className="flex items-center gap-2"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <LockKeyhole className="h-4 w-4" />
-                      Enter dashboard
-                      <motion.div
-                        animate={{ x: [0, 4, 0] }}
-                        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </motion.div>
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            </form>
-
-            {/* Security note */}
-            <motion.p
-              className="mt-5 text-center text-[0.7rem] text-slate-500"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary-dark w-full mt-1.5 bg-[#182B45] hover:bg-[#233B5D] text-white font-semibold py-2.5 px-4 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+              style={{ color: "#FFFFFF" }}
             >
-              <ShieldCheck className="inline h-3 w-3 mr-1 opacity-60" />
-              Encrypted workspace access for verified security operations.
-            </motion.p>
-          </div>
-        </motion.section>
+              {loginStage === "success" ? (
+                <>
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  <span>Session secured!</span>
+                </>
+              ) : submitting ? (
+                <>
+                  <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  <span>Securing session...</span>
+                </>
+              ) : (
+                <>
+                  <LockKeyhole className="h-4 w-4" />
+                  <span>Enter dashboard</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </form>
 
-        {nativeApp && (
-          <DemoCredentials compact className="glass-panel shadow-glow" spacingClass="mt-0" />
-        )}
-      </div>
+          <p className="mt-3.5 sm:mt-4 text-center text-[11px] sm:text-xs text-slate-500 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span>Encrypted workspace access for verified operations.</span>
+          </p>
+        </div>
+      </main>
+
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <footer className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 text-center text-[11px] sm:text-xs text-slate-400">
+        © 2026 Sentinel Grid. Enterprise Guard Tracking & Security Operations.
+      </footer>
     </div>
   );
 }
