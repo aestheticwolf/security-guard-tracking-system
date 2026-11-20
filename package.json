@@ -1,57 +1,20 @@
 {
-  "name": "security-guard-tracking-system",
+  "name": "sentinel-grid",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
-  "engines": {
-    "node": "22.x"
-  },
   "scripts": {
-    "client": "vite",
-    "server": "node --watch server/index.js",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "db:init": "node server/database/init.js",
-    "db:reset": "node server/database/init.js --reset",
-    "build": "vite build",
-    "android:add": "npx cap add android",
-    "android:sync": "npm run build && npx cap sync android",
-    "android:open": "npx cap open android",
-    "android:apk:debug": "npm run android:sync && cd android && .\\gradlew.bat assembleDebug",
-    "android:apk:release": "npm run android:sync && cd android && .\\gradlew.bat assembleRelease",
-    "android:aab:release": "npm run android:sync && cd android && .\\gradlew.bat bundleRelease",
-    "preview": "vite preview",
-    "start": "node server/index.js"
-  },
-  "dependencies": {
-    "@capacitor/android": "^8.3.4",
-    "@capacitor/core": "^8.3.4",
-    "axios": "^1.16.1",
-    "bcryptjs": "^2.4.3",
-    "cloudinary": "^2.10.0",
-    "cors": "^2.8.5",
-    "dotenv": "^17.4.2",
-    "express": "^4.21.2",
-    "framer-motion": "^12.12.1",
-    "jsonwebtoken": "^9.0.2",
-    "leaflet": "^1.9.4",
-    "lucide-react": "^0.511.0",
-    "mongodb": "^7.2.0",
-    "multer": "^2.0.2",
-    "olamaps-web-sdk": "^1.4.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.6.1",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^6.0.1"
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix backend",
+    "db:init": "npm run db:init --prefix backend",
+    "db:reset": "npm run db:reset --prefix backend",
+    "android:sync": "npm run android:sync --prefix frontend",
+    "android:apk:debug": "npm run android:apk:debug --prefix frontend",
+    "android:apk:release": "npm run android:apk:release --prefix frontend"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.3.4",
-    "@vitejs/plugin-react": "^4.5.1",
-    "autoprefixer": "^10.4.21",
-    "concurrently": "^9.2.0",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^3.4.17",
-    "vite": "^6.3.5"
+    "concurrently": "^9.2.0"
   }
 }

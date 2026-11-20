@@ -101,67 +101,74 @@ Mobile app:
 - Android SDK
 - JDK 21 for local APK builds
 
+## Project Structure
+
+Sentinel Grid is partitioned into separate, clean `frontend` and `backend` directories:
+
+```text
+security/
+│
+├── frontend/                     # React + Vite client application
+│   ├── src/                      # React source code (components, pages, context)
+│   ├── public/                   # Static public assets
+│   ├── android/                  # Capacitor Android platform & build
+│   ├── index.html                # Single-page application entry HTML
+│   ├── vite.config.js            # Vite configuration and backend proxy
+│   ├── tailwind.config.js        # Tailwind CSS styling config
+│   ├── postcss.config.js         # PostCSS plugins
+│   ├── capacitor.config.json     # Mobile app metadata & webDir config
+│   ├── package.json              # Frontend-only dependencies and scripts
+│   ├── .env                      # Local frontend environment (VITE_API_URL)
+│   └── .env.example              # Frontend environment template
+│
+├── backend/                      # Express API backend
+│   ├── server/                   # Server codebase (controllers, models, routes)
+│   │   ├── controllers/          # API route controllers
+│   │   ├── database/             # SQLite / Mongo connections & initialization
+│   │   ├── middleware/           # Auth, error handling, async wrappers
+│   │   ├── models/               # Data access models
+│   │   ├── routes/               # Express router endpoints
+│   │   ├── services/             # Dashboard, geocoding, face-matching services
+│   │   └── uploads/              # Local uploaded selfie images
+│   ├── package.json              # Backend-only dependencies and scripts
+│   ├── .env                      # Backend environment variables
+│   └── .env.example              # Backend environment template
+│
+├── package.json                  # Root orchestration package
+├── .gitignore                    # Root ignore rules for frontend and backend
+└── README.md                     # Documentation
+```
+
 ## Local Setup
 
-Install dependencies:
+### 1. Install Dependencies
+
+Install dependencies for frontend and backend (or run at root):
 
 ```bash
+# In frontend
+cd frontend
+npm install
+
+# In backend
+cd ../backend
 npm install
 ```
 
-Create `.env`:
+### 2. Configure Environment Files
 
-```powershell
-copy .env.example .env
+Frontend (`frontend/.env`):
+```env
+VITE_API_URL=http://localhost:5000/api
 ```
 
-Initialize the database:
-
-```bash
-npm run db:init
-```
-
-Start frontend and backend:
-
-```bash
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:5173
-```
-
-Local API:
-
-```text
-http://localhost:5000/api
-```
-
-Health check:
-
-```text
-http://localhost:5000/api/health
-```
-
-Expected response:
-
-```json
-{"status":"ok","service":"Sentinel Grid API"}
-```
-
-## Local Environment
-
-Typical local `.env`:
-
+Backend (`backend/.env`):
 ```env
 PORT=5000
 JWT_SECRET=change-this-to-a-long-secure-secret
 DB_FILE=./server/database/security.db
-VITE_API_URL=http://localhost:5000/api
+UPLOAD_DIR=./server/uploads/selfies
 GEOCODER_USER_AGENT=SentinelGrid/1.0
-
 COMPREFACE_BASE_URL=http://localhost:8000
 COMPREFACE_API_KEY=your-local-verification-service-key
 COMPREFACE_VERIFY_THRESHOLD=0.78
@@ -171,7 +178,46 @@ COMPREFACE_INLINE_TIMEOUT_MS=2500
 COMPREFACE_DET_PROB_THRESHOLD=0.8
 ```
 
-Do not commit `.env`.
+### 3. Initialize the Database
+
+```bash
+cd backend
+npm run db:init
+```
+
+### 4. Start Development Servers
+
+Run frontend and backend independently:
+
+**Backend:**
+```bash
+cd backend
+npm run dev
+```
+Runs at: `http://localhost:5000`
+
+**Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+Runs at: `http://localhost:5173`
+
+Or run both concurrently from the root directory:
+```bash
+npm run dev
+```
+
+### 5. Access Endpoints
+
+- Frontend UI: `http://localhost:5173`
+- Backend API: `http://localhost:5000/api`
+- Health check: `http://localhost:5000/api/health`
+
+Expected health check response:
+```json
+{"status":"ok","service":"Sentinel Grid API"}
+```
 
 ## Production Environment Split
 
@@ -293,83 +339,75 @@ CompreFace verification failed
 
 ## Useful Commands
 
-Run frontend and backend:
+### Root Orchestration
+
+From the root directory:
 
 ```bash
+# Run both frontend and backend concurrently
 npm run dev
-```
 
-Backend only:
+# Run frontend only
+npm run dev:frontend
 
-```bash
-npm run server
-```
+# Run backend only
+npm run dev:backend
 
-Frontend only:
-
-```bash
-npm run client
-```
-
-Production build:
-
-```bash
+# Production build frontend
 npm run build
-```
 
-Sync the Android project after frontend changes:
+# Start backend in production mode
+npm run start
 
-```bash
+# Initialize or reset database
+npm run db:init
+npm run db:reset
+
+# Android sync & build
 npm run android:sync
-```
-
-Build a local release APK for internal testing:
-
-```powershell
-$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm run android:apk:debug
 npm run android:apk:release
 ```
 
-Release APK output:
+### Frontend Commands (`cd frontend`)
 
-```text
-android/app/build/outputs/apk/release/app-release.apk
-```
+```bash
+# Start Vite development server (http://localhost:5173)
+npm run dev
 
-Build a local debug APK:
+# Build for production (outputs to frontend/dist)
+npm run build
 
-```powershell
-$env:JAVA_HOME="C:\Program Files\Java\jdk-21"
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
+# Preview production build
+npm run preview
+
+# Sync web assets to Capacitor Android
+npm run android:sync
+
+# Build local debug APK
 npm run android:apk:debug
+
+# Build local release APK
+npm run android:apk:release
 ```
 
-Debug APK output:
-
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-Start backend without watch mode:
+### Backend Commands (`cd backend`)
 
 ```bash
-npm start
-```
+# Start backend in watch mode (http://localhost:5000)
+npm run dev
 
-Initialize database:
+# Start backend without watch mode
+npm run start
 
-```bash
+# Initialize SQLite schema
 npm run db:init
-```
 
-Reset database:
-
-```bash
+# Reset SQLite schema and re-seed
 npm run db:reset
 ```
 
-Run ngrok for local CompreFace:
+### Local CompreFace Tunnel
 
 ```bash
 ngrok http 8000
