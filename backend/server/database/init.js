@@ -528,38 +528,87 @@ async function ensurePlatformRecords(database) {
     ["site-infipre-warehouse", "patrol@sentinel.local"]
   );
 
-  const existingSuperAdmin = await database.get("SELECT id FROM users WHERE email = ?", [
-    superAdminEmail
-  ]);
+  const demoAccounts = [
+    {
+      email: superAdminEmail,
+      role: "super_admin",
+      fullName: "Infipre Super Admin",
+      employeeCode: "SUP-001",
+      shiftLabel: "Platform Owner",
+      organizationId: null,
+      dutySiteId: null,
+      password: "Super@123"
+    },
+    {
+      email: "admin@sentinel.local",
+      role: "admin",
+      fullName: "Ava Sterling",
+      employeeCode: "ADM-001",
+      shiftLabel: "Command Center",
+      organizationId: defaultOrganizationId,
+      dutySiteId: null,
+      password: "Admin@123"
+    },
+    {
+      email: "guard@sentinel.local",
+      role: "guard",
+      fullName: "Marcus Vance",
+      employeeCode: "GRD-104",
+      shiftLabel: "North Gate Post",
+      organizationId: defaultOrganizationId,
+      dutySiteId: "site-infipre-north",
+      password: "Guard@123"
+    },
+    {
+      email: "patrol@sentinel.local",
+      role: "guard",
+      fullName: "Nadia Brooks",
+      employeeCode: "GRD-201",
+      shiftLabel: "Warehouse Ring",
+      organizationId: defaultOrganizationId,
+      dutySiteId: "site-infipre-warehouse",
+      password: "Patrol@123"
+    }
+  ];
 
-  if (existingSuperAdmin) {
-    return;
+  for (const acc of demoAccounts) {
+    const existing = await database.get("SELECT id, password_hash, status FROM users WHERE email = ?", [acc.email]);
+    if (!existing) {
+      await database.run(
+        `INSERT INTO users (
+          id, full_name, email, password_hash, role, organization_id, duty_site_id, phone, employee_code, shift_label,
+          status, avatar_url, session_version, last_login_at, last_seen_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          createId(),
+          acc.fullName,
+          acc.email,
+          await bcrypt.hash(acc.password, 10),
+          acc.role,
+          acc.organizationId,
+          acc.dutySiteId,
+          "",
+          acc.employeeCode,
+          acc.shiftLabel,
+          "active",
+          null,
+          1,
+          null,
+          null,
+          timestamp
+        ]
+      );
+    } else {
+      const passwordMatches = await bcrypt.compare(acc.password, existing.password_hash);
+      if (!passwordMatches || existing.status !== "active") {
+        const passwordHash = passwordMatches ? existing.password_hash : await bcrypt.hash(acc.password, 10);
+        await database.run(
+          "UPDATE users SET password_hash = ?, status = 'active' WHERE id = ?",
+          [passwordHash, existing.id]
+        );
+      }
+    }
   }
-
-  await database.run(
-    `INSERT INTO users (
-      id, full_name, email, password_hash, role, organization_id, duty_site_id, phone, employee_code, shift_label,
-      status, avatar_url, session_version, last_login_at, last_seen_at, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      createId(),
-      "Infipre Super Admin",
-      superAdminEmail,
-      await bcrypt.hash("Super@123", 10),
-      "super_admin",
-      null,
-      null,
-      "",
-      "SUP-001",
-      "Platform Owner",
-      "active",
-      null,
-      1,
-      null,
-      null,
-      timestamp
-    ]
-  );
 }
 
 async function dropSchema(database) {

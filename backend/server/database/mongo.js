@@ -408,32 +408,81 @@ async function ensureMongoPlatformRecords(database) {
     { $set: { dutySiteId: "site-infipre-warehouse" } }
   );
 
-  const existingSuperAdmin = await database.collection("users").findOne({
-    email: superAdminEmail
-  });
+  const demoAccounts = [
+    {
+      email: superAdminEmail,
+      role: "super_admin",
+      fullName: "Infipre Super Admin",
+      employeeCode: "SUP-001",
+      shiftLabel: "Platform Owner",
+      organizationId: null,
+      dutySiteId: null,
+      password: "Super@123"
+    },
+    {
+      email: "admin@sentinel.local",
+      role: "admin",
+      fullName: "Ava Sterling",
+      employeeCode: "ADM-001",
+      shiftLabel: "Command Center",
+      organizationId: defaultOrganizationId,
+      dutySiteId: null,
+      password: "Admin@123"
+    },
+    {
+      email: "guard@sentinel.local",
+      role: "guard",
+      fullName: "Marcus Vance",
+      employeeCode: "GRD-104",
+      shiftLabel: "North Gate Post",
+      organizationId: defaultOrganizationId,
+      dutySiteId: "site-infipre-north",
+      password: "Guard@123"
+    },
+    {
+      email: "patrol@sentinel.local",
+      role: "guard",
+      fullName: "Nadia Brooks",
+      employeeCode: "GRD-201",
+      shiftLabel: "Warehouse Ring",
+      organizationId: defaultOrganizationId,
+      dutySiteId: "site-infipre-warehouse",
+      password: "Patrol@123"
+    }
+  ];
 
-  if (existingSuperAdmin) {
-    return;
+  for (const acc of demoAccounts) {
+    const existing = await database.collection("users").findOne({ email: acc.email });
+    if (!existing) {
+      await database.collection("users").insertOne({
+        id: createId(),
+        fullName: acc.fullName,
+        email: acc.email,
+        passwordHash: await bcrypt.hash(acc.password, 10),
+        role: acc.role,
+        organizationId: acc.organizationId,
+        dutySiteId: acc.dutySiteId,
+        phone: "",
+        employeeCode: acc.employeeCode,
+        shiftLabel: acc.shiftLabel,
+        status: "active",
+        avatarUrl: null,
+        sessionVersion: 1,
+        lastLoginAt: null,
+        lastSeenAt: null,
+        createdAt: timestamp
+      });
+    } else {
+      const passwordMatches = await bcrypt.compare(acc.password, existing.passwordHash);
+      if (!passwordMatches || existing.status !== "active") {
+        const passwordHash = passwordMatches ? existing.passwordHash : await bcrypt.hash(acc.password, 10);
+        await database.collection("users").updateOne(
+          { _id: existing._id },
+          { $set: { passwordHash, status: "active" } }
+        );
+      }
+    }
   }
-
-  await database.collection("users").insertOne({
-    id: createId(),
-    fullName: "Infipre Super Admin",
-    email: superAdminEmail,
-    passwordHash: await bcrypt.hash("Super@123", 10),
-    role: "super_admin",
-    organizationId: null,
-    dutySiteId: null,
-    phone: "",
-    employeeCode: "SUP-001",
-    shiftLabel: "Platform Owner",
-    status: "active",
-    avatarUrl: null,
-    sessionVersion: 1,
-    lastLoginAt: null,
-    lastSeenAt: null,
-    createdAt: timestamp
-  });
 }
 
 export async function initializeMongoDatabase({ reset = false } = {}) {
